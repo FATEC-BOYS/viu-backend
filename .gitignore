@@ -1,0 +1,191 @@
+# 📦 Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# 🏗️ Build outputs
+dist/
+build/
+*.tsbuildinfo
+.tsbuildinfo
+
+# 🔐 Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*.local
+
+# 📊 Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# 🧪 Testing
+coverage/
+.nyc_output/
+*.lcov
+.coverage/
+junit.xml
+
+# 💾 Cache directories
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+.npm/
+.yarn/
+.pnpm/
+
+# 🔧 Development tools
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# 🗂️ OS generated files
+Thumbs.db
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# 🔄 Temporary files
+*.tmp
+*.temp
+.tmp/
+.temp/
+tmp/
+temp/
+
+# 📁 Upload directories
+uploads/
+public/uploads/
+static/uploads/
+
+# 🗄️ Database
+*.sqlite
+*.sqlite3
+*.db
+*.db3
+database.db
+prisma/migrations/
+.env.database
+
+# 🚀 Deployment
+.vercel/
+.netlify/
+.serverless/
+.aws/
+
+# 📈 Analytics & Monitoring
+.next/
+.nuxt/
+
+# 🧹 Misc
+*.tgz
+*.tar.gz
+.sass-cache/
+connect.lock
+typings/
+.grunt
+bower_components
+.lock-wscript
+build/Release
+.nyc_output
+lib-cov
+coverage
+.grunt
+.lock-wscript
+build/Release
+node_modules
+jspm_packages
+typings
+.npm
+.eslintcache
+.node_repl_history
+*.tgz
+.yarn-integrity
+.env
+.cache
+.parcel-cache
+.next
+out
+.nuxt
+dist
+.cache
+.vuepress/dist
+.serverless
+.fusebox/
+.dynamodb/
+.tern-port
+
+# 🎯 Fastify specific
+fastify-cli.log
+
+# 📱 Mobile (se houver)
+*.ipa
+*.apk
+
+# 🔒 Security
+.secrets
+secrets.json
+private.key
+*.pem
+*.key
+*.crt
+*.p12
+
+# 🧪 Jest
+jest.config.js
+coverage/
+
+# 📊 Prisma
+prisma/dev.db
+prisma/dev.db-journal
+
+# 🔧 TypeScript
+*.tsbuildinfo
+
+# 🎨 Storybook
+.out
+.storybook-out
+storybook-static
+
+# 📦 Webpack
+.webpack/
+
+# 🔄 PM2
+ecosystem.config.js
+.pm2/
+
+# 🐳 Docker
+.dockerignore
+Dockerfile.dev
+docker-compose.override.yml
+
+
+
