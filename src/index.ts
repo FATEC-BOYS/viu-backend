@@ -1,149 +1,58 @@
+// src/index.ts
 /**
- * 🚀 VIU Backend - Servidor Principal
- * 
- * API Node.js com Fastify + TypeScript para a plataforma VIU
+ * Ponto de entrada da aplicação Fastify
+ *
+ * Este arquivo instância o servidor Fastify, registra as rotas de projetos
+ * e inicia a escuta em uma porta configurada. Manter a criação do servidor
+ * separada permite maior flexibilidade para testes automatizados.
  */
 
-import Fastify from 'fastify'
-import cors from '@fastify/cors'
-import helmet from '@fastify/helmet'
-import rateLimit from '@fastify/rate-limit'
+import fastify from 'fastify'
+import { projetosRoutes } from './routes/projetos.js'
+import { usuariosRoutes } from './routes/usuarios.js'
+import { artesRoutes } from './routes/artes.js'
+import { feedbacksRoutes } from './routes/feedbacks.js'
+import { aprovacoesRoutes } from './routes/aprovacoes.js'
+import { tarefasRoutes } from './routes/tarefas.js'
+import { notificacoesRoutes } from './routes/notificacoes.js'
+import { sessoesRoutes } from './routes/sessoes.js'
 
-// Configurações
-const PORT = Number(process.env.PORT) || 3001
-const HOST = process.env.HOST || '0.0.0.0'
-const NODE_ENV = process.env.NODE_ENV || 'development'
-
-// Criar instância do Fastify
-const fastify = Fastify({
-  logger: NODE_ENV === 'development' ? {
-    level: 'info',
-    transport: {
-      target: 'pino-pretty'
-    }
-  } : {
-    level: 'info'
-  }
-})
-
-/**
- * 🔧 Configuração de Middlewares
- */
-async function setupMiddlewares() {
-  // CORS - Permitir requisições do frontend/mobile
-  await fastify.register(cors, {
-    origin: true, // Permitir qualquer origem em desenvolvimento
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
-  })
-
-  // Helmet - Segurança básica
-  await fastify.register(helmet, {
-    contentSecurityPolicy: false // Desabilitar para desenvolvimento
-  })
-
-  // Rate Limiting - Proteção contra spam
-  await fastify.register(rateLimit, {
-    max: 100, // 100 requests
-    timeWindow: '1 minute' // por minuto
-  })
+export async function buildServer() {
+  const app = fastify({ logger: true })
+  // Registrar rotas de projetos
+  await app.register(projetosRoutes)
+  // Registrar rotas de usuários
+  await app.register(usuariosRoutes)
+  // Registrar rotas de artes
+  await app.register(artesRoutes)
+  // Registrar rotas de feedbacks
+  await app.register(feedbacksRoutes)
+  // Registrar rotas de aprovações
+  await app.register(aprovacoesRoutes)
+  // Registrar rotas de tarefas
+  await app.register(tarefasRoutes)
+  // Registrar rotas de notificações
+  await app.register(notificacoesRoutes)
+  // Registrar rotas de sessões
+  await app.register(sessoesRoutes)
+  return app
 }
 
-/**
- * 🛣️ Configuração de Rotas
- */
-async function setupRoutes() {
-  // Rota de health check
-  fastify.get('/health', async (request, reply) => {
-    return {
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      environment: NODE_ENV,
-      version: '1.0.0'
-    }
-  })
-
-  // Rota de informações da API
-  fastify.get('/', async (request, reply) => {
-    return {
-      name: 'VIU Backend API',
-      version: '1.0.0',
-      description: 'API da plataforma VIU para designers e clientes',
-      environment: NODE_ENV,
-      docs: '/docs',
-      health: '/health',
-      tests: {
-        currency: '/test/currency',
-        phone: '/test/phone',
-        date: '/test/date',
-        cpf: '/test/cpf',
-        email: '/test/email',
-        cnpj: '/test/cnpj',
-        enums: '/test/enums',
-        fileSize: '/test/file-size',
-        all: '/test/all',
-        validateUser: 'POST /test/validate-user',
-        validateLogin: 'POST /test/validate-login'
-      }
-    }
-  })
-
-  // 🧪 Registrar rotas de teste do viu-shared
-  const { testRoutes } = await import('./routes/test.js')
-  await fastify.register(testRoutes)
-}
-
-/**
- * 🚀 Inicialização do Servidor
- */
-async function start() {
-  try {
-    // Configurar middlewares
-    await setupMiddlewares()
-    
-    // Configurar rotas
-    await setupRoutes()
-    
-    // Iniciar servidor
-    await fastify.listen({ 
-      port: PORT, 
-      host: HOST 
+// Apenas inicia o servidor se este módulo for executado diretamente
+if (require.main === module) {
+  buildServer()
+    .then((app) => {
+      const port = process.env.PORT ? Number(process.env.PORT) : 3000
+      app.listen({ port }, (err, address) => {
+        if (err) {
+          app.log.error(err)
+          process.exit(1)
+        }
+        app.log.info(`Servidor iniciado em ${address}`)
+      })
     })
-    
-    console.log(`
-🚀 VIU Backend iniciado com sucesso!
-
-📍 Servidor: http://${HOST}:${PORT}
-🌍 Ambiente: ${NODE_ENV}
-📊 Health: http://${HOST}:${PORT}/health
-🧪 Teste: http://${HOST}:${PORT}/test
-
-✨ Pronto para integrar com viu-shared!
-    `)
-    
-  } catch (error) {
-    fastify.log.error(error)
-    console.error('❌ Erro ao iniciar servidor:', error)
-    process.exit(1)
-  }
+    .catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error(err)
+    })
 }
-
-/**
- * 🛑 Graceful Shutdown
- */
-process.on('SIGINT', async () => {
-  console.log('\n🛑 Recebido SIGINT, encerrando servidor...')
-  try {
-    await fastify.close()
-    console.log('✅ Servidor encerrado com sucesso')
-    process.exit(0)
-  } catch (error) {
-    console.error('❌ Erro ao encerrar servidor:', error)
-    process.exit(1)
-  }
-})
-
-// Iniciar aplicação
-start()
-

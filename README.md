@@ -1,392 +1,345 @@
-# 🚀 Projeto VIU - Guia de Commits e Colaboração
+# 🚀 VIU Backend
+
+Backend da plataforma VIU – uma API REST construída com Fastify, TypeScript, Prisma e integração com viu‑shared para validação e formatação de dados. A aplicação fornece uma camada robusta para gerenciar designers, clientes, projetos e todas as entidades relacionadas, com autenticação baseada em sessões e middlewares pensados em segurança.
 
 ## 📋 Índice
-- [Convenção de Commits](#-convenção-de-commits)
-- [Estrutura das Mensagens](#-estrutura-das-mensagens)
-- [Tipos de Commit](#-tipos-de-commit)
-- [Exemplos Práticos](#-exemplos-práticos)
-- [Workflow do Git](#-workflow-do-git)
-- [Branches](#-estratégia-de-branches)
-- [Pull Requests](#-pull-requests)
-- [Comandos Úteis](#-comandos-úteis)
-- [Ferramentas Recomendadas](#-ferramentas-recomendadas)
+
+- [🎯 Sobre](#-sobre)
+- [⚡ Quick Start](#-quick-start)
+- [🗄️ Banco de Dados](#️-banco-de-dados)
+- [🛣️ APIs Disponíveis](#️-apis-disponíveis)
+- [🧪 Testes](#-testes)
+- [🔧 Desenvolvimento](#-desenvolvimento)
+- [📊 Monitoramento](#-monitoramento)
+
+## 🎯 Sobre
+
+O VIU Backend é uma API completa para a plataforma VIU, oferecendo:
+
+- ✅ Autenticação via sessões (tokens) com middleware de verificação
+- ✅ CRUD completo de usuários, projetos, artes, feedbacks, aprovações, tarefas, notificações e sessões
+- ✅ Validação automática com viu‑shared + Zod
+- ✅ Formatação brasileira (moeda, telefone, CPF, datas)
+- ✅ Banco de dados otimizado com Prisma
+- ✅ Rate limiting e segurança com CORS e Helmet
+- ✅ Hot reload para desenvolvimento
+
+## ⚡ Quick Start
+
+### 1. Instalar dependências
+```bash
+npm install
+```
+
+### 2. Configurar banco de dados
+```bash
+# Gerar cliente Prisma
+npm run db:generate
+
+# Criar banco e tabelas
+npm run db:push
+
+# Popular com dados de teste
+npm run db:seed
+```
+
+### 3. Rodar servidor
+```bash
+npm run dev
+```
+
+### 4. Testar
+```bash
+# Abrir no navegador
+http://localhost:3001/
+
+# Teste completo do viu-shared
+http://localhost:3001/test/all
+```
+
+## 🗄️ Banco de Dados
+
+### 📊 Schema (8 tabelas)
+
+| Tabela | Descrição |
+|--------|-----------|
+| `usuarios` | Designers, clientes e administradores |
+| `projetos` | Projetos com designer e cliente |
+| `artes` | Upload e versionamento de arquivos |
+| `feedbacks` | Comentários (texto/áudio/posicional) |
+| `aprovacoes` | Processo de aprovação de artes |
+| `tarefas` | Tarefas vinculadas a projetos |
+| `notificacoes` | Sistema de notificações por usuário |
+| `sessoes` | Controle de autenticação |
+
+### 🌱 Dados de Teste
+
+```bash
+# Logins disponíveis:
+Designer: designer@viu.com | 123456
+Cliente:  cliente1@empresa.com | 123456
+Admin:    admin@viu.com | 123456
+```
+
+### 📊 Visualizar dados
+```bash
+npm run db:studio
+# Abre: http://localhost:5555
+```
+
+## 🛣️ APIs Disponíveis
+
+> **Nota:** Todos os endpoints, exceto os de `/test/*` e `/auth/login`, exigem autenticação via Bearer Token obtido no login.
+
+### 🧪 Testes (viu‑shared)
+- `GET /test/all` - Teste completo das funcionalidades de formatação/validação
+- `GET /test/currency` - Formatação de moeda
+- `GET /test/phone` - Formatação de telefone
+- `GET /test/cpf` - Validação de CPF
+- `POST /test/validate-user` - Validação de usuário via schema
+
+### 👤 Usuários
+- `GET /usuarios` - Listar (paginado) e filtrar por tipo/ativo
+- `GET /usuarios/:id` - Buscar por ID
+- `POST /usuarios` - Criar usuário (validação + hash de senha)
+- `PUT /usuarios/:id` - Atualizar usuário
+- `DELETE /usuarios/:id` - Desativar usuário (soft delete)
+- `POST /auth/login` - Login e criação de sessão (token)
+- `GET /usuarios/stats/overview` - Visão geral de estatísticas de usuários
+
+### 📁 Projetos
+- `GET /projetos` - Listar com filtros e paginação
+- `GET /projetos/:id` - Detalhar projeto (designer, cliente, artes, tarefas)
+- `POST /projetos` - Criar projeto (verifica existência de designer e cliente)
+- `PUT /projetos/:id` - Atualizar projeto
+- `DELETE /projetos/:id` - Remover projeto (se não houver artes/tarefas)
+- `GET /projetos/stats/dashboard` - Dashboard com resumo e últimos projetos
+- `GET /designers/:id/projetos` - Projetos por designer
+
+### 🎨 Artes
+- `GET /artes` - Listar artes (filtro por projeto, autor, tipo, status)
+- `GET /artes/:id` - Buscar arte com feedbacks e aprovações
+- `POST /artes` - Criar arte (requere projeto e autenticação)
+- `PUT /artes/:id` - Atualizar arte (nome, descrição, status, etc.)
+- `DELETE /artes/:id` - Remover arte
+
+### 💬 Feedbacks
+- `GET /feedbacks` - Listar feedbacks (filtro por arte/autor/tipo)
+- `GET /feedbacks/:id` - Buscar feedback
+- `POST /feedbacks` - Criar feedback (associa autor e arte)
+- `PUT /feedbacks/:id` - Atualizar feedback
+- `DELETE /feedbacks/:id` - Remover feedback
+
+### ✅ Aprovações
+- `GET /aprovacoes` - Listar aprovações (filtro por arte/aprovador/status)
+- `GET /aprovacoes/:id` - Buscar aprovação
+- `POST /aprovacoes` - Criar aprovação (associa aprovador e arte)
+- `PUT /aprovacoes/:id` - Atualizar aprovação (status/comentário)
+- `DELETE /aprovacoes/:id` - Remover aprovação
+
+### 📋 Tarefas
+- `GET /tarefas` - Listar tarefas (filtro por projeto/responsável/status/prioridade)
+- `GET /tarefas/:id` - Buscar tarefa
+- `POST /tarefas` - Criar tarefa (verifica projeto e responsável)
+- `PUT /tarefas/:id` - Atualizar tarefa
+- `DELETE /tarefas/:id` - Remover tarefa
+
+### 🔔 Notificações
+- `GET /notificacoes` - Listar notificações do usuário autenticado
+- `GET /notificacoes/:id` - Buscar notificação específica
+- `POST /notificacoes` - Criar notificação (usado por serviços internos)
+- `PUT /notificacoes/:id/lida` - Marcar como lida/não lida
+- `DELETE /notificacoes/:id` - Remover notificação do usuário
+
+### 🔐 Sessões
+- `GET /sessoes` - Listar sessões ativas/inativas do usuário
+- `DELETE /sessoes/:id` - Revogar sessão (logout)
+
+### 📊 Informações
+- `GET /` - Informações da API
+- `GET /health` - Status do servidor e uptime
+
+## 🧪 Testes
+
+### Exemplos de Uso
+
+#### 1. Login
+```http
+POST /auth/login
+Content-Type: application/json
+
+{
+  "email": "designer@viu.com",
+  "senha": "123456"
+}
+```
+
+**Resposta (resumida):**
+```json
+{
+  "message": "Login realizado com sucesso",
+  "data": {
+    "token": "fake_jwt_token_...",
+    "usuario": { "id": "...", "nome": "Designer", ... }
+  },
+  "success": true
+}
+```
+
+#### 2. Criar Projeto
+```http
+POST /projetos
+Authorization: Bearer <TOKEN>
+Content-Type: application/json
+
+{
+  "nome": "Logo Empresa X",
+  "descricao": "Criação de identidade visual",
+  "orcamento": 500000,
+  "prazo": "2025-09-15T00:00:00.000Z",
+  "designerId": "<id-do-designer>",
+  "clienteId": "<id-do-cliente>"
+}
+```
+
+#### 3. Criar Arte
+```http
+POST /artes
+Authorization: Bearer <TOKEN>
+Content-Type: application/json
+
+{
+  "nome": "Mockup Produto",
+  "descricao": "Primeira versão do mockup",
+  "arquivo": "https://cdn.viu.com/arquivos/mockup.png",
+  "tipo": "IMAGEM",
+  "tamanho": 1048576,
+  "projetoId": "<id-do-projeto>"
+}
+```
+
+## 🔧 Desenvolvimento
+
+### Scripts Disponíveis
+
+```bash
+npm run dev          # Desenvolvimento com hot reload
+npm run build        # Build para produção
+npm run start        # Rodar em produção
+npm run lint         # Verificar estilo de código
+npm run test         # Rodar testes
+
+# Banco de dados:
+npm run db:generate  # Gerar cliente Prisma
+npm run db:push      # Aplicar schema
+npm run db:seed      # Popular dados
+npm run db:studio    # Interface visual
+npm run db:reset     # Resetar banco
+```
+
+### Estrutura do Projeto
+
+```
+src/
+├── controllers/           # Controladores de cada recurso
+├── database/
+│   ├── client.ts          # Instância do Prisma
+│   └── seed.ts            # Dados de teste
+├── middleware/
+│   ├── authMiddleware.ts  # Autenticação baseada em sessão
+│   └── ...
+├── routes/                # Definições de rotas para cada recurso
+│   ├── artes.ts
+│   ├── feedbacks.ts
+│   ├── aprovacoes.ts
+│   ├── tarefas.ts
+│   ├── notificacoes.ts
+│   ├── sessoes.ts
+│   ├── projetos.ts
+│   ├── usuarios.ts
+│   └── test.ts
+├── services/              # Camada de serviços (lógica de negócio)
+└── index.ts               # Servidor principal
+
+prisma/
+└── schema.prisma          # Definição do banco de dados
+
+.env                       # Variáveis de ambiente
+README.md                  # Este documento
+```
+
+### Variáveis de Ambiente
+
+```bash
+# .env
+PORT=3001
+HOST=0.0.0.0
+NODE_ENV=development
+DATABASE_URL="file:./dev.db"
+JWT_SECRET="sua_chave_secreta"
+```
+
+## 📊 Monitoramento
+
+### Health Check
+```http
+GET /health
+```
+
+### Logs
+- **Desenvolvimento:** logs coloridos com pino-pretty
+- **Produção:** logs estruturados em JSON
+
+### Rate Limiting
+- 100 requisições por minuto por IP (configurável via variáveis de ambiente)
+
+### Segurança
+- CORS habilitado (origem livre em desenvolvimento)
+- Helmet para cabeçalhos de segurança
+- Validação de entrada com Zod
+- Hash de senhas com bcrypt
+
+## 🎯 Recursos Implementados
+
+### ✅ Funcionalidades Core
+
+- ✅ Autenticação de usuários e sessões
+- ✅ CRUD completo de usuários
+- ✅ CRUD completo de projetos
+- ✅ CRUD completo de artes
+- ✅ CRUD completo de feedbacks
+- ✅ CRUD completo de aprovações
+- ✅ CRUD completo de tarefas
+- ✅ CRUD completo de notificações
+- ✅ CRUD e revogação de sessões
+- ✅ Validação com viu‑shared
+- ✅ Formatação brasileira
+- ✅ Banco de dados otimizado
+- ✅ Dados de seed realistas
+- ✅ APIs de estatísticas
+- ✅ Rate limiting
+- ✅ Logs estruturados
+
+### 🔄 Próximas Funcionalidades
+
+- ⏳ Upload de arquivos (armazenamento em nuvem)
+- ⏳ WebSockets para tempo real (feedback/atualizações instantâneas)
+- ⏳ Cache com Redis
+- ⏳ Testes automatizados completos
+- ⏳ Deploy automatizado (CI/CD)
+
+## 🤝 Contribuição
+
+1. Faça um fork do projeto
+2. Crie uma branch: `git checkout -b feature/nova-funcionalidade`
+3. Commit: `git commit -m 'feat: adiciona nova funcionalidade'`
+4. Push: `git push origin feature/nova-funcionalidade`
+5. Abra um Pull Request
+
+## 📄 Licença
+
+MIT License – veja LICENSE para mais detalhes.
 
 ---
 
-## 🎯 Convenção de Commits
-
-Seguimos o padrão **Conventional Commits** para manter o histórico organizado e facilitar a geração automática de changelogs.
-
-### Formato Padrão:
-```
-<tipo>[escopo opcional]: <descrição>
-
-[corpo opcional]
-
-[rodapé opcional]
-```
-
-### Regras Importantes:
-- ✅ Use **presente do indicativo** ("adiciona" não "adicionado")
-- ✅ Primeira letra **minúscula** na descrição
-- ✅ **Sem ponto final** na descrição
-- ✅ Máximo **50 caracteres** no título
-- ✅ Linha em branco entre título e corpo
-- ✅ Corpo com máximo **72 caracteres** por linha
-
----
-
-## 📝 Estrutura das Mensagens
-
-### Título (Obrigatório)
-```
-feat(auth): adiciona sistema de login JWT
-```
-
-### Com Corpo (Opcional)
-```
-feat(auth): adiciona sistema de login JWT
-
-Implementa autenticação usando JSON Web Tokens com:
-- Middleware de validação
-- Refresh token automático
-- Logout seguro
-```
-
-### Com Breaking Change
-```
-feat(api)!: altera estrutura de resposta da API
-
-BREAKING CHANGE: campo 'data' agora é obrigatório em todas as respostas
-```
-
----
-
-## 🏷️ Tipos de Commit
-
-| Tipo | Descrição | Exemplo |
-|------|-----------|---------|
-| `feat` | Nova funcionalidade | `feat(upload): adiciona drag and drop` |
-| `fix` | Correção de bug | `fix(auth): corrige validação de token` |
-| `docs` | Documentação | `docs(readme): atualiza guia de instalação` |
-| `style` | Formatação, espaços | `style(css): ajusta indentação` |
-| `refactor` | Refatoração de código | `refactor(api): simplifica validação` |
-| `test` | Testes | `test(auth): adiciona testes unitários` |
-| `chore` | Tarefas de build, deps | `chore(deps): atualiza react para v18` |
-| `perf` | Melhoria de performance | `perf(db): otimiza query de projetos` |
-| `ci` | Integração contínua | `ci(github): adiciona workflow de testes` |
-| `build` | Sistema de build | `build(webpack): configura hot reload` |
-| `revert` | Reverter commit | `revert: desfaz commit abc123` |
-
----
-
-## 💡 Exemplos Práticos
-
-### ✅ Commits Bons
-```bash
-# Funcionalidade nova
-feat(dashboard): adiciona gráfico de produtividade
-
-# Correção específica
-fix(upload): resolve erro de timeout em arquivos grandes
-
-# Documentação
-docs(api): documenta endpoints de aprovação
-
-# Refatoração
-refactor(components): extrai lógica de validação
-
-# Teste
-test(upload): adiciona testes de integração
-
-# Configuração
-chore(eslint): adiciona regras de TypeScript
-```
-
-### ❌ Commits Ruins
-```bash
-# Muito vago
-fix: corrige bug
-
-# Muito longo
-feat: adiciona sistema completo de upload de arquivos com validação, preview, progress bar e notificações
-
-# Tempo verbal errado
-feat: adicionado login
-
-# Sem contexto
-update files
-
-# Mistura múltiplas mudanças
-feat: adiciona login e corrige bug do upload
-```
-
----
-
-## 🌊 Workflow do Git
-
-### 1. Antes de Começar
-```bash
-# Sempre puxe as últimas mudanças
-git pull origin main
-
-# Crie uma branch para sua feature
-git checkout -b feat/nome-da-feature
-```
-
-### 2. Durante o Desenvolvimento
-```bash
-# Adicione arquivos específicos
-git add src/components/Login.tsx
-
-# Ou adicione tudo (cuidado!)
-git add .
-
-# Commit com mensagem clara
-git commit -m "feat(auth): adiciona componente de login"
-```
-
-### 3. Antes de Enviar
-```bash
-# Verifique o que será commitado
-git status
-git diff --staged
-
-# Push da branch
-git push origin feat/nome-da-feature
-```
-
----
-
-## 🌳 Estratégia de Branches
-
-### Branches Principais
-- `main` - Código de produção (sempre estável)
-- `develop` - Integração de features (para desenvolvimento)
-
-### Branches de Feature
-```bash
-# Nomenclatura
-feat/nome-da-funcionalidade
-fix/nome-do-bug
-docs/nome-da-documentacao
-refactor/nome-da-refatoracao
-
-# Exemplos
-feat/upload-artes
-feat/dashboard-designer
-fix/login-validation
-docs/api-documentation
-```
-
-### Fluxo de Trabalho
-```bash
-# 1. Criar branch a partir da main
-git checkout main
-git pull origin main
-git checkout -b feat/nova-funcionalidade
-
-# 2. Desenvolver e commitar
-git add .
-git commit -m "feat(upload): adiciona validação de arquivos"
-
-# 3. Push e Pull Request
-git push origin feat/nova-funcionalidade
-# Criar PR no GitHub
-```
-
----
-
-## 🔄 Pull Requests
-
-### Template de PR
-```markdown
-## 📝 Descrição
-Breve descrição das mudanças implementadas.
-
-## 🎯 Tipo de Mudança
-- [ ] Bug fix
-- [ ] Nova feature
-- [ ] Breaking change
-- [ ] Documentação
-
-## ✅ Checklist
-- [ ] Código testado localmente
-- [ ] Testes passando
-- [ ] Documentação atualizada
-- [ ] Sem conflitos com main
-
-## 📸 Screenshots (se aplicável)
-[Adicionar prints das mudanças visuais]
-
-## 🧪 Como Testar
-1. Faça checkout da branch
-2. Execute `npm install`
-3. Execute `npm run dev`
-4. Teste a funcionalidade X
-```
-
-### Boas Práticas de PR
-- ✅ **Título claro** e descritivo
-- ✅ **Descrição detalhada** das mudanças
-- ✅ **Screenshots** para mudanças visuais
-- ✅ **Testes** incluídos quando necessário
-- ✅ **Revisão** de pelo menos 1 colega
-- ✅ **Conflitos resolvidos** antes do merge
-
----
-
-## 🛠️ Comandos Úteis
-
-### Verificação e Status
-```bash
-# Ver status dos arquivos
-git status
-
-# Ver diferenças
-git diff
-git diff --staged
-
-# Ver histórico
-git log --oneline
-git log --graph --oneline --all
-```
-
-### Correções Rápidas
-```bash
-# Alterar última mensagem de commit
-git commit --amend -m "nova mensagem"
-
-# Adicionar arquivos ao último commit
-git add arquivo.txt
-git commit --amend --no-edit
-
-# Desfazer último commit (mantém mudanças)
-git reset --soft HEAD~1
-
-# Desfazer mudanças não commitadas
-git checkout -- arquivo.txt
-git reset --hard HEAD
-```
-
-### Sincronização
-```bash
-# Atualizar branch local com remota
-git pull origin main
-
-# Rebase interativo (limpar histórico)
-git rebase -i HEAD~3
-
-# Sincronizar fork (se aplicável)
-git remote add upstream URL_ORIGINAL
-git fetch upstream
-git merge upstream/main
-```
-
----
-
-## 🔧 Ferramentas Recomendadas
-
-### Extensions do VS Code
-- **GitLens** - Histórico e blame inline
-- **Git Graph** - Visualização gráfica do histórico
-- **Conventional Commits** - Autocomplete para commits
-
-### Configuração do Git
-```bash
-# Configurar nome e email
-git config --global user.name "Seu Nome"
-git config --global user.email "seu.email@exemplo.com"
-
-# Configurar editor padrão
-git config --global core.editor "code --wait"
-
-# Configurar merge tool
-git config --global merge.tool vscode
-```
-
-### Aliases Úteis
-```bash
-# Adicionar ao ~/.gitconfig
-[alias]
-    st = status
-    co = checkout
-    br = branch
-    ci = commit
-    ca = commit -a
-    ps = push
-    pl = pull
-    lg = log --oneline --graph --all
-    unstage = reset HEAD --
-```
-
----
-
-## 📚 Recursos Adicionais
-
-### Links Úteis
-- [Conventional Commits](https://www.conventionalcommits.org/)
-- [Git Flow](https://nvie.com/posts/a-successful-git-branching-model/)
-- [GitHub Flow](https://guides.github.com/introduction/flow/)
-- [Semantic Versioning](https://semver.org/)
-
-### Comandos de Emergência
-```bash
-# Recuperar commit deletado
-git reflog
-git checkout <hash-do-commit>
-
-# Limpar mudanças locais
-git clean -fd
-git reset --hard HEAD
-
-# Voltar arquivo específico
-git checkout HEAD -- arquivo.txt
-```
-
----
-
-## 🤝 Colaboração em Equipe
-
-### Comunicação
-- 💬 **Comente** nos PRs de forma construtiva
-- 🔍 **Revise** o código dos colegas
-- 📢 **Comunique** mudanças importantes no grupo
-- ❓ **Tire dúvidas** antes de fazer mudanças grandes
-
-### Responsabilidades
-- 👤 **Cada um** é responsável por sua branch
-- 🔄 **Todos** devem revisar PRs
-- 📝 **Mantenha** commits organizados
-- 🧪 **Teste** antes de fazer push
-
-### Resolução de Conflitos
-```bash
-# Quando houver conflito no merge
-git status  # Ver arquivos em conflito
-# Editar arquivos manualmente
-git add arquivo-resolvido.txt
-git commit -m "resolve: conflito em arquivo-resolvido"
-```
-
----
-
-## 🎯 Resumo das Regras de Ouro
-
-1. **Commits pequenos e frequentes** são melhores que commits grandes
-2. **Uma mudança = um commit** (não misture funcionalidades)
-3. **Teste antes de commitar** (evite quebrar o código dos colegas)
-4. **Mensagens claras** ajudam todos a entender o histórico
-5. **Pull antes de push** para evitar conflitos
-6. **Use branches** para cada feature/correção
-7. **Revise PRs** dos colegas com atenção
-8. **Comunique mudanças** importantes para a equipe
-
----
-
-**Lembre-se**: Um bom histórico de commits é como uma documentação viva do projeto! 📖✨
-
----
-
-*Criado para o Projeto Integrado VIU - FATEC Cotia*
-
+**🚀 VIU Platform – Transformando a comunicação entre designers e clientes**
