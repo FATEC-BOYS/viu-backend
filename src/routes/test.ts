@@ -31,8 +31,7 @@ import {
   // Constantes
   APP_INFO,
   SUPPORTED_FILE_TYPES
-} from '../../../../../viu-shared/dist/index.js'
-
+} from '../../../viu-shared/dist/index.mjs'
 
 export async function testRoutes(fastify: FastifyInstance) {
   
