@@ -12,7 +12,7 @@ import { FastifyRequest, FastifyReply } from 'fastify'
 import {
   CreateProjetoRequestSchema,
   UpdateProjetoRequestSchema,
-} from '@viu/shared'
+} from '../schemas/validation.js'
 
 /**
  * Valida o corpo de uma requisição de criação de projeto. Caso os dados

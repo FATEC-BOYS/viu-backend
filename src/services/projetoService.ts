@@ -12,7 +12,7 @@ import prisma from '../database/client.js'
 import {
   formatCurrency,
   formatDate,
-} from '@viu/shared'
+} from '../utils/formatters.js'
 
 /**
  * Tipagem para os filtros de listagem de projetos.
