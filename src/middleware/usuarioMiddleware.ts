@@ -12,7 +12,7 @@ import {
   CreateUsuarioRequestSchema,
   UpdateUsuarioRequestSchema,
   LoginRequestSchema,
-} from '@viu/shared'
+} from '../schemas/validation.js'
 
 export async function validateCreateUsuario(
   request: FastifyRequest,

@@ -8,6 +8,7 @@
  */
 
 import fastify from 'fastify'
+import { fileURLToPath } from 'url'
 import { projetosRoutes } from './routes/projetos.js'
 import { usuariosRoutes } from './routes/usuarios.js'
 import { artesRoutes } from './routes/artes.js'
@@ -17,8 +18,25 @@ import { tarefasRoutes } from './routes/tarefas.js'
 import { notificacoesRoutes } from './routes/notificacoes.js'
 import { sessoesRoutes } from './routes/sessoes.js'
 
+const __filename = fileURLToPath(import.meta.url)
+
 export async function buildServer() {
   const app = fastify({ logger: true })
+  
+await app.register(import('@fastify/cors'), {
+  origin: true,
+  credentials: true
+})
+  
+  // Health check route
+  app.get('/', async (request, reply) => {
+    return { 
+      status: 'ok', 
+      message: 'VIU Backend API rodando!',
+      timestamp: new Date().toISOString()
+    }
+  })
+  
   // Registrar rotas de projetos
   await app.register(projetosRoutes)
   // Registrar rotas de usuários
@@ -39,10 +57,10 @@ export async function buildServer() {
 }
 
 // Apenas inicia o servidor se este módulo for executado diretamente
-if (require.main === module) {
+if (process.argv[1] === __filename) {
   buildServer()
     .then((app) => {
-      const port = process.env.PORT ? Number(process.env.PORT) : 3000
+      const port = process.env.PORT ? Number(process.env.PORT) : 3001
       app.listen({ port }, (err, address) => {
         if (err) {
           app.log.error(err)
