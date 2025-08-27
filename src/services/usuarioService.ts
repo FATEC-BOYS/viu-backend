@@ -1,15 +1,7 @@
-// src/services/usuarioService.ts
-/**
- * Serviço de Usuários
- *
- * Esta camada centraliza a lógica de negócios associada aos usuários,
- * incluindo operações CRUD, autenticação e obtenção de estatísticas. As
- * regras de negócio como verificação de e‑mail duplicado e hashing de
- * senha são implementadas aqui.
- */
-
 import prisma from '../database/client.js'
 import bcrypt from 'bcryptjs'
+import { randomBytes } from 'crypto' // Para gerar tokens seguros
+import { add } from 'date-fns'
 
 export interface ListUsuariosParams {
   page?: number
@@ -24,7 +16,6 @@ export class UsuarioService {
    */
   async listUsuarios({ page = 1, limit = 10, tipo, ativo }: ListUsuariosParams) {
     const skip = (page - 1) * limit
-    // Converte string 'true'/'false' em boolean se necessário
     let ativoFilter: boolean | undefined
     if (ativo !== undefined && ativo !== null) {
       if (typeof ativo === 'string') {
@@ -98,8 +89,7 @@ export class UsuarioService {
   }
 
   /**
-   * Cria um novo usuário, verificando duplicidade de email e fazendo hash da senha.
-   * @throws Error quando o e‑mail já está em uso.
+   * Cria um novo usuário.
    */
   async createUsuario(userData: any) {
     const existingUser = await prisma.usuario.findUnique({
@@ -129,16 +119,13 @@ export class UsuarioService {
   }
 
   /**
-   * Atualiza um usuário existente. Verifica duplicidade de e‑mail quando
-   * necessário e realiza hash da nova senha se fornecida.
-   * @throws Error se o usuário não existir ou se o e‑mail já estiver em uso.
+   * Atualiza um usuário existente.
    */
   async updateUsuario(id: string, updateData: any) {
     const existingUser = await prisma.usuario.findUnique({ where: { id } })
     if (!existingUser) {
       throw new Error('Usuário não encontrado')
     }
-    // Verificar se está alterando o e‑mail para um que já existe
     if (updateData.email && updateData.email !== existingUser.email) {
       const emailExists = await prisma.usuario.findUnique({ where: { email: updateData.email } })
       if (emailExists) {
@@ -182,23 +169,38 @@ export class UsuarioService {
   }
 
   /**
-   * Realiza o login do usuário verificando e‑mail, estado ativo e senha.
-   * Retorna um token simulado e dados básicos do usuário.
-   * @throws Error quando as credenciais são inválidas ou o usuário está inativo.
+   * Realiza o login do usuário, valida as credenciais e CRIA UMA SESSÃO
+   * VÁLIDA no banco de dados.
    */
   async login(loginData: any) {
     const usuario = await prisma.usuario.findUnique({
       where: { email: loginData.email },
     })
+
     if (!usuario || !usuario.ativo) {
-      throw new Error('Email ou senha inválidos')
+      throw new Error('Email ou senha inválidos ou usuário inativo')
     }
     const senhaValida = await bcrypt.compare(loginData.senha, usuario.senha)
     if (!senhaValida) {
       throw new Error('Email ou senha inválidos')
     }
-    // Simulação de geração de token (substituir por implementação real de JWT)
-    const token = `fake_jwt_token_${usuario.id}_${Date.now()}`
+
+    // Gera um token de sessão seguro e aleatório.
+    const token = randomBytes(32).toString('hex');
+
+    // Define a data de expiração da sessão (ex: 7 dias a partir de agora).
+    const expiresAt = add(new Date(), { days: 7 });
+
+    // CRIA a sessão no banco de dados, ligando o token ao usuário.
+    await prisma.sessao.create({
+      data: {
+        token,
+        expiresAt,
+        usuarioId: usuario.id,
+      },
+    });
+
+    // Retorna o token e os dados do usuário para o frontend.
     return {
       token,
       usuario: {
@@ -208,7 +210,7 @@ export class UsuarioService {
         tipo: usuario.tipo,
         avatar: usuario.avatar,
       },
-    }
+    };
   }
 
   /**

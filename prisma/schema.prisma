@@ -1,205 +1,201 @@
-// 🗄️ VIU Platform - Prisma Schema
-// Banco de dados otimizado para performance e escalabilidade
-// SQLite compatible version (enums converted to strings)
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 // 👤 Usuários
 model Usuario {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  senha     String
-  nome      String
-  telefone  String?
-  avatar    String?
-  tipo      String   @default("DESIGNER") // TipoUsuario
-  ativo     Boolean  @default(true)
-  
+  id       String  @id @default(cuid())
+  email    String  @unique
+  senha    String
+  nome     String
+  telefone String?
+  avatar   String?
+  tipo     String  @default("DESIGNER") // TipoUsuario
+  ativo    Boolean @default(true)
+
   // Timestamps
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
-  
+
   // Relacionamentos
-  projetosDesigner Projeto[] @relation("ProjetoDesigner")
-  projetosCliente  Projeto[] @relation("ProjetoCliente")
+  projetosDesigner Projeto[]     @relation("ProjetoDesigner")
+  projetosCliente  Projeto[]     @relation("ProjetoCliente")
   artes            Arte[]
   feedbacks        Feedback[]
   aprovacoes       Aprovacao[]
   tarefas          Tarefa[]
   notificacoes     Notificacao[]
   sessoes          Sessao[]
-  
-  // Índices para performance
-  @@map("usuarios")
+
   @@index([email])
   @@index([tipo])
   @@index([ativo])
   @@index([criadoEm])
+  // Índices para performance
+  @@map("usuarios")
 }
 
 // 📁 Projetos
 model Projeto {
-  id          String   @id @default(cuid())
-  nome        String
-  descricao   String?
-  status      String   @default("EM_ANDAMENTO") // StatusProjeto
-  orcamento   Int?     // Em centavos
-  prazo       DateTime?
-  
+  id        String    @id @default(cuid())
+  nome      String
+  descricao String?
+  status    String    @default("EM_ANDAMENTO") // StatusProjeto
+  orcamento Int? // Em centavos
+  prazo     DateTime?
+
   // Relacionamentos
-  designerId  String
-  designer    Usuario @relation("ProjetoDesigner", fields: [designerId], references: [id])
-  clienteId   String
-  cliente     Usuario @relation("ProjetoCliente", fields: [clienteId], references: [id])
-  
-  artes       Arte[]
-  tarefas     Tarefa[]
-  
+  designerId String
+  designer   Usuario @relation("ProjetoDesigner", fields: [designerId], references: [id])
+  clienteId  String
+  cliente    Usuario @relation("ProjetoCliente", fields: [clienteId], references: [id])
+
+  artes   Arte[]
+  tarefas Tarefa[]
+
   // Timestamps
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
-  
-  @@map("projetos")
+
   @@index([designerId])
   @@index([clienteId])
   @@index([status])
   @@index([criadoEm])
+  @@map("projetos")
 }
 
 // 🎨 Artes/Arquivos
 model Arte {
-  id           String   @id @default(cuid())
-  nome         String
-  descricao    String?
-  arquivo      String   // URL/path do arquivo
-  tipo         String   // TipoArte
-  tamanho      Int      // Em bytes
-  versao       Int      @default(1)
-  status       String   @default("EM_ANALISE") // StatusArte
-  
+  id        String  @id @default(cuid())
+  nome      String
+  descricao String?
+  arquivo   String // URL/path do arquivo
+  tipo      String // TipoArte
+  tamanho   Int // Em bytes
+  versao    Int     @default(1)
+  status    String  @default("EM_ANALISE") // StatusArte
+
   // Relacionamentos
-  projetoId    String
-  projeto      Projeto     @relation(fields: [projetoId], references: [id], onDelete: Cascade)
-  autorId      String
-  autor        Usuario     @relation(fields: [autorId], references: [id])
-  
-  feedbacks    Feedback[]
-  aprovacoes   Aprovacao[]
-  
+  projetoId String
+  projeto   Projeto @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  autorId   String
+  autor     Usuario @relation(fields: [autorId], references: [id])
+
+  feedbacks  Feedback[]
+  aprovacoes Aprovacao[]
+
   // Timestamps
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
-  
-  @@map("artes")
+
   @@index([projetoId])
   @@index([autorId])
   @@index([status])
   @@index([tipo])
   @@index([criadoEm])
+  @@map("artes")
 }
 
 // 💬 Feedbacks
 model Feedback {
-  id        String   @id @default(cuid())
-  conteudo  String
-  tipo      String   @default("TEXTO") // TipoFeedback
-  arquivo   String?  // Para feedback de áudio
-  posicaoX  Float?   // Para feedback posicional
-  posicaoY  Float?
-  
+  id       String  @id @default(cuid())
+  conteudo String
+  tipo     String  @default("TEXTO") // TipoFeedback
+  arquivo  String? // Para feedback de áudio
+  posicaoX Float? // Para feedback posicional
+  posicaoY Float?
+
   // Relacionamentos
-  arteId    String
-  arte      Arte        @relation(fields: [arteId], references: [id], onDelete: Cascade)
-  autorId   String
-  autor     Usuario     @relation(fields: [autorId], references: [id])
-  
+  arteId  String
+  arte    Arte    @relation(fields: [arteId], references: [id], onDelete: Cascade)
+  autorId String
+  autor   Usuario @relation(fields: [autorId], references: [id])
+
   // Timestamps
-  criadoEm  DateTime @default(now())
-  
-  @@map("feedbacks")
+  criadoEm DateTime @default(now())
+
   @@index([arteId])
   @@index([autorId])
   @@index([tipo])
   @@index([criadoEm])
+  @@map("feedbacks")
 }
 
 // ✅ Aprovações
 model Aprovacao {
-  id         String   @id @default(cuid())
-  status     String   @default("PENDENTE") // StatusAprovacao
+  id         String  @id @default(cuid())
+  status     String  @default("PENDENTE") // StatusAprovacao
   comentario String?
-  
+
   // Relacionamentos
-  arteId     String
-  arte       Arte           @relation(fields: [arteId], references: [id], onDelete: Cascade)
+  arteId      String
+  arte        Arte    @relation(fields: [arteId], references: [id], onDelete: Cascade)
   aprovadorId String
-  aprovador  Usuario        @relation(fields: [aprovadorId], references: [id])
-  
+  aprovador   Usuario @relation(fields: [aprovadorId], references: [id])
+
   // Timestamps
-  criadoEm   DateTime @default(now())
-  
-  @@map("aprovacoes")
+  criadoEm DateTime @default(now())
+
   @@index([arteId])
   @@index([aprovadorId])
   @@index([status])
   @@index([criadoEm])
+  @@map("aprovacoes")
 }
 
 // 📋 Tarefas
 model Tarefa {
-  id          String   @id @default(cuid())
-  titulo      String
-  descricao   String?
-  status      String   @default("PENDENTE") // StatusTarefa
-  prioridade  String   @default("MEDIA") // Prioridade
-  prazo       DateTime?
-  
+  id         String    @id @default(cuid())
+  titulo     String
+  descricao  String?
+  status     String    @default("PENDENTE") // StatusTarefa
+  prioridade String    @default("MEDIA") // Prioridade
+  prazo      DateTime?
+
   // Relacionamentos
-  projetoId   String?
-  projeto     Projeto?     @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  projetoId     String?
+  projeto       Projeto? @relation(fields: [projetoId], references: [id], onDelete: Cascade)
   responsavelId String
-  responsavel Usuario      @relation(fields: [responsavelId], references: [id])
-  
+  responsavel   Usuario  @relation(fields: [responsavelId], references: [id])
+
   // Timestamps
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
-  
-  @@map("tarefas")
+
   @@index([projetoId])
   @@index([responsavelId])
   @@index([status])
   @@index([prioridade])
   @@index([prazo])
+  @@map("tarefas")
 }
 
 // 🔔 Notificações
 model Notificacao {
-  id       String   @id @default(cuid())
+  id       String  @id @default(cuid())
   titulo   String
   conteudo String
-  tipo     String   // TipoNotificacao
-  canal    String   @default("SISTEMA") // CanalNotificacao
-  lida     Boolean  @default(false)
-  
+  tipo     String // TipoNotificacao
+  canal    String  @default("SISTEMA") // CanalNotificacao
+  lida     Boolean @default(false)
+
   // Relacionamentos
   usuarioId String
   usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-  
+
   // Timestamps
-  criadoEm  DateTime @default(now())
-  
-  @@map("notificacoes")
+  criadoEm DateTime @default(now())
+
   @@index([usuarioId])
   @@index([tipo])
   @@index([lida])
   @@index([criadoEm])
+  @@map("notificacoes")
 }
 
 // 🔐 Sessões (para JWT/Auth)
@@ -208,17 +204,17 @@ model Sessao {
   token     String   @unique
   expiresAt DateTime
   ativo     Boolean  @default(true)
-  
+
   // Relacionamentos
   usuarioId String
-  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-  
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
   // Timestamps
-  criadoEm  DateTime @default(now())
-  
-  @@map("sessoes")
+  criadoEm DateTime @default(now())
+
   @@index([usuarioId])
   @@index([token])
   @@index([expiresAt])
   @@index([ativo])
+  @@map("sessoes")
 }

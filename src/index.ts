@@ -22,6 +22,21 @@ const __filename = fileURLToPath(import.meta.url)
 
 export async function buildServer() {
   const app = fastify({ logger: true })
+  
+await app.register(import('@fastify/cors'), {
+  origin: true,
+  credentials: true
+})
+  
+  // Health check route
+  app.get('/', async (request, reply) => {
+    return { 
+      status: 'ok', 
+      message: 'VIU Backend API rodando!',
+      timestamp: new Date().toISOString()
+    }
+  })
+  
   // Registrar rotas de projetos
   await app.register(projetosRoutes)
   // Registrar rotas de usuários

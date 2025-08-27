@@ -1,29 +1,20 @@
-// src/controllers/usuarioController.ts
-/**
- * Controladores de Usuários
- *
- * Orquestra a camada de serviços de usuários para processar as
- * requisições HTTP e formatar as respostas. Cada função captura erros
- * específicos para devolver o status HTTP apropriado.
- */
-
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { UsuarioService, ListUsuariosParams } from '../services/usuarioService.js'
 
 const usuarioService = new UsuarioService()
 
-/**
- * Lista usuários com paginação e filtros.
- */
 export async function listUsuarios(
   request: FastifyRequest,
   reply: FastifyReply,
 ): Promise<void> {
   try {
     const { page = 1, limit = 10, tipo, ativo } = (request.query || {}) as any
+    const pageNumber = Number(page)
+    const limitNumber = Number(limit)
+
     const params: ListUsuariosParams = {
-      page: Number(page),
-      limit: Number(limit),
+      page: pageNumber,
+      limit: limitNumber,
       tipo: tipo as string | undefined,
       ativo: ativo as any,
     }
@@ -31,10 +22,10 @@ export async function listUsuarios(
     reply.send({
       data: usuarios,
       pagination: {
-        page: params.page,
-        limit: params.limit,
+        page: pageNumber,
+        limit: limitNumber,
         total,
-        pages: Math.ceil(total / params.limit),
+        pages: Math.ceil(total / limitNumber),
       },
       success: true,
     })
@@ -47,9 +38,6 @@ export async function listUsuarios(
   }
 }
 
-/**
- * Busca usuário por ID.
- */
 export async function getUsuarioById(
   request: FastifyRequest,
   reply: FastifyReply,
@@ -74,9 +62,6 @@ export async function getUsuarioById(
   }
 }
 
-/**
- * Cria um usuário.
- */
 export async function createUsuario(
   request: FastifyRequest,
   reply: FastifyReply,
@@ -110,9 +95,6 @@ export async function createUsuario(
   }
 }
 
-/**
- * Atualiza um usuário.
- */
 export async function updateUsuario(
   request: FastifyRequest,
   reply: FastifyReply,
@@ -151,9 +133,6 @@ export async function updateUsuario(
   }
 }
 
-/**
- * Desativa (soft delete) um usuário.
- */
 export async function deactivateUsuario(
   request: FastifyRequest,
   reply: FastifyReply,
@@ -175,9 +154,6 @@ export async function deactivateUsuario(
   }
 }
 
-/**
- * Realiza login de usuário.
- */
 export async function loginUsuario(
   request: FastifyRequest,
   reply: FastifyReply,
@@ -211,9 +187,36 @@ export async function loginUsuario(
   }
 }
 
-/**
- * Obtém estatísticas de usuários.
- */
+export async function getCurrentUser(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  try {
+    const userId = (request as any).user?.id;
+
+    if (!userId) {
+      reply.status(401).send({ message: 'Não autorizado', success: false });
+      return;
+    }
+
+    const usuario = await usuarioService.getUsuarioById(userId);
+
+    if (!usuario) {
+      reply.status(404).send({ message: 'Usuário não encontrado', success: false });
+      return;
+    }
+
+    reply.send({ data: usuario, success: true });
+  } catch (error: any) {
+    console.error('[getCurrentUser Error]', error);
+    reply.status(500).send({
+      message: 'Erro ao obter dados do usuário',
+      error: error.message,
+      success: false,
+    });
+  }
+}
+
 export async function statsOverview(
   request: FastifyRequest,
   reply: FastifyReply,

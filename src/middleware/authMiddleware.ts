@@ -1,15 +1,3 @@
-// src/middleware/authMiddleware.ts
-/**
- * Middleware de autenticação
- *
- * Este middleware verifica o cabeçalho Authorization em formato Bearer token,
- * consulta a sessão correspondente no banco de dados e anexa o usuário
- * autenticado ao objeto de requisição. Se a sessão não for válida ou estiver
- * expirada, responde com 401 (Não Autorizado). Para simplificar, ele
- * manipula a entidade Sessao do Prisma, que deve conter o token, a data
- * de expiração e o relacionamento com o usuário.
- */
-
 import { FastifyRequest, FastifyReply } from 'fastify'
 import prisma from '../database/client.js'
 
