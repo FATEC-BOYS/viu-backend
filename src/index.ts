@@ -17,7 +17,10 @@ import { aprovacoesRoutes } from './routes/aprovacoes.js'
 import { tarefasRoutes } from './routes/tarefas.js'
 import { notificacoesRoutes } from './routes/notificacoes.js'
 import { sessoesRoutes } from './routes/sessoes.js'
+import { twoFactorRoutes } from './routes/twoFactor.js'
+import { securityRoutes } from './routes/security.js'
 import { setupErrorHandler } from './middleware/errorHandlerMiddleware.js'
+import { auditLogMiddleware } from './middleware/auditLogMiddleware.js'
 
 const __filename = fileURLToPath(import.meta.url)
 
@@ -97,15 +100,18 @@ export async function buildServer() {
     crossOriginEmbedderPolicy: false, // Permite embedding se necessário
   })
 
+  // Middleware global de audit logging (registra ações importantes)
+  app.addHook('preHandler', auditLogMiddleware)
+
   // Health check route
   app.get('/', async (request, reply) => {
-    return { 
-      status: 'ok', 
+    return {
+      status: 'ok',
       message: 'VIU Backend API rodando!',
       timestamp: new Date().toISOString()
     }
   })
-  
+
   // Registrar rotas de projetos
   await app.register(projetosRoutes)
   // Registrar rotas de usuários
@@ -122,6 +128,10 @@ export async function buildServer() {
   await app.register(notificacoesRoutes)
   // Registrar rotas de sessões
   await app.register(sessoesRoutes)
+  // Registrar rotas de 2FA
+  await app.register(twoFactorRoutes)
+  // Registrar rotas de segurança (audit logs e monitoring)
+  await app.register(securityRoutes)
   return app
 }
 
