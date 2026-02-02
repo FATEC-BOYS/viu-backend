@@ -151,6 +151,117 @@ export const MultipleIdsSchema = z.object({
     .max(100, 'Máximo de 100 IDs por requisição'),
 });
 
+// ===== SCHEMAS DE 2FA =====
+
+export const EnableTwoFactorRequestSchema = z.object({
+  code: z.string()
+    .length(6, 'Código 2FA deve ter 6 dígitos')
+    .regex(/^\d{6}$/, 'Código 2FA deve conter apenas números'),
+  secret: z.string()
+    .min(16, 'Secret 2FA inválido')
+    .max(64, 'Secret 2FA inválido'),
+  backupCodes: z.array(z.string().length(10, 'Código de backup inválido'))
+    .length(10, 'Devem ser fornecidos exatamente 10 códigos de backup'),
+});
+
+export const DisableTwoFactorRequestSchema = z.object({
+  password: z.string().min(1, 'Senha é obrigatória'),
+});
+
+export const VerifyTwoFactorCodeRequestSchema = z.object({
+  userId: z.string().cuid('ID do usuário inválido'),
+  code: z.string()
+    .min(6, 'Código deve ter pelo menos 6 caracteres')
+    .max(10, 'Código deve ter no máximo 10 caracteres')
+    .regex(/^[A-Za-z0-9]+$/, 'Código deve conter apenas letras e números'),
+});
+
+export const RegenerateBackupCodesRequestSchema = z.object({
+  password: z.string().min(1, 'Senha é obrigatória'),
+});
+
+// ===== SCHEMAS DE AUDIT LOGS & SECURITY =====
+
+export const AuditLogsQuerySchema = z.object({
+  usuarioId: z.string().cuid('ID do usuário inválido').optional(),
+  action: z.string()
+    .max(50, 'Ação muito longa')
+    .regex(/^[A-Z_]+$/, 'Ação deve conter apenas letras maiúsculas e underscores')
+    .optional(),
+  resource: z.string()
+    .max(50, 'Recurso muito longo')
+    .regex(/^[A-Za-z]+$/, 'Recurso deve conter apenas letras')
+    .optional(),
+  status: z.enum(['SUCCESS', 'FAILURE'], {
+    errorMap: () => ({ message: 'Status deve ser SUCCESS ou FAILURE' })
+  }).optional(),
+  startDate: z.string().datetime('Data inicial inválida').optional(),
+  endDate: z.string().datetime('Data final inválida').optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+}).refine(
+  (data) => {
+    if (data.startDate && data.endDate) {
+      return new Date(data.startDate) <= new Date(data.endDate);
+    }
+    return true;
+  },
+  {
+    message: 'Data inicial deve ser anterior à data final',
+    path: ['startDate'],
+  }
+);
+
+export const AuditStatsQuerySchema = z.object({
+  usuarioId: z.string().cuid('ID do usuário inválido').optional(),
+  startDate: z.string().datetime('Data inicial inválida').optional(),
+  endDate: z.string().datetime('Data final inválida').optional(),
+}).refine(
+  (data) => {
+    if (data.startDate && data.endDate) {
+      return new Date(data.startDate) <= new Date(data.endDate);
+    }
+    return true;
+  },
+  {
+    message: 'Data inicial deve ser anterior à data final',
+    path: ['startDate'],
+  }
+);
+
+export const SecurityEventsQuerySchema = z.object({
+  severity: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'], {
+    errorMap: () => ({ message: 'Severidade deve ser LOW, MEDIUM, HIGH ou CRITICAL' })
+  }).optional(),
+  limit: z.coerce.number().int().positive().max(100).default(50),
+});
+
+export const SecurityStatsQuerySchema = z.object({
+  startDate: z.string().datetime('Data inicial inválida').optional(),
+  endDate: z.string().datetime('Data final inválida').optional(),
+}).refine(
+  (data) => {
+    if (data.startDate && data.endDate) {
+      return new Date(data.startDate) <= new Date(data.endDate);
+    }
+    return true;
+  },
+  {
+    message: 'Data inicial deve ser anterior à data final',
+    path: ['startDate'],
+  }
+);
+
+export const RecentActivityQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(100).default(20),
+});
+
+export const UserIdParamSchema = z.object({
+  userId: z.string()
+    .cuid('ID do usuário deve ser um CUID válido')
+    .min(1, 'ID do usuário é obrigatório'),
+});
+
 // ===== TIPOS INFERIDOS =====
 
 export type CreateUsuarioRequest = z.infer<typeof CreateUsuarioRequestSchema>;
@@ -161,3 +272,16 @@ export type UpdateProjetoRequest = z.infer<typeof UpdateProjetoRequestSchema>;
 export type CreateArteRequest = z.infer<typeof CreateArteRequestSchema>;
 export type CreateFeedbackRequest = z.infer<typeof CreateFeedbackRequestSchema>;
 export type CreateAprovacaoRequest = z.infer<typeof CreateAprovacaoRequestSchema>;
+
+// 2FA Types
+export type EnableTwoFactorRequest = z.infer<typeof EnableTwoFactorRequestSchema>;
+export type DisableTwoFactorRequest = z.infer<typeof DisableTwoFactorRequestSchema>;
+export type VerifyTwoFactorCodeRequest = z.infer<typeof VerifyTwoFactorCodeRequestSchema>;
+export type RegenerateBackupCodesRequest = z.infer<typeof RegenerateBackupCodesRequestSchema>;
+
+// Security Types
+export type AuditLogsQuery = z.infer<typeof AuditLogsQuerySchema>;
+export type AuditStatsQuery = z.infer<typeof AuditStatsQuerySchema>;
+export type SecurityEventsQuery = z.infer<typeof SecurityEventsQuerySchema>;
+export type SecurityStatsQuery = z.infer<typeof SecurityStatsQuerySchema>;
+export type RecentActivityQuery = z.infer<typeof RecentActivityQuerySchema>;

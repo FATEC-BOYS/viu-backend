@@ -15,7 +15,20 @@ import {
 } from '../controllers/securityController.js'
 import { authenticate } from '../middleware/authMiddleware.js'
 import { requireRole } from '../middleware/authorizationMiddleware.js'
-import { validatePagination, validateCuidParam } from '../middleware/validationMiddleware.js'
+import {
+  validateCuidParam,
+  validateQuery,
+  validateParams,
+} from '../middleware/validationMiddleware.js'
+import {
+  AuditLogsQuerySchema,
+  AuditStatsQuerySchema,
+  SecurityEventsQuerySchema,
+  SecurityStatsQuerySchema,
+  RecentActivityQuerySchema,
+  UserIdParamSchema,
+  CuidParamSchema,
+} from '../schemas/validation.js'
 
 export async function securityRoutes(fastify: FastifyInstance) {
   // ===== AUDIT LOGS =====
@@ -23,14 +36,26 @@ export async function securityRoutes(fastify: FastifyInstance) {
   // Lista logs de auditoria (apenas admins)
   fastify.get(
     '/security/audit-logs',
-    { preHandler: [authenticate, requireRole('ADMIN'), validatePagination] },
+    {
+      preHandler: [
+        authenticate,
+        requireRole('ADMIN'),
+        validateQuery(AuditLogsQuerySchema),
+      ],
+    },
     getAuditLogs,
   )
 
   // Estatísticas de auditoria (apenas admins)
   fastify.get(
     '/security/audit-logs/stats',
-    { preHandler: [authenticate, requireRole('ADMIN')] },
+    {
+      preHandler: [
+        authenticate,
+        requireRole('ADMIN'),
+        validateQuery(AuditStatsQuerySchema),
+      ],
+    },
     getAuditStats,
   )
 
@@ -39,14 +64,26 @@ export async function securityRoutes(fastify: FastifyInstance) {
   // Lista eventos de segurança não resolvidos (apenas admins)
   fastify.get(
     '/security/events',
-    { preHandler: [authenticate, requireRole('ADMIN')] },
+    {
+      preHandler: [
+        authenticate,
+        requireRole('ADMIN'),
+        validateQuery(SecurityEventsQuerySchema),
+      ],
+    },
     getSecurityEvents,
   )
 
   // Resolve um evento de segurança (apenas admins)
   fastify.post(
     '/security/events/:id/resolve',
-    { preHandler: [authenticate, requireRole('ADMIN'), validateCuidParam] },
+    {
+      preHandler: [
+        authenticate,
+        requireRole('ADMIN'),
+        validateParams(CuidParamSchema),
+      ],
+    },
     resolveSecurityEvent,
   )
 
@@ -62,7 +99,13 @@ export async function securityRoutes(fastify: FastifyInstance) {
   // Estatísticas gerais de segurança (apenas admins)
   fastify.get(
     '/security/stats',
-    { preHandler: [authenticate, requireRole('ADMIN')] },
+    {
+      preHandler: [
+        authenticate,
+        requireRole('ADMIN'),
+        validateQuery(SecurityStatsQuerySchema),
+      ],
+    },
     getSecurityStats,
   )
 
@@ -71,14 +114,26 @@ export async function securityRoutes(fastify: FastifyInstance) {
   // Atividades recentes (apenas admins)
   fastify.get(
     '/security/recent-activity',
-    { preHandler: [authenticate, requireRole('ADMIN')] },
+    {
+      preHandler: [
+        authenticate,
+        requireRole('ADMIN'),
+        validateQuery(RecentActivityQuerySchema),
+      ],
+    },
     getRecentActivity,
   )
 
   // Histórico de segurança de um usuário (apenas admins)
   fastify.get(
     '/security/user/:userId',
-    { preHandler: [authenticate, requireRole('ADMIN'), validateCuidParam] },
+    {
+      preHandler: [
+        authenticate,
+        requireRole('ADMIN'),
+        validateParams(UserIdParamSchema),
+      ],
+    },
     getUserSecurityHistory,
   )
 }
