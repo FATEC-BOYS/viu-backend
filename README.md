@@ -43,6 +43,12 @@ npm run db:push
 npm run db:seed
 ```
 
+### 2.1 Configurar variáveis de ambiente
+```bash
+# Copie o exemplo e ajuste os valores
+cp .env.example .env
+```
+
 ### 3. Rodar servidor
 ```bash
 npm run dev
@@ -277,7 +283,23 @@ HOST=0.0.0.0
 NODE_ENV=development
 DATABASE_URL="file:./dev.db"
 JWT_SECRET="sua_chave_secreta"
+ALLOWED_ORIGINS="http://localhost:3000"
+SUPABASE_URL="https://<seu-projeto>.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY="<service_role_key>"
+APP_URL="http://localhost:8080"
+OPENAI_API_KEY=""
 ```
+
+### 🟩 Supabase
+
+Para usar as rotas que dependem do Supabase (ex.: links compartilhados e storage), é necessário criar um projeto no Supabase e obter as credenciais abaixo:
+
+1. **Crie um projeto** em https://supabase.com e aguarde o provisionamento.
+2. **Copie a URL do projeto** em **Project Settings → API → Project URL** e preencha `SUPABASE_URL`.
+3. **Copie a Service Role Key** em **Project Settings → API → Service Role** e preencha `SUPABASE_SERVICE_ROLE_KEY`.
+4. **Defina `APP_URL`** com a URL pública do seu front-end (ou `http://localhost:8080` em desenvolvimento).
+
+> ⚠️ **Importante:** a Service Role Key tem permissões elevadas. **Nunca** exponha essa chave no front-end.
 
 ## 📊 Monitoramento
 
