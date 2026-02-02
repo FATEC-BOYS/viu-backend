@@ -110,6 +110,10 @@ model Feedback {
   posicaoX Float? // Para feedback posicional
   posicaoY Float?
 
+  // Campos de transcrição / TTS
+  transcricao String? // Texto transcrito a partir do áudio (STT)
+  audioGerado String? // URL do áudio gerado a partir do texto (TTS)
+
   // Relacionamentos
   arteId  String
   arte    Arte    @relation(fields: [arteId], references: [id], onDelete: Cascade)
