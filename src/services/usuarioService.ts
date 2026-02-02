@@ -171,10 +171,21 @@ export class UsuarioService {
   /**
    * Realiza o login do usuário, valida as credenciais e CRIA UMA SESSÃO
    * VÁLIDA no banco de dados.
+   * Se 2FA estiver habilitado, retorna indicador para verificação adicional.
    */
   async login(loginData: any) {
     const usuario = await prisma.usuario.findUnique({
       where: { email: loginData.email },
+      select: {
+        id: true,
+        email: true,
+        senha: true,
+        nome: true,
+        tipo: true,
+        avatar: true,
+        ativo: true,
+        twoFactorEnabled: true,
+      },
     })
 
     if (!usuario || !usuario.ativo) {
@@ -183,6 +194,15 @@ export class UsuarioService {
     const senhaValida = await bcrypt.compare(loginData.senha, usuario.senha)
     if (!senhaValida) {
       throw new Error('Email ou senha inválidos')
+    }
+
+    // Se 2FA estiver habilitado, retorna indicador sem criar sessão ainda
+    if (usuario.twoFactorEnabled) {
+      return {
+        requires2FA: true,
+        userId: usuario.id,
+        message: 'Verificação de 2FA necessária',
+      }
     }
 
     // Gera um token de sessão seguro e aleatório (validator).
@@ -217,6 +237,53 @@ export class UsuarioService {
         avatar: usuario.avatar,
       },
     };
+  }
+
+  /**
+   * Completa o login após verificação de 2FA bem-sucedida
+   */
+  async completeTwoFactorLogin(userId: string) {
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        nome: true,
+        tipo: true,
+        avatar: true,
+        ativo: true,
+      },
+    })
+
+    if (!usuario || !usuario.ativo) {
+      throw new Error('Usuário não encontrado ou inativo')
+    }
+
+    // Gera um token de sessão
+    const rawToken = randomBytes(32).toString('hex')
+    const tokenHash = await bcrypt.hash(rawToken, 10)
+    const expiresAt = add(new Date(), { days: 7 })
+
+    const sessao = await prisma.sessao.create({
+      data: {
+        token: tokenHash,
+        expiresAt,
+        usuarioId: usuario.id,
+      },
+    })
+
+    const compositeToken = `${sessao.id}:${rawToken}`
+
+    return {
+      token: compositeToken,
+      usuario: {
+        id: usuario.id,
+        email: usuario.email,
+        nome: usuario.nome,
+        tipo: usuario.tipo,
+        avatar: usuario.avatar,
+      },
+    }
   }
 
   /**

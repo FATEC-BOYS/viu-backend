@@ -18,6 +18,11 @@ model Usuario {
   tipo     String  @default("DESIGNER") // TipoUsuario
   ativo    Boolean @default(true)
 
+  // 2FA (Two-Factor Authentication)
+  twoFactorEnabled Boolean @default(false)
+  twoFactorSecret  String? // Secret do TOTP (criptografado)
+  twoFactorBackupCodes String[] @default([]) // Códigos de backup
+
   // Timestamps
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
@@ -31,6 +36,8 @@ model Usuario {
   tarefas          Tarefa[]
   notificacoes     Notificacao[]
   sessoes          Sessao[]
+  auditLogs        AuditLog[]
+  securityEvents   SecurityEvent[]
 
   @@index([email])
   @@index([tipo])
@@ -221,4 +228,74 @@ model Sessao {
   @@index([expiresAt])
   @@index([ativo])
   @@map("sessoes")
+}
+
+// 📝 Audit Logs (Registro de Auditoria)
+model AuditLog {
+  id String @id @default(cuid())
+
+  // Ação realizada
+  action String // Ex: "LOGIN", "CREATE_PROJECT", "UPDATE_USER", "DELETE_ARTE"
+  resource String // Ex: "Usuario", "Projeto", "Arte"
+  resourceId String? // ID do recurso afetado
+
+  // Detalhes da ação
+  details Json? // Dados adicionais sobre a ação (before/after, params, etc)
+  ipAddress String? // IP de origem
+  userAgent String? // User agent do navegador
+
+  // Status e resultado
+  status String // "SUCCESS" ou "FAILURE"
+  errorMessage String? // Mensagem de erro se falhou
+
+  // Relacionamento com usuário (quem executou a ação)
+  usuarioId String?
+  usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  // Timestamp
+  criadoEm DateTime @default(now())
+
+  @@index([usuarioId])
+  @@index([action])
+  @@index([resource])
+  @@index([status])
+  @@index([criadoEm])
+  @@map("audit_logs")
+}
+
+// 🔒 Security Events (Eventos de Segurança)
+model SecurityEvent {
+  id String @id @default(cuid())
+
+  // Tipo de evento de segurança
+  eventType String // "FAILED_LOGIN", "ACCOUNT_LOCKOUT", "SUSPICIOUS_ACTIVITY", "PASSWORD_CHANGE"
+  severity String // "LOW", "MEDIUM", "HIGH", "CRITICAL"
+
+  // Detalhes do evento
+  description String
+  details Json? // Informações adicionais
+
+  // Origem do evento
+  ipAddress String?
+  userAgent String?
+  location String? // Geolocalização (cidade, país)
+
+  // Relacionamento com usuário (se aplicável)
+  usuarioId String?
+  usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  // Status de resposta
+  resolved Boolean @default(false)
+  resolvedAt DateTime?
+  resolvedBy String? // ID do admin que resolveu
+
+  // Timestamp
+  criadoEm DateTime @default(now())
+
+  @@index([usuarioId])
+  @@index([eventType])
+  @@index([severity])
+  @@index([resolved])
+  @@index([criadoEm])
+  @@map("security_events")
 }
