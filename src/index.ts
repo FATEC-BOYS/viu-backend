@@ -7,6 +7,7 @@
  * separada permite maior flexibilidade para testes automatizados.
  */
 
+import 'dotenv/config'
 import fastify from 'fastify'
 import { fileURLToPath } from 'url'
 import { projetosRoutes } from './routes/projetos.js'

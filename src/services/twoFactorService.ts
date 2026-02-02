@@ -6,11 +6,13 @@
  * - npm install otplib qrcode
  */
 
-import { authenticator } from 'otplib'
+import * as OTPAuth from 'otplib'
 import QRCode from 'qrcode'
 import { randomBytes } from 'crypto'
 import bcrypt from 'bcryptjs'
 import prisma from '../database/client.js'
+
+const authenticator = OTPAuth.authenticator
 
 export class TwoFactorService {
   private readonly APP_NAME = 'VIU Platform'
