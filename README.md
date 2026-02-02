@@ -23,6 +23,11 @@ O VIU Backend é uma API completa para a plataforma VIU, oferecendo:
 - ✅ Banco de dados otimizado com Prisma
 - ✅ Rate limiting e segurança com CORS e Helmet
 - ✅ Hot reload para desenvolvimento
+- ✅ **Integração com Supabase Storage** para armazenamento de arquivos (artes e áudios)
+- ✅ **URLs assinadas** para acesso seguro a arquivos no Supabase
+- ✅ **Links compartilhados** para preview público de artes sem autenticação
+- ✅ **Upload de áudio** com transcrição automática via OpenAI Whisper
+- ✅ **API unificada** em uma única porta (3001)
 
 ## ⚡ Quick Start
 
@@ -124,17 +129,24 @@ npm run db:studio
 
 ### 🎨 Artes
 - `GET /artes` - Listar artes (filtro por projeto, autor, tipo, status)
-- `GET /artes/:id` - Buscar arte com feedbacks e aprovações
+- `GET /artes/:id` - Buscar arte com feedbacks e aprovações (inclui URLs assinadas do Supabase Storage)
 - `POST /artes` - Criar arte (requere projeto e autenticação)
 - `PUT /artes/:id` - Atualizar arte (nome, descrição, status, etc.)
 - `DELETE /artes/:id` - Remover arte
 
 ### 💬 Feedbacks
-- `GET /feedbacks` - Listar feedbacks (filtro por arte/autor/tipo)
-- `GET /feedbacks/:id` - Buscar feedback
+- `GET /feedbacks` - Listar feedbacks (filtro por arte/autor/tipo, inclui URLs assinadas para áudios)
+- `GET /feedbacks/:id` - Buscar feedback (inclui URL assinada se for áudio)
 - `POST /feedbacks` - Criar feedback (associa autor e arte)
+- `POST /feedbacks/audio` - Criar feedback com áudio (upload multipart, transcrição automática)
+- `GET /feedbacks/:id/audio` - Gerar áudio TTS a partir do texto do feedback
+- `GET /feedbacks/:id/transcricao` - Obter transcrição de um feedback de áudio
 - `PUT /feedbacks/:id` - Atualizar feedback
 - `DELETE /feedbacks/:id` - Remover feedback
+
+### 🔗 Links Compartilhados
+- `POST /links` - Criar link compartilhado para uma arte (requer autenticação)
+- `GET /preview/:token` - Acessar arte via link compartilhado (sem autenticação, URLs assinadas)
 
 ### ✅ Aprovações
 - `GET /aprovacoes` - Listar aprovações (filtro por arte/aprovador/status)
@@ -283,21 +295,49 @@ HOST=0.0.0.0
 NODE_ENV=development
 DATABASE_URL="file:./dev.db"
 JWT_SECRET="sua_chave_secreta"
-ALLOWED_ORIGINS="http://localhost:3000"
+ALLOWED_ORIGINS="http://localhost:3000,http://localhost:5173"
 SUPABASE_URL="https://<seu-projeto>.supabase.co"
 SUPABASE_SERVICE_ROLE_KEY="<service_role_key>"
-APP_URL="http://localhost:8080"
+APP_URL="http://localhost:3001"
 OPENAI_API_KEY=""
 ```
 
 ### 🟩 Supabase
 
-Para usar as rotas que dependem do Supabase (ex.: links compartilhados e storage), é necessário criar um projeto no Supabase e obter as credenciais abaixo:
+Para usar as rotas que dependem do Supabase (ex.: links compartilhados, storage de arquivos e feedbacks de áudio), é necessário criar um projeto no Supabase e obter as credenciais abaixo:
 
 1. **Crie um projeto** em https://supabase.com e aguarde o provisionamento.
 2. **Copie a URL do projeto** em **Project Settings → API → Project URL** e preencha `SUPABASE_URL`.
 3. **Copie a Service Role Key** em **Project Settings → API → Service Role** e preencha `SUPABASE_SERVICE_ROLE_KEY`.
-4. **Defina `APP_URL`** com a URL pública do seu front-end (ou `http://localhost:8080` em desenvolvimento).
+4. **Defina `APP_URL`** com a URL pública do seu backend (ou `http://localhost:3001` em desenvolvimento).
+5. **Configure os buckets de storage** no Supabase:
+   - Crie um bucket chamado `audios` para feedbacks de áudio
+   - Configure as políticas de acesso conforme necessário
+
+#### 🗄️ Supabase Storage
+
+O backend utiliza o Supabase Storage para armazenar arquivos de artes e áudios de feedbacks. Os arquivos são armazenados com paths no formato `bucket/chave` e o backend gera URLs assinadas temporárias (válidas por 1 hora) para acesso seguro.
+
+**Exemplo de uso:**
+```json
+// Criar arte com arquivo no Supabase
+POST /artes
+{
+  "nome": "Logo v2",
+  "arquivo": "artes/projeto123/logo-v2.png",  // Path no Supabase Storage
+  "projetoId": "...",
+  ...
+}
+
+// Resposta inclui URL assinada
+GET /artes/:id
+{
+  "data": {
+    "arquivo": "artes/projeto123/logo-v2.png",
+    "arquivo_url": "https://xxxxx.supabase.co/storage/v1/object/sign/artes/..."
+  }
+}
+```
 
 > ⚠️ **Importante:** a Service Role Key tem permissões elevadas. **Nunca** exponha essa chave no front-end.
 

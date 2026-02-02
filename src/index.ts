@@ -143,7 +143,8 @@ if (process.argv[1] === __filename) {
   buildServer()
     .then((app) => {
       const port = process.env.PORT ? Number(process.env.PORT) : 3001
-      app.listen({ port }, (err, address) => {
+      const host = process.env.HOST || '0.0.0.0'
+      app.listen({ port, host }, (err, address) => {
         if (err) {
           app.log.error(err)
           process.exit(1)
