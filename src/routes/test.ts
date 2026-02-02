@@ -34,7 +34,20 @@ import {
 } from '../../../viu-shared/dist/index.mjs'
 
 export async function testRoutes(fastify: FastifyInstance) {
-  
+  // 🔒 SEGURANÇA: Rotas de teste só disponíveis em desenvolvimento
+  const isProduction = process.env.NODE_ENV === 'production'
+
+  if (isProduction) {
+    // Em produção, todas as rotas de teste retornam 404
+    fastify.all('/test/*', async (request, reply) => {
+      return reply.status(404).send({
+        message: 'Rota não encontrada',
+        success: false,
+      })
+    })
+    return
+  }
+
   /**
    * 💰 Teste de Formatação de Moeda
    */

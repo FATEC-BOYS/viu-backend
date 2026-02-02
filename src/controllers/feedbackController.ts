@@ -122,29 +122,31 @@ export async function createFeedbackComAudio(
       return
     }
 
-    const data = await request.file()
-    if (!data) {
+    // Usa os dados já validados pelo middleware
+    const audioData = (request as any).audioData
+    if (!audioData) {
       reply.status(400).send({ message: 'Arquivo de áudio é obrigatório', success: false })
       return
     }
 
-    const audioBuffer = await data.toBuffer()
-    const fields = data.fields as Record<string, any>
+    // Busca os campos do form
+    const data = await request.file()
+    const fields = data?.fields as Record<string, any> | undefined
 
-    const arteId = fields.arteId?.value as string | undefined
+    const arteId = fields?.arteId?.value as string | undefined
     if (!arteId) {
       reply.status(400).send({ message: 'arteId é obrigatório', success: false })
       return
     }
 
-    const posicaoX = fields.posicaoX?.value ? parseFloat(fields.posicaoX.value) : undefined
-    const posicaoY = fields.posicaoY?.value ? parseFloat(fields.posicaoY.value) : undefined
+    const posicaoX = fields?.posicaoX?.value ? parseFloat(fields.posicaoX.value) : undefined
+    const posicaoY = fields?.posicaoY?.value ? parseFloat(fields.posicaoY.value) : undefined
 
     const feedback = await feedbackService.createFeedbackComAudio({
       arteId,
       autorId: usuario.id,
-      audioBuffer,
-      filename: data.filename || 'audio.webm',
+      audioBuffer: audioData.buffer,
+      filename: audioData.filename,
       posicaoX,
       posicaoY,
     })
