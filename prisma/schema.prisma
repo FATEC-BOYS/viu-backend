@@ -95,6 +95,7 @@ model Arte {
 
   feedbacks  Feedback[]
   aprovacoes Aprovacao[]
+  linksCompartilhados LinkCompartilhado[]
 
   // Timestamps
   criadoEm     DateTime @default(now())
@@ -298,4 +299,31 @@ model SecurityEvent {
   @@index([resolved])
   @@index([criadoEm])
   @@map("security_events")
+}
+
+// 🔗 Links Compartilhados (Shared Links)
+model LinkCompartilhado {
+  id String @id @default(cuid())
+
+  // Token único para acesso
+  token String @unique
+
+  // Tipo de recurso compartilhado
+  tipo String // "ARTE", "PROJETO", etc.
+
+  // Relacionamento com Arte (se tipo = "ARTE")
+  arteId String?
+  arte Arte? @relation(fields: [arteId], references: [id], onDelete: Cascade)
+
+  // Configurações de acesso
+  somenteLeitura Boolean @default(true)
+  expiraEm DateTime? // Null = nunca expira
+
+  // Timestamps
+  criadoEm DateTime @default(now())
+
+  @@index([token])
+  @@index([arteId])
+  @@index([expiraEm])
+  @@map("link_compartilhado")
 }

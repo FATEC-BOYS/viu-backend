@@ -19,6 +19,7 @@ import { notificacoesRoutes } from './routes/notificacoes.js'
 import { sessoesRoutes } from './routes/sessoes.js'
 import { twoFactorRoutes } from './routes/twoFactor.js'
 import { securityRoutes } from './routes/security.js'
+import { linksRoutes } from './routes/links.js'
 import { setupErrorHandler } from './middleware/errorHandlerMiddleware.js'
 import { auditLogMiddleware } from './middleware/auditLogMiddleware.js'
 
@@ -132,6 +133,8 @@ export async function buildServer() {
   await app.register(twoFactorRoutes)
   // Registrar rotas de segurança (audit logs e monitoring)
   await app.register(securityRoutes)
+  // Registrar rotas de links compartilhados
+  await app.register(linksRoutes)
   return app
 }
 

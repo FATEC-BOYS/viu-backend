@@ -9,6 +9,7 @@
 
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { FeedbackService, ListFeedbacksParams } from '../services/feedbackService.js'
+import { signPath } from '../utils/supabaseStorage.js'
 
 const feedbackService = new FeedbackService()
 
@@ -26,8 +27,19 @@ export async function listFeedbacks(
       tipo: tipo as string | undefined,
     }
     const { feedbacks, total } = await feedbackService.listFeedbacks(params)
+    
+    // Assina URLs de áudio nos feedbacks
+    const feedbacksComUrl = await Promise.all(
+      feedbacks.map(async (fb) => {
+        const arquivo_url = fb.tipo === 'AUDIO' && fb.arquivo 
+          ? await signPath(fb.arquivo) 
+          : null
+        return { ...fb, arquivo_url }
+      })
+    )
+    
     reply.send({
-      data: feedbacks,
+      data: feedbacksComUrl,
       pagination: {
         page: params.page,
         limit: params.limit,
@@ -56,7 +68,16 @@ export async function getFeedbackById(
       reply.status(404).send({ message: 'Feedback não encontrado', success: false })
       return
     }
-    reply.send({ data: feedback, success: true })
+    
+    // Assina URL de áudio se for feedback de áudio
+    const arquivo_url = feedback.tipo === 'AUDIO' && feedback.arquivo 
+      ? await signPath(feedback.arquivo) 
+      : null
+    
+    reply.send({ 
+      data: { ...feedback, arquivo_url }, 
+      success: true 
+    })
   } catch (error: any) {
     reply.status(500).send({
       message: 'Erro ao buscar feedback',
