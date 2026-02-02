@@ -1,4 +1,7 @@
 // src/index.ts
+// Load environment variables FIRST
+import 'dotenv/config'
+
 /**
  * Ponto de entrada da aplicação Fastify
  *
@@ -7,7 +10,6 @@
  * separada permite maior flexibilidade para testes automatizados.
  */
 
-import 'dotenv/config'
 import fastify from 'fastify'
 import { fileURLToPath } from 'url'
 import { projetosRoutes } from './routes/projetos.js'
