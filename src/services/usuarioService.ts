@@ -185,24 +185,30 @@ export class UsuarioService {
       throw new Error('Email ou senha inválidos')
     }
 
-    // Gera um token de sessão seguro e aleatório.
-    const token = randomBytes(32).toString('hex');
+    // Gera um token de sessão seguro e aleatório (validator).
+    const rawToken = randomBytes(32).toString('hex');
+
+    // Hash do token antes de armazenar no banco (segurança adicional)
+    const tokenHash = await bcrypt.hash(rawToken, 10);
 
     // Define a data de expiração da sessão (ex: 7 dias a partir de agora).
     const expiresAt = add(new Date(), { days: 7 });
 
-    // CRIA a sessão no banco de dados, ligando o token ao usuário.
-    await prisma.sessao.create({
+    // CRIA a sessão no banco de dados, ligando o token HASHEADO ao usuário.
+    const sessao = await prisma.sessao.create({
       data: {
-        token,
+        token: tokenHash, // Armazena o hash, não o token original
         expiresAt,
         usuarioId: usuario.id,
       },
     });
 
-    // Retorna o token e os dados do usuário para o frontend.
+    // Retorna um token composto: "sessionId:rawToken"
+    // O sessionId é usado para buscar a sessão, o rawToken é verificado contra o hash.
+    const compositeToken = `${sessao.id}:${rawToken}`;
+
     return {
-      token,
+      token: compositeToken,
       usuario: {
         id: usuario.id,
         email: usuario.email,

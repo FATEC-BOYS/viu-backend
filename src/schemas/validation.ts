@@ -4,11 +4,45 @@
 
 import { z } from 'zod';
 
+// ===== VALIDAÇÃO DE SENHA FORTE =====
+
+// Lista de senhas comuns que devem ser bloqueadas
+const commonPasswords = [
+  '123456', 'password', '12345678', 'qwerty', '123456789', '12345',
+  '1234', '111111', '1234567', 'dragon', '123123', 'baseball',
+  'iloveyou', 'trustno1', '1234567890', 'sunshine', 'master',
+  'welcome', 'shadow', 'ashley', 'football', 'jesus', 'michael',
+  'ninja', 'mustang', 'password1', 'Password1', 'senha123', 'senha',
+];
+
+const strongPasswordSchema = z
+  .string()
+  .min(12, 'Senha deve ter pelo menos 12 caracteres')
+  .max(128, 'Senha deve ter no máximo 128 caracteres')
+  .refine((senha) => /[a-z]/.test(senha), {
+    message: 'Senha deve conter pelo menos uma letra minúscula',
+  })
+  .refine((senha) => /[A-Z]/.test(senha), {
+    message: 'Senha deve conter pelo menos uma letra maiúscula',
+  })
+  .refine((senha) => /[0-9]/.test(senha), {
+    message: 'Senha deve conter pelo menos um número',
+  })
+  .refine((senha) => /[^a-zA-Z0-9]/.test(senha), {
+    message: 'Senha deve conter pelo menos um caractere especial (!@#$%^&*)',
+  })
+  .refine((senha) => !commonPasswords.includes(senha.toLowerCase()), {
+    message: 'Esta senha é muito comum e insegura. Escolha uma senha mais forte.',
+  })
+  .refine((senha) => !/(.)\1{2,}/.test(senha), {
+    message: 'Senha não deve conter mais de 2 caracteres repetidos consecutivos',
+  });
+
 // ===== SCHEMAS DE USUÁRIO =====
 
 export const CreateUsuarioRequestSchema = z.object({
   email: z.string().email('Email inválido'),
-  senha: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres'),
+  senha: strongPasswordSchema,
   nome: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
   telefone: z.string().optional(),
   tipo: z.enum(['DESIGNER', 'CLIENTE'], {
@@ -83,12 +117,38 @@ export const CreateAprovacaoRequestSchema = z.object({
 // ===== SCHEMAS UTILITÁRIOS =====
 
 export const PaginationSchema = z.object({
-  page: z.number().int().positive().default(1),
-  limit: z.number().int().positive().max(100).default(10),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(10),
 });
 
 export const IdParamSchema = z.object({
   id: z.string().cuid('ID inválido'),
+});
+
+// Schema para validar query strings de busca
+export const SearchQuerySchema = z.object({
+  search: z.string()
+    .max(100, 'Termo de busca muito longo')
+    .regex(/^[a-zA-Z0-9\s\-_áéíóúâêîôûãõçÁÉÍÓÚÂÊÎÔÛÃÕÇ]*$/, 'Termo de busca contém caracteres inválidos')
+    .optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(10),
+  status: z.string().optional(),
+  tipo: z.string().optional(),
+});
+
+// Schema para validar parâmetros de ID em paths
+export const CuidParamSchema = z.object({
+  id: z.string()
+    .cuid('ID deve ser um CUID válido')
+    .min(1, 'ID é obrigatório'),
+});
+
+// Schema para validar múltiplos IDs
+export const MultipleIdsSchema = z.object({
+  ids: z.array(z.string().cuid('Cada ID deve ser um CUID válido'))
+    .min(1, 'Pelo menos um ID deve ser fornecido')
+    .max(100, 'Máximo de 100 IDs por requisição'),
 });
 
 // ===== TIPOS INFERIDOS =====
