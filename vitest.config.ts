@@ -17,7 +17,6 @@ export default defineConfig({
       include: ['src/**/*.ts'],
       exclude: [
         'src/index.ts',
-        'src/server.ts',
         'src/database/client.ts',
         'src/database/seed.ts',
         'src/supabaseAdmin.ts',

@@ -8,6 +8,7 @@
 
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { ArteService, ListArtesParams } from '../services/arteService.js'
+import { signPath } from '../utils/supabaseStorage.js'
 
 const arteService = new ArteService()
 
@@ -65,7 +66,28 @@ export async function getArteById(
       reply.status(404).send({ message: 'Arte não encontrada', success: false })
       return
     }
-    reply.send({ data: arte, success: true })
+    
+    // Gera URL assinada para o arquivo se for do Supabase Storage
+    const arquivo_url = await signPath(arte.arquivo)
+    
+    // Assina URLs de áudio nos feedbacks
+    const feedbacksComUrl = await Promise.all(
+      (arte.feedbacks || []).map(async (fb) => {
+        const arquivo_url = fb.tipo === 'AUDIO' && fb.arquivo 
+          ? await signPath(fb.arquivo) 
+          : null
+        return { ...fb, arquivo_url }
+      })
+    )
+    
+    reply.send({ 
+      data: { 
+        ...arte, 
+        arquivo_url,
+        feedbacks: feedbacksComUrl
+      }, 
+      success: true 
+    })
   } catch (error: any) {
     reply.status(500).send({
       message: 'Erro ao buscar arte',

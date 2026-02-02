@@ -1,4 +1,7 @@
 // src/index.ts
+// Load environment variables FIRST
+import 'dotenv/config'
+
 /**
  * Ponto de entrada da aplicação Fastify
  *
@@ -19,6 +22,7 @@ import { notificacoesRoutes } from './routes/notificacoes.js'
 import { sessoesRoutes } from './routes/sessoes.js'
 import { twoFactorRoutes } from './routes/twoFactor.js'
 import { securityRoutes } from './routes/security.js'
+import { linksRoutes } from './routes/links.js'
 import { setupErrorHandler } from './middleware/errorHandlerMiddleware.js'
 import { auditLogMiddleware } from './middleware/auditLogMiddleware.js'
 
@@ -132,6 +136,8 @@ export async function buildServer() {
   await app.register(twoFactorRoutes)
   // Registrar rotas de segurança (audit logs e monitoring)
   await app.register(securityRoutes)
+  // Registrar rotas de links compartilhados
+  await app.register(linksRoutes)
   return app
 }
 
@@ -140,7 +146,8 @@ if (process.argv[1] === __filename) {
   buildServer()
     .then((app) => {
       const port = process.env.PORT ? Number(process.env.PORT) : 3001
-      app.listen({ port }, (err, address) => {
+      const host = process.env.HOST || '0.0.0.0'
+      app.listen({ port, host }, (err, address) => {
         if (err) {
           app.log.error(err)
           process.exit(1)
