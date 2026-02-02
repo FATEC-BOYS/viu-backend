@@ -3,7 +3,8 @@
  * Controladores de Feedbacks
  *
  * Processa requisições HTTP relacionadas a feedbacks, delegando a
- * lógica de negócio ao serviço de feedbacks.
+ * lógica de negócio ao serviço de feedbacks. Inclui endpoints para
+ * upload de áudio com transcrição (STT) e geração de voz (TTS).
  */
 
 import { FastifyRequest, FastifyReply } from 'fastify'
@@ -88,6 +89,151 @@ export async function createFeedback(
     }
     reply.status(500).send({
       message: 'Erro ao criar feedback',
+      error: error.message,
+      success: false,
+    })
+  }
+}
+
+/**
+ * POST /feedbacks/audio
+ * Content-Type: multipart/form-data
+ *
+ * Campos do form:
+ *   - audio: arquivo de áudio (webm, ogg, mp3, wav, m4a)
+ *   - arteId: ID da arte
+ *   - posicaoX: (opcional) coordenada X do ponto clicado
+ *   - posicaoY: (opcional) coordenada Y do ponto clicado
+ *
+ * Fluxo:
+ *   1. Recebe áudio via multipart
+ *   2. Upload no Supabase Storage
+ *   3. Transcreve via Whisper (OpenAI)
+ *   4. Salva feedback com texto transcrito + URL do áudio + posição
+ */
+export async function createFeedbackComAudio(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  try {
+    const usuario = (request as any).usuario
+    if (!usuario?.id) {
+      reply.status(401).send({ message: 'Usuário não autenticado', success: false })
+      return
+    }
+
+    const data = await request.file()
+    if (!data) {
+      reply.status(400).send({ message: 'Arquivo de áudio é obrigatório', success: false })
+      return
+    }
+
+    const audioBuffer = await data.toBuffer()
+    const fields = data.fields as Record<string, any>
+
+    const arteId = fields.arteId?.value as string | undefined
+    if (!arteId) {
+      reply.status(400).send({ message: 'arteId é obrigatório', success: false })
+      return
+    }
+
+    const posicaoX = fields.posicaoX?.value ? parseFloat(fields.posicaoX.value) : undefined
+    const posicaoY = fields.posicaoY?.value ? parseFloat(fields.posicaoY.value) : undefined
+
+    const feedback = await feedbackService.createFeedbackComAudio({
+      arteId,
+      autorId: usuario.id,
+      audioBuffer,
+      filename: data.filename || 'audio.webm',
+      posicaoX,
+      posicaoY,
+    })
+
+    reply.status(201).send({
+      message: 'Feedback com áudio criado e transcrito com sucesso',
+      data: feedback,
+      success: true,
+    })
+  } catch (error: any) {
+    if (error.message.includes('não encontrad')) {
+      reply.status(400).send({ message: error.message, success: false })
+      return
+    }
+    if (error.message.includes('OPENAI_API_KEY')) {
+      reply.status(503).send({ message: 'Serviço de transcrição não configurado', success: false })
+      return
+    }
+    reply.status(500).send({
+      message: 'Erro ao criar feedback com áudio',
+      error: error.message,
+      success: false,
+    })
+  }
+}
+
+/**
+ * GET /feedbacks/:id/audio
+ *
+ * Gera áudio TTS a partir do conteúdo textual de um feedback.
+ * Retorna o stream de áudio MP3 diretamente.
+ */
+export async function getFeedbackAudio(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  try {
+    const { id } = request.params as { id: string }
+    const { buffer } = await feedbackService.gerarAudioDoFeedback(id)
+
+    reply
+      .header('Content-Type', 'audio/mpeg')
+      .header('Content-Disposition', `inline; filename="feedback-${id}.mp3"`)
+      .send(buffer)
+  } catch (error: any) {
+    if (error.message.includes('não encontrado')) {
+      reply.status(404).send({ message: error.message, success: false })
+      return
+    }
+    if (error.message.includes('não possui conteúdo')) {
+      reply.status(400).send({ message: error.message, success: false })
+      return
+    }
+    if (error.message.includes('OPENAI_API_KEY')) {
+      reply.status(503).send({ message: 'Serviço de síntese não configurado', success: false })
+      return
+    }
+    reply.status(500).send({
+      message: 'Erro ao gerar áudio do feedback',
+      error: error.message,
+      success: false,
+    })
+  }
+}
+
+/**
+ * GET /feedbacks/:id/transcricao
+ *
+ * Retorna a transcrição de um feedback de áudio.
+ */
+export async function getFeedbackTranscricao(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  try {
+    const { id } = request.params as { id: string }
+    const transcricao = await feedbackService.getTranscricao(id)
+    reply.send({ data: { transcricao }, success: true })
+  } catch (error: any) {
+    if (error.message.includes('não encontrado')) {
+      reply.status(404).send({ message: error.message, success: false })
+      return
+    }
+    if (error.message.includes('não possui áudio')) {
+      reply.status(400).send({ message: error.message, success: false })
+      return
+    }
+    reply.status(500).send({
+      message: 'Erro ao obter transcrição',
       error: error.message,
       success: false,
     })

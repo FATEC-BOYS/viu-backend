@@ -27,6 +27,12 @@ await app.register(import('@fastify/cors'), {
   origin: true,
   credentials: true
 })
+
+  await app.register(import('@fastify/multipart'), {
+    limits: {
+      fileSize: 25 * 1024 * 1024, // 25MB max para áudio
+    },
+  })
   
   // Health check route
   app.get('/', async (request, reply) => {
