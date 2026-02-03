@@ -191,6 +191,12 @@ export class UsuarioService {
     if (!usuario || !usuario.ativo) {
       throw new Error('Email ou senha inválidos ou usuário inativo')
     }
+
+    // Se usuário foi criado via login social (Google, etc), não tem senha
+    if (!usuario.senha) {
+      throw new Error('Esta conta foi criada com login social. Use o método de login original.')
+    }
+
     const senhaValida = await bcrypt.compare(loginData.senha, usuario.senha)
     if (!senhaValida) {
       throw new Error('Email ou senha inválidos')
