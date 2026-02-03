@@ -26,6 +26,7 @@ import { sessoesRoutes } from './routes/sessoes.js'
 import { twoFactorRoutes } from './routes/twoFactor.js'
 import { securityRoutes } from './routes/security.js'
 import { linksRoutes } from './routes/links.js'
+import { supabaseAuthRoutes } from './routes/supabaseAuth.js'
 import { setupErrorHandler } from './middleware/errorHandlerMiddleware.js'
 import { auditLogMiddleware } from './middleware/auditLogMiddleware.js'
 
@@ -141,6 +142,8 @@ export async function buildServer() {
   await app.register(securityRoutes)
   // Registrar rotas de links compartilhados
   await app.register(linksRoutes)
+  // Registrar rotas de autenticação Supabase
+  await app.register(supabaseAuthRoutes)
   return app
 }
 

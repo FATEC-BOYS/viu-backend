@@ -11,12 +11,16 @@ datasource db {
 model Usuario {
   id       String  @id @default(cuid())
   email    String  @unique
-  senha    String
+  senha    String? // Opcional para login social (Google, etc)
   nome     String
   telefone String?
   avatar   String?
   tipo     String  @default("DESIGNER") // TipoUsuario
   ativo    Boolean @default(true)
+
+  // Integração com Supabase (para login social)
+  supabaseId String? @unique // ID do usuário no Supabase
+  provider   String? // "google", "github", "email", etc.
 
   // 2FA (Two-Factor Authentication)
   twoFactorEnabled Boolean @default(false)
