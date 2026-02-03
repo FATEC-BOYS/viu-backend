@@ -122,6 +122,11 @@ export class TwoFactorService {
         throw new Error('2FA não está habilitado')
       }
 
+      // Verifica se o usuário tem senha configurada (login social não tem senha)
+      if (!usuario.senha) {
+        throw new Error('Usuário não possui senha configurada. Use outro método de autenticação.')
+      }
+
       // Verifica a senha antes de desabilitar
       const senhaValida = await bcrypt.compare(password, usuario.senha)
       if (!senhaValida) {
@@ -222,6 +227,11 @@ export class TwoFactorService {
 
       if (!usuario.twoFactorEnabled) {
         throw new Error('2FA não está habilitado')
+      }
+
+      // Verifica se o usuário tem senha configurada
+      if (!usuario.senha) {
+        throw new Error('Usuário não possui senha configurada. Use outro método de autenticação.')
       }
 
       // Verifica a senha
