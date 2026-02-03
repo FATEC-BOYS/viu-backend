@@ -66,7 +66,7 @@ export class AuditLogService {
           usuarioId: data.usuarioId,
           ipAddress: data.ipAddress,
           userAgent: data.userAgent,
-          details: data.details as Prisma.JsonValue,
+          details: (data.details ?? null) as any,
           status: data.status,
           errorMessage: data.errorMessage,
         },
@@ -147,7 +147,7 @@ export class AuditLogService {
       limit = 50,
     } = filters
 
-    const where: Prisma.AuditLogWhereInput = {
+    const where: any = {
       ...(usuarioId && { usuarioId }),
       ...(action && { action }),
       ...(resource && { resource }),
@@ -240,7 +240,7 @@ export class AuditLogService {
   } = {}) {
     const { usuarioId, startDate, endDate } = options
 
-    const where: Prisma.AuditLogWhereInput = {
+    const where: any = {
       ...(usuarioId && { usuarioId }),
       ...(startDate || endDate
         ? {
@@ -278,11 +278,11 @@ export class AuditLogService {
       failureCount,
       successRate:
         total > 0 ? ((successCount / total) * 100).toFixed(2) + '%' : '0%',
-      topActions: actionBreakdown.map((item) => ({
+      topActions: actionBreakdown.map((item: any) => ({
         action: item.action,
         count: item._count.action,
       })),
-      resourceBreakdown: resourceBreakdown.map((item) => ({
+      resourceBreakdown: resourceBreakdown.map((item: any) => ({
         resource: item.resource,
         count: item._count.resource,
       })),

@@ -17,8 +17,8 @@ export async function listAprovacoes(
   try {
     const { page = 1, limit = 10, arteId, aprovadorId, status } = (request.query || {}) as any
     const params: ListAprovacoesParams = {
-      page: Number(page),
-      limit: Number(limit),
+      page: Number(page) || 1,
+      limit: Number(limit) || 10,
       arteId: arteId as string | undefined,
       aprovadorId: aprovadorId as string | undefined,
       status: status as string | undefined,
@@ -30,7 +30,7 @@ export async function listAprovacoes(
         page: params.page,
         limit: params.limit,
         total,
-        pages: Math.ceil(total / params.limit),
+        pages: Math.ceil(total / params.limit!),
       },
       success: true,
     })
@@ -71,7 +71,7 @@ export async function createAprovacao(
   try {
     const usuario = (request as any).usuario
     const data = {
-      ...request.body,
+      ...(request.body as Record<string, any>),
       aprovadorId: usuario?.id,
     }
     const aprovacao = await aprovacaoService.createAprovacao(data)

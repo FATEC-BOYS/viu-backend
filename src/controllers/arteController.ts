@@ -27,8 +27,8 @@ export async function listArtes(
       search,
     } = (request.query || {}) as any
     const params: ListArtesParams = {
-      page: Number(page),
-      limit: Number(limit),
+      page: Number(page) || 1,
+      limit: Number(limit) || 10,
       projetoId: projetoId as string | undefined,
       autorId: autorId as string | undefined,
       status: status as string | undefined,
@@ -42,7 +42,7 @@ export async function listArtes(
         page: params.page,
         limit: params.limit,
         total,
-        pages: Math.ceil(total / params.limit),
+        pages: Math.ceil(total / params.limit!),
       },
       success: true,
     })
@@ -72,7 +72,7 @@ export async function getArteById(
     
     // Assina URLs de áudio nos feedbacks
     const feedbacksComUrl = await Promise.all(
-      (arte.feedbacks || []).map(async (fb) => {
+      (arte.feedbacks || []).map(async (fb: any) => {
         const arquivo_url = fb.tipo === 'AUDIO' && fb.arquivo 
           ? await signPath(fb.arquivo) 
           : null
@@ -105,7 +105,7 @@ export async function createArte(
     // autorId virá do middleware de autenticação
     const usuario = (request as any).usuario
     const data = {
-      ...request.body,
+      ...(request.body as Record<string, any>),
       autorId: usuario?.id,
     }
     const arte = await arteService.createArte(data)

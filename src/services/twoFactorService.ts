@@ -6,13 +6,14 @@
  * - npm install otplib qrcode
  */
 
-import * as OTPAuth from 'otplib'
-import QRCode from 'qrcode'
+import { TOTP, verify as totpVerify } from 'otplib'
+import * as QRCode from 'qrcode'
 import { randomBytes } from 'crypto'
 import bcrypt from 'bcryptjs'
 import prisma from '../database/client.js'
 
-const authenticator = OTPAuth.authenticator
+// Create authenticator instance for generating secrets
+const authenticator = new TOTP()
 
 export class TwoFactorService {
   private readonly APP_NAME = 'VIU Platform'
@@ -38,12 +39,8 @@ export class TwoFactorService {
       // Gera um secret aleatório de 32 caracteres
       const secret = authenticator.generateSecret()
 
-      // Cria o otpauth URL para o QR code
-      const otpauthUrl = authenticator.keyuri(
-        usuario.email,
-        this.APP_NAME,
-        secret,
-      )
+      // Cria o otpauth URL para o QR code manualmente
+      const otpauthUrl = `otpauth://totp/${encodeURIComponent(this.APP_NAME)}:${encodeURIComponent(usuario.email)}?secret=${secret}&issuer=${encodeURIComponent(this.APP_NAME)}`
 
       // Gera o QR code como data URL
       const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl)
@@ -74,7 +71,7 @@ export class TwoFactorService {
   ) {
     try {
       // Verifica se o código está correto
-      const isValid = authenticator.verify({ token: code, secret })
+      const isValid = totpVerify({ token: code, secret: secret })
 
       if (!isValid) {
         throw new Error('Código 2FA inválido. Verifique e tente novamente.')
@@ -183,12 +180,13 @@ export class TwoFactorService {
       // Verifica se é um código de backup
       for (let i = 0; i < usuario.twoFactorBackupCodes.length; i++) {
         const hashedBackupCode = usuario.twoFactorBackupCodes[i]
+        if (!hashedBackupCode) continue
         const isBackupCodeValid = await bcrypt.compare(code, hashedBackupCode)
 
         if (isBackupCodeValid) {
           // Remove o código de backup usado
           const updatedBackupCodes = usuario.twoFactorBackupCodes.filter(
-            (_, index) => index !== i,
+            (_: any, index: number) => index !== i,
           )
 
           await prisma.usuario.update({

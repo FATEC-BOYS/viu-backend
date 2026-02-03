@@ -83,7 +83,7 @@ export function validateMimeType(mimeType: string, extension: string): boolean {
   }
 
   // Verifica se a extensão corresponde ao MIME type
-  return allowedExtensions.includes(extension.toLowerCase())
+  return (allowedExtensions as readonly string[]).includes(extension.toLowerCase())
 }
 
 /**

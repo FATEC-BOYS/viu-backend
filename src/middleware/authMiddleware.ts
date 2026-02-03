@@ -18,6 +18,13 @@ export async function authenticate(
 
     // Extrai o token composto: "sessionId:rawToken"
     const compositeToken = authHeader.split(' ')[1]
+    if (!compositeToken) {
+      reply.status(401).send({
+        message: 'Token de autenticação inválido',
+        success: false,
+      })
+      return
+    }
     const [sessionId, rawToken] = compositeToken.split(':')
 
     if (!sessionId || !rawToken) {

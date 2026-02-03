@@ -20,31 +20,31 @@ export async function listFeedbacks(
   try {
     const { page = 1, limit = 10, arteId, autorId, tipo } = (request.query || {}) as any
     const params: ListFeedbacksParams = {
-      page: Number(page),
-      limit: Number(limit),
+      page: Number(page) || 1,
+      limit: Number(limit) || 10,
       arteId: arteId as string | undefined,
       autorId: autorId as string | undefined,
       tipo: tipo as string | undefined,
     }
     const { feedbacks, total } = await feedbackService.listFeedbacks(params)
-    
+
     // Assina URLs de áudio nos feedbacks
     const feedbacksComUrl = await Promise.all(
-      feedbacks.map(async (fb) => {
-        const arquivo_url = fb.tipo === 'AUDIO' && fb.arquivo 
-          ? await signPath(fb.arquivo) 
+      feedbacks.map(async (fb: any) => {
+        const arquivo_url = fb.tipo === 'AUDIO' && fb.arquivo
+          ? await signPath(fb.arquivo)
           : null
         return { ...fb, arquivo_url }
       })
     )
-    
+
     reply.send({
       data: feedbacksComUrl,
       pagination: {
         page: params.page,
         limit: params.limit,
         total,
-        pages: Math.ceil(total / params.limit),
+        pages: Math.ceil(total / params.limit!),
       },
       success: true,
     })
@@ -94,7 +94,7 @@ export async function createFeedback(
   try {
     const usuario = (request as any).usuario
     const data = {
-      ...request.body,
+      ...(request.body as Record<string, any>),
       autorId: usuario?.id,
     }
     const feedback = await feedbackService.createFeedback(data)

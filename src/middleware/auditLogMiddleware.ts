@@ -110,42 +110,16 @@ export async function auditLogMiddleware(
   const ipAddress = request.ip
   const userAgent = request.headers['user-agent']
 
-  // Cria uma função para logar após a resposta
-  const logAudit = async (success: boolean, errorMessage?: string) => {
-    try {
-      await auditLogService.log({
-        action: audit.action,
-        resource: audit.resource,
-        resourceId,
-        usuarioId: usuario?.id,
-        ipAddress,
-        userAgent,
-        details: {
-          method: request.method,
-          url: request.url,
-          body: request.method !== 'GET' ? request.body : undefined,
-          query: request.query,
-        },
-        status: success ? 'SUCCESS' : 'FAILURE',
-        errorMessage,
-      })
-    } catch (error: any) {
-      // Não deve quebrar a aplicação se o log falhar
-      console.error('Erro ao registrar audit log:', error.message)
-    }
+  // Armazena as informações para log posterior
+  // O log será feito após o handler da rota para capturar o status correto
+  ;(request as any).auditLog = {
+    action: audit.action,
+    resource: audit.resource,
+    resourceId,
+    usuarioId: usuario?.id,
+    ipAddress,
+    userAgent,
   }
-
-  // Hook para registrar após a resposta ser enviada
-  reply.addHook('onSend', async (request, reply, payload) => {
-    const success = reply.statusCode >= 200 && reply.statusCode < 400
-    await logAudit(success)
-    return payload
-  })
-
-  // Hook para capturar erros
-  reply.addHook('onError', async (request, reply, error) => {
-    await logAudit(false, error.message)
-  })
 }
 
 /**

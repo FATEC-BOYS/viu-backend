@@ -222,11 +222,11 @@ export async function requireAuthor(
 
     const aprovacao = await prisma.aprovacao.findUnique({
       where: { id },
-      select: { clienteId: true },
+      select: { aprovadorId: true },
     })
 
     if (aprovacao) {
-      if (aprovacao.clienteId !== usuario.id) {
+      if (aprovacao.aprovadorId !== usuario.id) {
         return reply.status(403).send({
           message: 'Acesso negado: você não é o autor desta aprovação',
           success: false,

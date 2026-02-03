@@ -18,8 +18,8 @@ export async function listNotificacoes(
     const usuario = (request as any).usuario
     const { page = 1, limit = 10, tipo, canal, lida } = (request.query || {}) as any
     const params: ListNotificacoesParams = {
-      page: Number(page),
-      limit: Number(limit),
+      page: Number(page) || 1,
+      limit: Number(limit) || 10,
       usuarioId: usuario?.id,
       tipo: tipo as string | undefined,
       canal: canal as string | undefined,
@@ -32,7 +32,7 @@ export async function listNotificacoes(
         page: params.page,
         limit: params.limit,
         total,
-        pages: Math.ceil(total / params.limit),
+        pages: Math.ceil(total / params.limit!),
       },
       success: true,
     })
