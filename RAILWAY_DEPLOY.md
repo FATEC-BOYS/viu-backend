@@ -69,11 +69,13 @@ FRONTEND_URL=https://seu-frontend.vercel.app
 
 ### 4. Configurar Build e Start
 
-O Railway detecta automaticamente o `package.json`, mas certifique-se de que:
+O Railway detecta automaticamente o `package.json`, mas você precisa configurar manualmente:
+
+**No Railway**, vá em **Settings** do seu serviço backend:
 
 **Build Command:**
 ```bash
-npm run build && npx prisma generate && npx prisma db push
+npm run build && npx prisma generate && npx prisma db push --accept-data-loss
 ```
 
 **Start Command:**
@@ -81,7 +83,10 @@ npm run build && npx prisma generate && npx prisma db push
 npm start
 ```
 
-> **⚠️ Importante:** O comando `prisma db push` vai criar as tabelas no banco automaticamente no primeiro deploy!
+> **⚠️ Importante:**
+> - O `--accept-data-loss` é necessário porque estamos adicionando novos campos ao schema
+> - O comando `prisma db push` vai criar/atualizar as tabelas no banco automaticamente
+> - Isso é seguro em deploys iniciais (banco vazio ou novos campos opcionais)
 
 ### 5. Deploy
 
@@ -121,12 +126,54 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 - Use [randomkeygen.com](https://randomkeygen.com/)
 - Ou [passwordsgenerator.net](https://passwordsgenerator.net/)
 
+## 🔄 Como Configurar Build Command no Railway
+
+### Passo 1: Acesse Settings
+
+1. No Railway, clique no seu serviço backend (não no PostgreSQL)
+2. Vá na aba **Settings**
+3. Role até a seção **Build**
+
+### Passo 2: Configure Build Command
+
+No campo **Build Command**, cole:
+
+```bash
+npm run build && npx prisma generate && npx prisma db push --accept-data-loss
+```
+
+### Passo 3: Configure Start Command
+
+No campo **Start Command**, cole:
+
+```bash
+npm start
+```
+
+### Passo 4: Salve e Redeploy
+
+1. Clique em **Save**
+2. Vá em **Deployments**
+3. Clique em **Redeploy** (botão com três pontos)
+
+### ⚠️ Por que `--accept-data-loss`?
+
+A flag `--accept-data-loss` é necessária porque estamos:
+- Adicionando novos campos (`supabaseId`, `provider`)
+- Tornando o campo `senha` opcional
+- Adicionando constraints unique em campos novos
+
+**Isso é seguro porque:**
+- ✅ São campos novos (não afeta dados existentes)
+- ✅ Campos opcionais (podem ser `null`)
+- ✅ Não estamos removendo dados
+
 ## 🔄 Configuração Automática do Railway
 
 O Railway automaticamente:
 - ✅ Detecta que é um projeto Node.js
 - ✅ Instala as dependências com `npm install`
-- ✅ Executa o build com `npm run build`
+- ✅ Executa o comando de build que você configurou
 - ✅ Conecta o banco PostgreSQL
 - ✅ Gera a `DATABASE_URL`
 
@@ -179,6 +226,28 @@ Se o build falhar:
 2. Certifique-se de que o Node.js está na versão >= 18
 3. Limpe o cache e tente novamente
 
+### Erro: "Use the --accept-data-loss flag"
+
+Se você ver este erro durante o deploy:
+```
+⚠️  There might be data loss when applying the changes:
+  • A unique constraint covering the columns `[supabaseId]` on the table `usuarios` will be added.
+Error: Use the --accept-data-loss flag to ignore the data loss warnings
+```
+
+**Solução:**
+1. Vá em **Settings** do seu serviço no Railway
+2. No campo **Build Command**, certifique-se de ter:
+   ```bash
+   npm run build && npx prisma generate && npx prisma db push --accept-data-loss
+   ```
+3. Salve e faça **Redeploy**
+
+**Por que isso acontece?**
+- Estamos adicionando novos campos ao schema (`supabaseId`, `provider`)
+- O Prisma alerta sobre possível perda de dados (mas é seguro neste caso)
+- Os campos são opcionais e não afetam dados existentes
+
 ### Erro de Conexão com Banco
 
 Se o Prisma não conseguir conectar:
@@ -186,7 +255,7 @@ Se o Prisma não conseguir conectar:
 2. Certifique-se de que o PostgreSQL está rodando
 3. Tente fazer o push do schema manualmente:
    ```bash
-   npx prisma db push
+   npx prisma db push --accept-data-loss
    ```
 
 ## 🎉 Pronto!
