@@ -2,6 +2,9 @@
 // Load environment variables FIRST
 import 'dotenv/config'
 
+// Validate environment variables immediately after loading
+import './config/env.js'
+
 /**
  * Ponto de entrada da aplicação Fastify
  *
