@@ -17,8 +17,8 @@ export async function listTarefas(
   try {
     const { page = 1, limit = 10, projetoId, responsavelId, status, prioridade } = (request.query || {}) as any
     const params: ListTarefasParams = {
-      page: Number(page),
-      limit: Number(limit),
+      page: Number(page) || 1,
+      limit: Number(limit) || 10,
       projetoId: projetoId as string | undefined,
       responsavelId: responsavelId as string | undefined,
       status: status as string | undefined,
@@ -31,7 +31,7 @@ export async function listTarefas(
         page: params.page,
         limit: params.limit,
         total,
-        pages: Math.ceil(total / params.limit),
+        pages: Math.ceil(total / params.limit!),
       },
       success: true,
     })

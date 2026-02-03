@@ -114,7 +114,7 @@ export class LinkService {
 
     // Assina URLs de áudio dos feedbacks
     const feedbacksComUrl = await Promise.all(
-      feedbacks.map(async (fb) => {
+      feedbacks.map(async (fb: any) => {
         let arquivo_url: string | null = null
         if (fb.tipo === 'AUDIO' && fb.arquivo) {
           arquivo_url = await signPath(fb.arquivo)

@@ -53,7 +53,7 @@ export class SecurityMonitoringService {
           ipAddress: data.ipAddress,
           userAgent: data.userAgent,
           location: data.location,
-          details: data.details as Prisma.JsonValue,
+          details: (data.details ?? null) as any,
         },
       })
 
@@ -304,7 +304,7 @@ export class SecurityMonitoringService {
   } = {}) {
     const { startDate, endDate } = options
 
-    const where: Prisma.SecurityEventWhereInput = {
+    const where: any = {
       ...(startDate || endDate
         ? {
             criadoEm: {
@@ -349,11 +349,11 @@ export class SecurityMonitoringService {
       total,
       unresolved,
       resolved: total - unresolved,
-      bySeverity: bySeverity.map((item) => ({
+      bySeverity: bySeverity.map((item: any) => ({
         severity: item.severity,
         count: item._count.severity,
       })),
-      topEventTypes: byType.map((item) => ({
+      topEventTypes: byType.map((item: any) => ({
         eventType: item.eventType,
         count: item._count.eventType,
       })),

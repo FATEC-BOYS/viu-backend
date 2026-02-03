@@ -233,10 +233,9 @@ export async function getUserSecurityHistory(
     const query = request.query as any
     const limit = query.limit ? parseInt(query.limit) : 50
 
-    const [auditLogs, securityEvents] = await Promise.all([
-      auditLogService.getUserLogs(userId, limit),
-      // TODO: Adicionar método getUserEvents no securityMonitoringService
-    ])
+    const auditLogs = await auditLogService.getUserLogs(userId, limit)
+    // TODO: Adicionar método getUserEvents no securityMonitoringService
+    // const securityEvents = await securityMonitoringService.getUserEvents(userId, limit)
 
     reply.status(200).send({
       data: {
