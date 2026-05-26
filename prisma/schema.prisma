@@ -11,23 +11,20 @@ datasource db {
 model Usuario {
   id       String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
   email    String  @unique
-  senha    String? // Opcional para login social (Google, etc)
+  senha    String?
   nome     String
   telefone String?
   avatar   String?
-  tipo     String  @default("DESIGNER") // TipoUsuario: DESIGNER, CLIENTE, ADMIN
+  tipo     String  @default("DESIGNER")
   ativo    Boolean @default(true)
 
-  // 2FA (Two-Factor Authentication)
   twoFactorEnabled     Boolean  @default(false)
-  twoFactorSecret      String? // Secret do TOTP (criptografado)
-  twoFactorBackupCodes String[] @default([]) // Códigos de backup
+  twoFactorSecret      String?
+  twoFactorBackupCodes String[] @default([])
 
-  // Timestamps
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
-  // Relacionamentos
   projetosDesigner Projeto[]       @relation("ProjetoDesigner")
   projetosCliente  Projeto[]       @relation("ProjetoCliente")
   artes            Arte[]          @relation("ArteAutor")
@@ -51,11 +48,10 @@ model Projeto {
   id        String    @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
   nome      String
   descricao String?
-  status    String    @default("EM_ANDAMENTO") // StatusProjeto: EM_ANDAMENTO, CONCLUIDO, CANCELADO
-  orcamento Int? // Em centavos
+  status    String    @default("EM_ANDAMENTO")
+  orcamento Int?
   prazo     DateTime?
 
-  // Relacionamentos
   designerId String
   designer   Usuario @relation("ProjetoDesigner", fields: [designerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   clienteId  String
@@ -64,7 +60,6 @@ model Projeto {
   artes   Arte[]   @relation("ArtesProjeto")
   tarefas Tarefa[] @relation("TarefasProjeto")
 
-  // Timestamps
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
@@ -80,13 +75,12 @@ model Arte {
   id        String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
   nome      String
   descricao String?
-  arquivo   String // URL/path do arquivo
-  tipo      String // TipoArte: IMAGEM, VIDEO, PDF, etc
-  tamanho   Int // Em bytes
+  arquivo   String
+  tipo      String
+  tamanho   Int
   versao    Int     @default(1)
-  status    String  @default("EM_ANALISE") // StatusArte: EM_ANALISE, APROVADO, REJEITADO
+  status    String  @default("EM_ANALISE")
 
-  // Relacionamentos
   projetoId String
   projeto   Projeto @relation("ArtesProjeto", fields: [projetoId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   autorId   String
@@ -96,7 +90,6 @@ model Arte {
   aprovacoes          Aprovacao[]         @relation("AprovacoesArte")
   linksCompartilhados LinkCompartilhado[] @relation("LinksArte")
 
-  // Timestamps
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
@@ -112,22 +105,23 @@ model Arte {
 model Feedback {
   id       String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
   conteudo String
-  tipo     String  @default("TEXTO") // TipoFeedback: TEXTO, AUDIO, POSICIONAL
-  arquivo  String? // Para feedback de áudio
-  posicaoX Float? // Para feedback posicional
+  tipo     String  @default("TEXTO")
+  arquivo  String?
+  posicaoX Float?
   posicaoY Float?
 
-  // Campos de transcrição / TTS
-  transcricao String? // Texto transcrito a partir do áudio (STT)
-  audioGerado String? // URL do áudio gerado a partir do texto (TTS)
+  transcricao String?
+  audioGerado String?
 
-  // Relacionamentos
+  // campos para feedback de visitante externo (sem conta)
+  guestNome  String?
+  guestEmail String?
+
   arteId  String
-  arte    Arte    @relation("FeedbacksArte", fields: [arteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  autorId String
-  autor   Usuario @relation("FeedbackAutor", fields: [autorId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  arte    Arte     @relation("FeedbacksArte", fields: [arteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  autorId String?
+  autor   Usuario? @relation("FeedbackAutor", fields: [autorId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
-  // Timestamps
   criadoEm DateTime @default(now())
 
   @@index([arteId])
@@ -140,16 +134,14 @@ model Feedback {
 // ✅ Aprovações
 model Aprovacao {
   id         String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
-  status     String  @default("PENDENTE") // StatusAprovacao: PENDENTE, APROVADO, REJEITADO
+  status     String  @default("PENDENTE")
   comentario String?
 
-  // Relacionamentos
   arteId      String
   arte        Arte    @relation("AprovacoesArte", fields: [arteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   aprovadorId String
   aprovador   Usuario @relation("AprovacaoAprovador", fields: [aprovadorId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
-  // Timestamps
   criadoEm DateTime @default(now())
 
   @@index([arteId])
@@ -164,17 +156,15 @@ model Tarefa {
   id         String    @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
   titulo     String
   descricao  String?
-  status     String    @default("PENDENTE") // StatusTarefa: PENDENTE, EM_ANDAMENTO, CONCLUIDA
-  prioridade String    @default("MEDIA") // Prioridade: BAIXA, MEDIA, ALTA
+  status     String    @default("PENDENTE")
+  prioridade String    @default("MEDIA")
   prazo      DateTime?
 
-  // Relacionamentos
   projetoId     String?
   projeto       Projeto? @relation("TarefasProjeto", fields: [projetoId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   responsavelId String
   responsavel   Usuario  @relation("TarefaResponsavel", fields: [responsavelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
-  // Timestamps
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
@@ -191,15 +181,13 @@ model Notificacao {
   id       String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
   titulo   String
   conteudo String
-  tipo     String // TipoNotificacao: SISTEMA, FEEDBACK, APROVACAO, TAREFA
-  canal    String  @default("SISTEMA") // CanalNotificacao: SISTEMA, EMAIL, PUSH
+  tipo     String
+  canal    String  @default("SISTEMA")
   lida     Boolean @default(false)
 
-  // Relacionamentos
   usuarioId String
   usuario   Usuario @relation("NotificacaoUsuario", fields: [usuarioId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
-  // Timestamps
   criadoEm DateTime @default(now())
 
   @@index([usuarioId])
@@ -209,18 +197,16 @@ model Notificacao {
   @@map("notificacoes")
 }
 
-// 🔐 Sessões (para JWT/Auth)
+// 🔐 Sessões
 model Sessao {
   id        String   @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
   token     String   @unique
   expiresAt DateTime
   ativo     Boolean  @default(true)
 
-  // Relacionamentos
   usuarioId String
   usuario   Usuario @relation("SessaoUsuario", fields: [usuarioId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
-  // Timestamps
   criadoEm DateTime @default(now())
 
   @@index([usuarioId])
@@ -230,29 +216,24 @@ model Sessao {
   @@map("sessoes")
 }
 
-// 📝 Audit Logs (Registro de Auditoria)
+// 📝 Audit Logs
 model AuditLog {
   id String @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
 
-  // Ação realizada
-  action     String  @db.Text // Ex: "LOGIN", "CREATE_PROJECT", "UPDATE_USER", "DELETE_ARTE"
-  resource   String  @db.Text // Ex: "Usuario", "Projeto", "Arte"
-  resourceId String? @db.Text // ID do recurso afetado
+  action     String  @db.Text
+  resource   String  @db.Text
+  resourceId String? @db.Text
 
-  // Detalhes da ação
-  details   Json?   @db.JsonB // Dados adicionais sobre a ação (before/after, params, etc)
-  ipAddress String? @db.Text // IP de origem
-  userAgent String? @db.Text // User agent do navegador
+  details   Json?   @db.JsonB
+  ipAddress String? @db.Text
+  userAgent String? @db.Text
 
-  // Status e resultado
-  status       String  @db.Text // "SUCCESS" ou "FAILURE"
-  errorMessage String? @db.Text // Mensagem de erro se falhou
+  status       String  @db.Text
+  errorMessage String? @db.Text
 
-  // Relacionamento com usuário (quem executou a ação)
   usuarioId String?
   usuario   Usuario? @relation("AuditLogUsuario", fields: [usuarioId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
-  // Timestamp
   criadoEm DateTime @default(now())
 
   @@index([usuarioId])
@@ -263,33 +244,27 @@ model AuditLog {
   @@map("audit_logs")
 }
 
-// 🔒 Security Events (Eventos de Segurança)
+// 🔒 Security Events
 model SecurityEvent {
   id String @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
 
-  // Tipo de evento de segurança
-  eventType String @db.Text // "FAILED_LOGIN", "ACCOUNT_LOCKOUT", "SUSPICIOUS_ACTIVITY", "PASSWORD_CHANGE"
-  severity  String @db.Text // "LOW", "MEDIUM", "HIGH", "CRITICAL"
+  eventType String @db.Text
+  severity  String @db.Text
 
-  // Detalhes do evento
   description String @db.Text
-  details     Json?  @db.JsonB // Informações adicionais
+  details     Json?  @db.JsonB
 
-  // Origem do evento
   ipAddress String? @db.Text
   userAgent String? @db.Text
-  location  String? @db.Text // Geolocalização (cidade, país)
+  location  String? @db.Text
 
-  // Relacionamento com usuário (se aplicável)
   usuarioId String?
   usuario   Usuario? @relation("SecurityEventUsuario", fields: [usuarioId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
-  // Status de resposta
   resolved   Boolean   @default(false)
   resolvedAt DateTime?
-  resolvedBy String?   @db.Text // ID do admin que resolveu
+  resolvedBy String?   @db.Text
 
-  // Timestamp
   criadoEm DateTime @default(now())
 
   @@index([usuarioId])
@@ -300,25 +275,20 @@ model SecurityEvent {
   @@map("security_events")
 }
 
-// 🔗 Links Compartilhados (Shared Links)
+// 🔗 Links Compartilhados
 model LinkCompartilhado {
   id String @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
 
-  // Token único para acesso
   token String @unique
+  tipo  String @db.Text
 
-  // Tipo de recurso compartilhado
-  tipo String @db.Text // "ARTE", "PROJETO", etc.
-
-  // Relacionamento com Arte (se tipo = "ARTE")
   arteId String?
   arte   Arte?   @relation("LinksArte", fields: [arteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
-  // Configurações de acesso
   somenteLeitura Boolean   @default(true)
-  expiraEm       DateTime? // Null = nunca expira
+  canComment     Boolean   @default(true)
+  expiraEm       DateTime?
 
-  // Timestamps
   criadoEm DateTime @default(now())
 
   @@index([token])

@@ -27,7 +27,6 @@ export async function createSharedLink(
       somenteLeitura: data.somenteLeitura ?? true,
     })
 
-    // Aponta para o viewer no FRONTEND, não para o backend
     const url = `${env.FRONTEND_URL}/viewer/${link.token}`
 
     reply.status(201).send({
@@ -53,7 +52,6 @@ export async function getPreviewByToken(
     const preview = await linkService.getPreviewByToken(token)
     reply.send({ data: preview, success: true })
   } catch (error: any) {
-    // Sempre 404 para não revelar se o token existe mas está expirado (S-08)
     if (
       error.message.includes('inválido') ||
       error.message.includes('expirado') ||
@@ -63,5 +61,46 @@ export async function getPreviewByToken(
       return
     }
     reply.status(500).send({ message: 'Erro ao buscar preview', success: false })
+  }
+}
+
+export async function createGuestFeedback(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  try {
+    const { token } = request.params as { token: string }
+    const body = request.body as {
+      guestNome?: string
+      guestEmail?: string
+      conteudo: string
+      tipo?: string
+      arquivo?: string
+      posicaoX?: number
+      posicaoY?: number
+    }
+
+    const feedback = await linkService.createGuestFeedback({
+      token,
+      guestNome: body.guestNome,
+      guestEmail: body.guestEmail,
+      conteudo: body.conteudo ?? '',
+      tipo: body.tipo ?? 'TEXTO',
+      arquivo: body.arquivo,
+      posicaoX: body.posicaoX,
+      posicaoY: body.posicaoY,
+    })
+
+    reply.status(201).send({ data: feedback, success: true })
+  } catch (error: any) {
+    if (error.message.includes('inválido') || error.message.includes('expirado')) {
+      reply.status(404).send({ message: 'Link não encontrado', success: false })
+      return
+    }
+    if (error.message.includes('não permite')) {
+      reply.status(403).send({ message: error.message, success: false })
+      return
+    }
+    reply.status(500).send({ message: 'Erro ao criar feedback', success: false })
   }
 }

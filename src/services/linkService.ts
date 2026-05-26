@@ -32,7 +32,6 @@ export class LinkService {
     const link = await prisma.linkCompartilhado.findUnique({ where: { token } })
     if (!link) throw new Error('Link inválido')
 
-    // Retorna o mesmo erro para expirado e inválido (evita enumeração de tokens, S-08)
     if (link.expiraEm && new Date(link.expiraEm) < new Date()) {
       throw new Error('Link inválido')
     }
@@ -54,17 +53,55 @@ export class LinkService {
 
     const feedbacks = await prisma.feedback.findMany({
       where: { arteId: arte.id },
-      orderBy: { criadoEm: 'desc' },
+      orderBy: { criadoEm: 'asc' },
       include: { autor: { select: { nome: true, email: true } } },
     })
 
     const feedbacksComUrl = await Promise.all(
-      feedbacks.map(async (fb: any) => ({
+      feedbacks.map(async (fb) => ({
         ...fb,
         arquivo_url: fb.tipo === 'AUDIO' && fb.arquivo ? await signPath(fb.arquivo) : null,
       })),
     )
 
-    return { somenteLeitura: link.somenteLeitura, arte: { ...arte, arquivo_url }, feedbacks: feedbacksComUrl }
+    return {
+      somenteLeitura: link.somenteLeitura,
+      canComment: link.canComment,
+      arte: { ...arte, arquivo_url },
+      feedbacks: feedbacksComUrl,
+    }
+  }
+
+  async createGuestFeedback(data: {
+    token: string
+    guestNome?: string
+    guestEmail?: string
+    conteudo: string
+    tipo: string
+    arquivo?: string
+    posicaoX?: number
+    posicaoY?: number
+  }) {
+    const link = await prisma.linkCompartilhado.findUnique({ where: { token: data.token } })
+    if (!link) throw new Error('Link inválido')
+    if (link.expiraEm && new Date(link.expiraEm) < new Date()) throw new Error('Link inválido')
+    if (link.somenteLeitura || !link.canComment) {
+      throw new Error('Este link não permite comentários')
+    }
+    if (!link.arteId) throw new Error('Link inválido')
+
+    const feedback = await prisma.feedback.create({
+      data: {
+        conteudo: data.conteudo ?? '',
+        tipo: data.tipo ?? 'TEXTO',
+        arquivo: data.arquivo ?? null,
+        arteId: link.arteId,
+        posicaoX: data.posicaoX ?? null,
+        posicaoY: data.posicaoY ?? null,
+        guestNome: data.guestNome ?? null,
+        guestEmail: data.guestEmail ?? null,
+      },
+    })
+    return feedback
   }
 }
