@@ -1,7 +1,7 @@
 import prisma from '../database/client.js'
 import bcrypt from 'bcryptjs'
-import { randomBytes } from 'crypto' // Para gerar tokens seguros
-import { add } from 'date-fns'
+import { SignJWT } from 'jose'
+import { getJWTSecret } from '../config/env.js'
 
 export interface ListUsuariosParams {
   page?: number
@@ -11,9 +11,25 @@ export interface ListUsuariosParams {
 }
 
 export class UsuarioService {
-  /**
-   * Lista usuários com paginação e filtros por tipo e ativo.
-   */
+  private async signToken(usuario: {
+    id: string
+    email: string
+    nome: string
+    tipo: string
+  }): Promise<string> {
+    const secret = new TextEncoder().encode(getJWTSecret())
+    return new SignJWT({
+      email: usuario.email,
+      nome: usuario.nome,
+      tipo: usuario.tipo,
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject(usuario.id)
+      .setExpirationTime('7d')
+      .setIssuedAt()
+      .sign(secret)
+  }
+
   async listUsuarios({ page = 1, limit = 10, tipo, ativo }: ListUsuariosParams) {
     const skip = (page - 1) * limit
     let ativoFilter: boolean | undefined
@@ -57,9 +73,6 @@ export class UsuarioService {
     return { usuarios, total }
   }
 
-  /**
-   * Busca um usuário por ID.
-   */
   async getUsuarioById(id: string) {
     const usuario = await prisma.usuario.findUnique({
       where: { id },
@@ -88,9 +101,6 @@ export class UsuarioService {
     return usuario
   }
 
-  /**
-   * Cria um novo usuário.
-   */
   async createUsuario(userData: any) {
     const existingUser = await prisma.usuario.findUnique({
       where: { email: userData.email },
@@ -100,10 +110,7 @@ export class UsuarioService {
     }
     const senhaHash = await bcrypt.hash(userData.senha, 10)
     const usuario = await prisma.usuario.create({
-      data: {
-        ...userData,
-        senha: senhaHash,
-      },
+      data: { ...userData, senha: senhaHash },
       select: {
         id: true,
         email: true,
@@ -118,9 +125,6 @@ export class UsuarioService {
     return usuario
   }
 
-  /**
-   * Atualiza um usuário existente.
-   */
   async updateUsuario(id: string, updateData: any) {
     const existingUser = await prisma.usuario.findUnique({ where: { id } })
     if (!existingUser) {
@@ -153,26 +157,14 @@ export class UsuarioService {
     return usuario
   }
 
-  /**
-   * Desativa (soft delete) um usuário.
-   */
   async deactivateUsuario(id: string) {
     const existingUser = await prisma.usuario.findUnique({ where: { id } })
     if (!existingUser) {
       throw new Error('Usuário não encontrado')
     }
-    await prisma.usuario.update({
-      where: { id },
-      data: { ativo: false },
-    })
-    return
+    await prisma.usuario.update({ where: { id }, data: { ativo: false } })
   }
 
-  /**
-   * Realiza o login do usuário, valida as credenciais e CRIA UMA SESSÃO
-   * VÁLIDA no banco de dados.
-   * Se 2FA estiver habilitado, retorna indicador para verificação adicional.
-   */
   async login(loginData: any) {
     const usuario = await prisma.usuario.findUnique({
       where: { email: loginData.email },
@@ -192,9 +184,10 @@ export class UsuarioService {
       throw new Error('Email ou senha inválidos ou usuário inativo')
     }
 
-    // Se usuário foi criado via login social (Google, etc), não tem senha
     if (!usuario.senha) {
-      throw new Error('Esta conta foi criada com login social. Use o método de login original.')
+      throw new Error(
+        'Esta conta foi criada com login social. Use o método de login original.',
+      )
     }
 
     const senhaValida = await bcrypt.compare(loginData.senha, usuario.senha)
@@ -202,7 +195,6 @@ export class UsuarioService {
       throw new Error('Email ou senha inválidos')
     }
 
-    // Se 2FA estiver habilitado, retorna indicador sem criar sessão ainda
     if (usuario.twoFactorEnabled) {
       return {
         requires2FA: true,
@@ -211,30 +203,10 @@ export class UsuarioService {
       }
     }
 
-    // Gera um token de sessão seguro e aleatório (validator).
-    const rawToken = randomBytes(32).toString('hex');
-
-    // Hash do token antes de armazenar no banco (segurança adicional)
-    const tokenHash = await bcrypt.hash(rawToken, 10);
-
-    // Define a data de expiração da sessão (ex: 7 dias a partir de agora).
-    const expiresAt = add(new Date(), { days: 7 });
-
-    // CRIA a sessão no banco de dados, ligando o token HASHEADO ao usuário.
-    const sessao = await prisma.sessao.create({
-      data: {
-        token: tokenHash, // Armazena o hash, não o token original
-        expiresAt,
-        usuarioId: usuario.id,
-      },
-    });
-
-    // Retorna um token composto: "sessionId:rawToken"
-    // O sessionId é usado para buscar a sessão, o rawToken é verificado contra o hash.
-    const compositeToken = `${sessao.id}:${rawToken}`;
+    const token = await this.signToken(usuario)
 
     return {
-      token: compositeToken,
+      token,
       usuario: {
         id: usuario.id,
         email: usuario.email,
@@ -242,12 +214,9 @@ export class UsuarioService {
         tipo: usuario.tipo,
         avatar: usuario.avatar,
       },
-    };
+    }
   }
 
-  /**
-   * Completa o login após verificação de 2FA bem-sucedida
-   */
   async completeTwoFactorLogin(userId: string) {
     const usuario = await prisma.usuario.findUnique({
       where: { id: userId },
@@ -265,23 +234,10 @@ export class UsuarioService {
       throw new Error('Usuário não encontrado ou inativo')
     }
 
-    // Gera um token de sessão
-    const rawToken = randomBytes(32).toString('hex')
-    const tokenHash = await bcrypt.hash(rawToken, 10)
-    const expiresAt = add(new Date(), { days: 7 })
-
-    const sessao = await prisma.sessao.create({
-      data: {
-        token: tokenHash,
-        expiresAt,
-        usuarioId: usuario.id,
-      },
-    })
-
-    const compositeToken = `${sessao.id}:${rawToken}`
+    const token = await this.signToken(usuario)
 
     return {
-      token: compositeToken,
+      token,
       usuario: {
         id: usuario.id,
         email: usuario.email,
@@ -292,9 +248,6 @@ export class UsuarioService {
     }
   }
 
-  /**
-   * Calcula estatísticas para painel de usuários.
-   */
   async statsOverview() {
     const [total, designers, clientes, admins, ativos] = await Promise.all([
       prisma.usuario.count(),
@@ -305,11 +258,7 @@ export class UsuarioService {
     ])
     return {
       total,
-      porTipo: {
-        designers,
-        clientes,
-        admins,
-      },
+      porTipo: { designers, clientes, admins },
       ativos,
       inativos: total - ativos,
       percentualAtivos: total > 0 ? Math.round((ativos / total) * 100) : 0,

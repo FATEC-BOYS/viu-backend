@@ -1,13 +1,6 @@
-// src/controllers/linkController.ts
-/**
- * Controladores de Links Compartilhados
- *
- * Gerencia a criação de links compartilhados para artes e o acesso
- * público via token (preview sem necessidade de autenticação).
- */
-
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { LinkService } from '../services/linkService.js'
+import { env } from '../config/env.js'
 
 const linkService = new LinkService()
 
@@ -34,8 +27,8 @@ export async function createSharedLink(
       somenteLeitura: data.somenteLeitura ?? true,
     })
 
-    const appUrl = process.env.APP_URL || 'http://localhost:3001'
-    const url = `${appUrl}/preview/${link.token}`
+    // Aponta para o viewer no FRONTEND, não para o backend
+    const url = `${env.FRONTEND_URL}/viewer/${link.token}`
 
     reply.status(201).send({
       message: 'Link compartilhado criado com sucesso',
@@ -47,11 +40,7 @@ export async function createSharedLink(
       reply.status(400).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({
-      message: 'Erro ao criar link compartilhado',
-      error: error.message,
-      success: false,
-    })
+    reply.status(500).send({ message: 'Erro ao criar link compartilhado', success: false })
   }
 }
 
@@ -61,30 +50,18 @@ export async function getPreviewByToken(
 ): Promise<void> {
   try {
     const { token } = request.params as { token: string }
-
     const preview = await linkService.getPreviewByToken(token)
-
-    reply.send({
-      data: preview,
-      success: true,
-    })
+    reply.send({ data: preview, success: true })
   } catch (error: any) {
-    if (error.message.includes('inválido')) {
-      reply.status(404).send({ message: error.message, success: false })
+    // Sempre 404 para não revelar se o token existe mas está expirado (S-08)
+    if (
+      error.message.includes('inválido') ||
+      error.message.includes('expirado') ||
+      error.message.includes('não encontrad')
+    ) {
+      reply.status(404).send({ message: 'Link não encontrado', success: false })
       return
     }
-    if (error.message.includes('expirado')) {
-      reply.status(410).send({ message: error.message, success: false })
-      return
-    }
-    if (error.message.includes('não encontrad')) {
-      reply.status(404).send({ message: error.message, success: false })
-      return
-    }
-    reply.status(500).send({
-      message: 'Erro ao buscar preview',
-      error: error.message,
-      success: false,
-    })
+    reply.status(500).send({ message: 'Erro ao buscar preview', success: false })
   }
 }

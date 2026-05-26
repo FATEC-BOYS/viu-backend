@@ -1,70 +1,29 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
-import bcrypt from 'bcryptjs'
-import prisma from '../database/client.js'
+import { jwtVerify } from 'jose'
+import { getJWTSecret } from '../config/env.js'
 
 export async function authenticate(
   request: FastifyRequest,
   reply: FastifyReply,
 ): Promise<void> {
+  const authHeader = request.headers.authorization
+  if (!authHeader?.startsWith('Bearer ')) {
+    reply.status(401).send({ message: 'Token não fornecido', success: false })
+    return
+  }
+
+  const token = authHeader.slice(7)
+  const secret = new TextEncoder().encode(getJWTSecret())
+
   try {
-    const authHeader = request.headers.authorization
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      reply.status(401).send({
-        message: 'Token de autenticação não fornecido',
-        success: false,
-      })
-      return
+    const { payload } = await jwtVerify(token, secret)
+    ;(request as any).usuario = {
+      id: payload.sub as string,
+      email: payload['email'] as string,
+      nome: payload['nome'] as string,
+      tipo: payload['tipo'] as string,
     }
-
-    // Extrai o token composto: "sessionId:rawToken"
-    const compositeToken = authHeader.split(' ')[1]
-    if (!compositeToken) {
-      reply.status(401).send({
-        message: 'Token de autenticação inválido',
-        success: false,
-      })
-      return
-    }
-    const [sessionId, rawToken] = compositeToken.split(':')
-
-    if (!sessionId || !rawToken) {
-      reply.status(401).send({
-        message: 'Token de autenticação inválido',
-        success: false,
-      })
-      return
-    }
-
-    // Busca a sessão pelo ID (selector)
-    const sessao = await prisma.sessao.findUnique({
-      where: { id: sessionId },
-      include: { usuario: true },
-    })
-
-    if (!sessao || !sessao.ativo || sessao.expiresAt < new Date()) {
-      reply.status(401).send({
-        message: 'Sessão inválida ou expirada',
-        success: false,
-      })
-      return
-    }
-
-    // Verifica se o rawToken corresponde ao hash armazenado (validator)
-    const tokenValido = await bcrypt.compare(rawToken, sessao.token)
-    if (!tokenValido) {
-      reply.status(401).send({
-        message: 'Token de autenticação inválido',
-        success: false,
-      })
-      return
-    }
-
-    // Anexar usuário à requisição para uso posterior
-    ;(request as any).usuario = sessao.usuario
-  } catch (error: any) {
-    reply.status(401).send({
-      message: 'Token de autenticação inválido',
-      success: false,
-    })
+  } catch {
+    reply.status(401).send({ message: 'Token inválido ou expirado', success: false })
   }
 }
