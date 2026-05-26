@@ -1,17 +1,5 @@
-// src/index.ts
-// Load environment variables FIRST
 import 'dotenv/config'
-
-// Validate environment variables immediately after loading
 import './config/env.js'
-
-/**
- * Ponto de entrada da aplicação Fastify
- *
- * Este arquivo instância o servidor Fastify, registra as rotas de projetos
- * e inicia a escuta em uma porta configurada. Manter a criação do servidor
- * separada permite maior flexibilidade para testes automatizados.
- */
 
 import fastify from 'fastify'
 import { fileURLToPath } from 'url'
@@ -26,46 +14,33 @@ import { sessoesRoutes } from './routes/sessoes.js'
 import { twoFactorRoutes } from './routes/twoFactor.js'
 import { securityRoutes } from './routes/security.js'
 import { linksRoutes } from './routes/links.js'
-import { supabaseAuthRoutes } from './routes/supabaseAuth.js'
 import { setupErrorHandler } from './middleware/errorHandlerMiddleware.js'
 import { auditLogMiddleware } from './middleware/auditLogMiddleware.js'
+import { env } from './config/env.js'
 
 const __filename = fileURLToPath(import.meta.url)
 
 export async function buildServer() {
-  // Configuração do Fastify com limites de segurança
   const app = fastify({
     logger: true,
-    // Limite global de tamanho do body (10MB para requisições normais)
-    // Requisições multipart têm seu próprio limite configurado abaixo
-    bodyLimit: 10 * 1024 * 1024, // 10MB
-    // Limite de tamanho dos cabeçalhos
+    bodyLimit: 10 * 1024 * 1024,
     maxParamLength: 500,
   })
 
-  // Configuração de error handler global (sanitiza erros em produção)
   setupErrorHandler(app)
 
-// Configuração segura de CORS - apenas origens específicas
-  const allowedOrigins = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',')
-    : ['http://localhost:3000', 'http://localhost:5173']
+  const allowedOrigins = env.ALLOWED_ORIGINS.split(',')
 
   await app.register(import('@fastify/cors'), {
     origin: (origin, callback) => {
-      // Permite requisições sem origin (como Postman, curl, etc) apenas em desenvolvimento
-      if (!origin && process.env.NODE_ENV === 'development') {
+      if (!origin && env.NODE_ENV === 'development') {
         callback(null, true)
         return
       }
-
-      // Verifica se a origem está na lista de permitidas
       if (origin && allowedOrigins.includes(origin)) {
         callback(null, true)
         return
       }
-
-      // Bloqueia origens não autorizadas
       callback(new Error('Origem não autorizada pelo CORS'), false)
     },
     credentials: true,
@@ -74,27 +49,21 @@ export async function buildServer() {
   })
 
   await app.register(import('@fastify/multipart'), {
-    limits: {
-      fileSize: 25 * 1024 * 1024, // 25MB max para áudio
-    },
+    limits: { fileSize: 25 * 1024 * 1024 },
   })
 
-  // Configuração de Rate Limiting - proteção contra brute force e abuse
   await app.register(import('@fastify/rate-limit'), {
     global: true,
-    max: 100, // máximo de requisições
-    timeWindow: '15 minutes', // janela de tempo
-    errorResponseBuilder: (request, context) => {
-      return {
-        statusCode: 429,
-        error: 'Too Many Requests',
-        message: `Você atingiu o limite de ${context.max} requisições por ${context.after}. Tente novamente mais tarde.`,
-        success: false,
-      }
-    },
+    max: 100,
+    timeWindow: '15 minutes',
+    errorResponseBuilder: (_request, context) => ({
+      statusCode: 429,
+      error: 'Too Many Requests',
+      message: `Limite de ${context.max} requisições por ${context.after} atingido.`,
+      success: false,
+    }),
   })
 
-  // Helmet - Adiciona headers de segurança HTTP
   await app.register(import('@fastify/helmet'), {
     global: true,
     contentSecurityPolicy: {
@@ -105,54 +74,38 @@ export async function buildServer() {
         imgSrc: ["'self'", 'data:', 'https:'],
       },
     },
-    crossOriginEmbedderPolicy: false, // Permite embedding se necessário
+    crossOriginEmbedderPolicy: false,
   })
 
-  // Middleware global de audit logging (registra ações importantes)
   app.addHook('preHandler', auditLogMiddleware)
 
-  // Health check route
-  app.get('/', async (request, reply) => {
-    return {
-      status: 'ok',
-      message: 'VIU Backend API rodando!',
-      timestamp: new Date().toISOString()
-    }
-  })
+  app.get('/', async () => ({
+    status: 'ok',
+    message: 'VIU Backend API',
+    timestamp: new Date().toISOString(),
+  }))
 
-  // Registrar rotas de projetos
   await app.register(projetosRoutes)
-  // Registrar rotas de usuários
   await app.register(usuariosRoutes)
-  // Registrar rotas de artes
   await app.register(artesRoutes)
-  // Registrar rotas de feedbacks
   await app.register(feedbacksRoutes)
-  // Registrar rotas de aprovações
   await app.register(aprovacoesRoutes)
-  // Registrar rotas de tarefas
   await app.register(tarefasRoutes)
-  // Registrar rotas de notificações
   await app.register(notificacoesRoutes)
-  // Registrar rotas de sessões
   await app.register(sessoesRoutes)
-  // Registrar rotas de 2FA
   await app.register(twoFactorRoutes)
-  // Registrar rotas de segurança (audit logs e monitoring)
   await app.register(securityRoutes)
-  // Registrar rotas de links compartilhados
   await app.register(linksRoutes)
-  // Registrar rotas de autenticação Supabase
-  await app.register(supabaseAuthRoutes)
+  // supabaseAuthRoutes removido: auth agora é via JWT (POST /usuarios/login)
+
   return app
 }
 
-// Apenas inicia o servidor se este módulo for executado diretamente
 if (process.argv[1] === __filename) {
   buildServer()
     .then((app) => {
-      const port = process.env.PORT ? Number(process.env.PORT) : 3001
-      const host = process.env.HOST || '0.0.0.0'
+      const port = env.PORT ? Number(env.PORT) : 3001
+      const host = env.HOST || '0.0.0.0'
       app.listen({ port, host }, (err, address) => {
         if (err) {
           app.log.error(err)
@@ -161,8 +114,5 @@ if (process.argv[1] === __filename) {
         app.log.info(`Servidor iniciado em ${address}`)
       })
     })
-    .catch((err) => {
-      // eslint-disable-next-line no-console
-      console.error(err)
-    })
+    .catch(console.error)
 }
