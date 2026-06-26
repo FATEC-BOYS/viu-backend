@@ -12,6 +12,8 @@ const envSchema = z.object({
   ALLOWED_ORIGINS: z.string().default('http://localhost:3000,http://localhost:5173'),
   FRONTEND_URL: z.string().default('http://localhost:3000'),
   OPENAI_API_KEY: z.string().optional(),
+  RESEND_API_KEY: z.string().optional(),
+  EMAIL_FROM: z.string().default('VIU <noreply@viu.app>'),
 })
 
 export type Env = z.infer<typeof envSchema>

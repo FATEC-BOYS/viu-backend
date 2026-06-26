@@ -65,6 +65,15 @@ export const LoginRequestSchema = z.object({
   senha: z.string().min(1, 'Senha é obrigatória'),
 });
 
+export const ForgotPasswordRequestSchema = z.object({
+  email: z.string().email('Email inválido'),
+});
+
+export const ResetPasswordRequestSchema = z.object({
+  token: z.string().min(64, 'Token inválido').max(64, 'Token inválido'),
+  password: strongPasswordSchema,
+});
+
 // ===== SCHEMAS DE PROJETO =====
 
 export const CreateProjetoRequestSchema = z.object({
