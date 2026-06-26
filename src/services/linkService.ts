@@ -1,5 +1,5 @@
 import { prisma } from '../database/client.js'
-import { signPath } from '../utils/supabaseStorage.js'
+import { signPath } from '../utils/storage.js'
 import crypto from 'crypto'
 
 export class LinkService {
@@ -32,7 +32,6 @@ export class LinkService {
     const link = await prisma.linkCompartilhado.findUnique({ where: { token } })
     if (!link) throw new Error('Link inválido')
 
-    // Retorna o mesmo erro para expirado e inválido (evita enumeração de tokens, S-08)
     if (link.expiraEm && new Date(link.expiraEm) < new Date()) {
       throw new Error('Link inválido')
     }

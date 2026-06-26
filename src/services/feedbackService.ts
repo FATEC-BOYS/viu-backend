@@ -1,5 +1,5 @@
 import prisma from '../database/client.js'
-import { supa } from '../supabaseAdmin.js'
+import { uploadFile } from '../utils/storage.js'
 import { transcreverAudio, sintetizarTexto } from './transcricaoService.js'
 
 export interface ListFeedbacksParams {
@@ -72,12 +72,8 @@ export class FeedbackService {
     if (!autor) throw new Error('Autor não encontrado')
 
     const storagePath = `feedbacks/${arteId}/${Date.now()}_${filename}`
-    const { error: uploadError } = await supa.storage
-      .from('feedbacks-audio')
-      .upload(storagePath, audioBuffer, { contentType: 'audio/webm', upsert: false })
-    if (uploadError) throw new Error(`Erro no upload do áudio: ${uploadError.message}`)
+    await uploadFile(storagePath, audioBuffer, 'audio/webm')
 
-    const { data: urlData } = supa.storage.from('feedbacks-audio').getPublicUrl(storagePath)
     const transcricao = await transcreverAudio(audioBuffer, filename)
     const tipo = posicaoX !== undefined && posicaoY !== undefined ? 'POSICIONAL' : 'AUDIO'
 
@@ -85,7 +81,7 @@ export class FeedbackService {
       data: {
         conteudo: transcricao,
         tipo,
-        arquivo: urlData.publicUrl,
+        arquivo: storagePath,
         transcricao,
         posicaoX: posicaoX ?? null,
         posicaoY: posicaoY ?? null,
@@ -107,21 +103,24 @@ export class FeedbackService {
     }
 
     if (feedback.audioGerado) {
-      const response = await fetch(feedback.audioGerado)
-      if (response.ok) {
-        return { buffer: Buffer.from(await response.arrayBuffer()), feedback }
+      try {
+        const response = await fetch(feedback.audioGerado)
+        if (response.ok) {
+          return { buffer: Buffer.from(await response.arrayBuffer()), feedback }
+        }
+      } catch {
+        // cache miss — regenera
       }
     }
 
     const audioBuffer = await sintetizarTexto(feedback.conteudo)
     const storagePath = `feedbacks-tts/${id}/${Date.now()}.mp3`
-    const { error: uploadError } = await supa.storage
-      .from('feedbacks-audio')
-      .upload(storagePath, audioBuffer, { contentType: 'audio/mpeg', upsert: false })
 
-    if (!uploadError) {
-      const { data: urlData } = supa.storage.from('feedbacks-audio').getPublicUrl(storagePath)
-      await prisma.feedback.update({ where: { id }, data: { audioGerado: urlData.publicUrl } })
+    try {
+      await uploadFile(storagePath, audioBuffer, 'audio/mpeg')
+      await prisma.feedback.update({ where: { id }, data: { audioGerado: storagePath } })
+    } catch {
+      // falha no upload não bloqueia a resposta
     }
 
     return { buffer: audioBuffer, feedback }
@@ -138,7 +137,6 @@ export class FeedbackService {
     const audioBuffer = Buffer.from(await response.arrayBuffer())
     const transcricao = await transcreverAudio(audioBuffer)
 
-    // Salva apenas a transcrição como cache, sem sobrescrever o conteudo original (S-12)
     await prisma.feedback.update({ where: { id }, data: { transcricao } })
     return transcricao
   }

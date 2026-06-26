@@ -16,19 +16,12 @@
     "db:studio": "prisma studio",
     "db:seed": "tsx src/database/seed.ts"
   },
-  "keywords": [
-    "viu",
-    "backend",
-    "api",
-    "fastify",
-    "typescript",
-    "prisma",
-    "design",
-    "saas"
-  ],
+  "keywords": ["viu", "backend", "api", "fastify", "typescript", "prisma", "design", "saas"],
   "author": "VIU Team",
   "license": "MIT",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.645.0",
+    "@aws-sdk/s3-request-presigner": "^3.645.0",
     "@fastify/cors": "^8.5.0",
     "@fastify/helmet": "^11.1.1",
     "@fastify/jwt": "^7.2.4",
@@ -36,7 +29,6 @@
     "@fastify/rate-limit": "^9.1.0",
     "@fastify/static": "^6.12.0",
     "@prisma/client": "^6.14.0",
-    "@supabase/supabase-js": "^2.56.0",
     "axios": "^1.11.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
