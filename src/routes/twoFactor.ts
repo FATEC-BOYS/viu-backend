@@ -40,11 +40,13 @@ export async function twoFactorRoutes(fastify: FastifyInstance) {
     disableTwoFactor,
   )
 
-  // Verify - Verifica código 2FA (usado no login)
-  // Nota: Esta rota NÃO requer autenticação pois é usada durante o login
+  // Verify - Verifica código 2FA (usado no login) — sem autenticação, mas com rate limit agressivo
   fastify.post(
     '/2fa/verify',
-    { preHandler: [validateBody(VerifyTwoFactorCodeRequestSchema)] },
+    {
+      config: { rateLimit: { max: 5, timeWindow: '15 minutes' } },
+      preHandler: [validateBody(VerifyTwoFactorCodeRequestSchema)],
+    },
     verifyTwoFactorCode,
   )
 

@@ -26,7 +26,6 @@ export async function listSessoes(
   } catch (error: any) {
     reply.status(500).send({
       message: 'Erro ao listar sessões',
-      error: error.message,
       success: false,
     })
   }
@@ -53,7 +52,6 @@ export async function revokeSessao(
     }
     reply.status(500).send({
       message: 'Erro ao revogar sessão',
-      error: error.message,
       success: false,
     })
   }

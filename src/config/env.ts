@@ -9,12 +9,11 @@ const envSchema = z.object({
     .string()
     .min(32, 'JWT_SECRET deve ter no mínimo 32 caracteres'),
   JWT_EXPIRES_IN: z.string().default('7d'),
-  // Supabase Storage (mantido para arquivos — não usado para auth)
-  SUPABASE_URL: z.string().optional(),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
   ALLOWED_ORIGINS: z.string().default('http://localhost:3000,http://localhost:5173'),
   FRONTEND_URL: z.string().default('http://localhost:3000'),
   OPENAI_API_KEY: z.string().optional(),
+  RESEND_API_KEY: z.string().optional(),
+  EMAIL_FROM: z.string().default('VIU <noreply@viu.app>'),
 })
 
 export type Env = z.infer<typeof envSchema>

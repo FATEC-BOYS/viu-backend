@@ -1,12 +1,6 @@
-// src/controllers/tarefaController.ts
-/**
- * Controladores de Tarefas
- *
- * Responsável por lidar com requisições relacionadas a tarefas.
- */
-
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { TarefaService, ListTarefasParams } from '../services/tarefaService.js'
+import prisma from '../database/client.js'
 
 const tarefaService = new TarefaService()
 
@@ -15,6 +9,7 @@ export async function listTarefas(
   reply: FastifyReply,
 ): Promise<void> {
   try {
+    const usuario = (request as any).usuario
     const { page = 1, limit = 10, projetoId, responsavelId, status, prioridade } = (request.query || {}) as any
     const params: ListTarefasParams = {
       page: Number(page) || 1,
@@ -24,6 +19,21 @@ export async function listTarefas(
       status: status as string | undefined,
       prioridade: prioridade as string | undefined,
     }
+
+    if (usuario.tipo !== 'ADMIN') {
+      const projetos = await prisma.projeto.findMany({
+        where: { OR: [{ designerId: usuario.id }, { clienteId: usuario.id }] },
+        select: { id: true },
+      })
+      const accessibleIds = projetos.map((p: { id: string }) => p.id)
+
+      if (params.projetoId && !accessibleIds.includes(params.projetoId)) {
+        reply.status(403).send({ message: 'Acesso negado', success: false })
+        return
+      }
+      params.projetoIds = accessibleIds
+    }
+
     const { tarefas, total } = await tarefaService.listTarefas(params)
     reply.send({
       data: tarefas,
@@ -35,12 +45,8 @@ export async function listTarefas(
       },
       success: true,
     })
-  } catch (error: any) {
-    reply.status(500).send({
-      message: 'Erro ao listar tarefas',
-      error: error.message,
-      success: false,
-    })
+  } catch {
+    reply.status(500).send({ message: 'Erro ao listar tarefas', success: false })
   }
 }
 
@@ -56,12 +62,8 @@ export async function getTarefaById(
       return
     }
     reply.send({ data: tarefa, success: true })
-  } catch (error: any) {
-    reply.status(500).send({
-      message: 'Erro ao buscar tarefa',
-      error: error.message,
-      success: false,
-    })
+  } catch {
+    reply.status(500).send({ message: 'Erro ao buscar tarefa', success: false })
   }
 }
 
@@ -84,11 +86,7 @@ export async function createTarefa(
       reply.status(400).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({
-      message: 'Erro ao criar tarefa',
-      error: error.message,
-      success: false,
-    })
+    reply.status(500).send({ message: 'Erro ao criar tarefa', success: false })
   }
 }
 
@@ -116,11 +114,7 @@ export async function updateTarefa(
       })
       return
     }
-    reply.status(500).send({
-      message: 'Erro ao atualizar tarefa',
-      error: error.message,
-      success: false,
-    })
+    reply.status(500).send({ message: 'Erro ao atualizar tarefa', success: false })
   }
 }
 
@@ -137,10 +131,6 @@ export async function deleteTarefa(
       reply.status(404).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({
-      message: 'Erro ao remover tarefa',
-      error: error.message,
-      success: false,
-    })
+    reply.status(500).send({ message: 'Erro ao remover tarefa', success: false })
   }
 }

@@ -39,7 +39,6 @@ export async function listNotificacoes(
   } catch (error: any) {
     reply.status(500).send({
       message: 'Erro ao listar notificações',
-      error: error.message,
       success: false,
     })
   }
@@ -61,7 +60,6 @@ export async function getNotificacaoById(
   } catch (error: any) {
     reply.status(500).send({
       message: 'Erro ao buscar notificação',
-      error: error.message,
       success: false,
     })
   }
@@ -85,7 +83,6 @@ export async function createNotificacao(
     }
     reply.status(500).send({
       message: 'Erro ao criar notificação',
-      error: error.message,
       success: false,
     })
   }
@@ -113,7 +110,6 @@ export async function markNotificacaoAsRead(
     }
     reply.status(500).send({
       message: 'Erro ao atualizar notificação',
-      error: error.message,
       success: false,
     })
   }
@@ -140,7 +136,6 @@ export async function deleteNotificacao(
     }
     reply.status(500).send({
       message: 'Erro ao remover notificação',
-      error: error.message,
       success: false,
     })
   }

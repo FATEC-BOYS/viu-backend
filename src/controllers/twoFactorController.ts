@@ -36,14 +36,13 @@ export async function setupTwoFactor(
     })
 
     reply.status(200).send({
-      message: 'QR Code gerado com sucesso. Escaneie com seu app autenticador.',
+      message: 'QR Code gerado com sucesso. Escaneie com seu app autenticador e salve os códigos de backup.',
       data: {
         qrCode: result.qrCode,
         manualEntryKey: result.manualEntryKey,
-        backupCodes: result.backupCodes,
+        backupCodes: result.backupCodes, // shown once; server stores them hashed
       },
-      // Retorna o secret temporário que será usado na verificação
-      tempSecret: result.secret,
+      // secret não é retornado — armazenado apenas no servidor
       success: true,
     })
   } catch (error: any) {
@@ -54,7 +53,6 @@ export async function setupTwoFactor(
 
     reply.status(500).send({
       message: 'Erro ao configurar 2FA',
-      error: error.message,
       success: false,
     })
   }
@@ -70,11 +68,7 @@ export async function enableTwoFactor(
 ): Promise<void> {
   try {
     const usuario = (request as any).usuario
-    const { code, secret, backupCodes } = request.body as {
-      code: string
-      secret: string
-      backupCodes: string[]
-    }
+    const { code } = request.body as { code: string }
 
     if (!usuario?.id) {
       reply.status(401).send({
@@ -84,20 +78,16 @@ export async function enableTwoFactor(
       return
     }
 
-    if (!code || !secret || !backupCodes) {
+    if (!code) {
       reply.status(400).send({
-        message: 'Código, secret e códigos de backup são obrigatórios',
+        message: 'Código de verificação é obrigatório',
         success: false,
       })
       return
     }
 
-    const result = await twoFactorService.enableTwoFactor(
-      usuario.id,
-      secret,
-      code,
-      backupCodes,
-    )
+    // Secret comes from server storage — client cannot control it
+    const result = await twoFactorService.enableTwoFactor(usuario.id, code)
 
     await auditLogService.logSuccess('ENABLE_2FA', 'Usuario', {
       usuarioId: usuario.id,
@@ -217,7 +207,6 @@ export async function verifyTwoFactorCode(
   } catch (error: any) {
     reply.status(500).send({
       message: 'Erro ao verificar código 2FA',
-      error: error.message,
       success: false,
     })
   }
@@ -309,7 +298,6 @@ export async function getTwoFactorStatus(
   } catch (error: any) {
     reply.status(500).send({
       message: 'Erro ao verificar status do 2FA',
-      error: error.message,
       success: false,
     })
   }
@@ -333,7 +321,6 @@ export async function getTwoFactorStats(
   } catch (error: any) {
     reply.status(500).send({
       message: 'Erro ao obter estatísticas de 2FA',
-      error: error.message,
       success: false,
     })
   }

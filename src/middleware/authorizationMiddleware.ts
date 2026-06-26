@@ -120,6 +120,7 @@ export async function requireProjectAccess(
     // Extrai projetoId da requisição (pode vir de diferentes lugares)
     const params = request.params as any
     const body = request.body as any
+    const audioData = (request as any).audioData
 
     if (params.projetoId) {
       projetoId = params.projetoId
@@ -144,6 +145,13 @@ export async function requireProjectAccess(
           projetoId = tarefa.projetoId
         }
       }
+    } else if (audioData?.fields?.arteId?.value) {
+      // Audio upload: arteId comes from multipart fields parsed by validateAudioUpload
+      const arte = await prisma.arte.findUnique({
+        where: { id: audioData.fields.arteId.value },
+        select: { projetoId: true },
+      })
+      if (arte) projetoId = arte.projetoId
     }
 
     if (!projetoId) {

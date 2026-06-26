@@ -20,8 +20,12 @@ model Usuario {
 
   // 2FA (Two-Factor Authentication)
   twoFactorEnabled     Boolean  @default(false)
-  twoFactorSecret      String? // Secret do TOTP (criptografado)
-  twoFactorBackupCodes String[] @default([]) // Códigos de backup
+  twoFactorSecret      String?
+  twoFactorBackupCodes String[] @default([])
+
+  // Password reset
+  passwordResetToken     String?   @unique
+  passwordResetExpiresAt DateTime?
 
   // Timestamps
   criadoEm     DateTime @default(now())

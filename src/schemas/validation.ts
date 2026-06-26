@@ -55,7 +55,7 @@ export const UpdateUsuarioRequestSchema = z.object({
   nome: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres').optional(),
   telefone: z.string().optional(),
   avatar: z.string().optional(),
-  ativo: z.boolean().optional(),
+  // "ativo" e "tipo" são campos administrativos — use endpoints dedicados
 }).refine(data => Object.keys(data).length > 0, {
   message: 'Pelo menos um campo deve ser fornecido para atualização'
 });
@@ -63,6 +63,15 @@ export const UpdateUsuarioRequestSchema = z.object({
 export const LoginRequestSchema = z.object({
   email: z.string().email('Email inválido'),
   senha: z.string().min(1, 'Senha é obrigatória'),
+});
+
+export const ForgotPasswordRequestSchema = z.object({
+  email: z.string().email('Email inválido'),
+});
+
+export const ResetPasswordRequestSchema = z.object({
+  token: z.string().min(64, 'Token inválido').max(64, 'Token inválido'),
+  password: strongPasswordSchema,
 });
 
 // ===== SCHEMAS DE PROJETO =====
@@ -104,6 +113,29 @@ export const CreateFeedbackRequestSchema = z.object({
   arteId: z.string().cuid('ID da arte inválido'),
   posicaoX: z.number().optional(),
   posicaoY: z.number().optional(),
+});
+
+// ===== SCHEMAS DE TAREFA =====
+
+export const CreateTarefaRequestSchema = z.object({
+  titulo: z.string().min(1, 'Título da tarefa é obrigatório'),
+  descricao: z.string().optional(),
+  status: z.enum(['PENDENTE', 'EM_ANDAMENTO', 'CONCLUIDA', 'CANCELADA']).default('PENDENTE'),
+  prioridade: z.enum(['BAIXA', 'MEDIA', 'ALTA', 'URGENTE']).default('MEDIA'),
+  projetoId: z.string().cuid('ID do projeto inválido'),
+  responsavelId: z.string().cuid('ID do responsável inválido').optional(),
+  prazo: z.string().datetime('Data de prazo inválida').optional(),
+});
+
+export const UpdateTarefaRequestSchema = z.object({
+  titulo: z.string().min(1, 'Título da tarefa é obrigatório').optional(),
+  descricao: z.string().optional(),
+  status: z.enum(['PENDENTE', 'EM_ANDAMENTO', 'CONCLUIDA', 'CANCELADA']).optional(),
+  prioridade: z.enum(['BAIXA', 'MEDIA', 'ALTA', 'URGENTE']).optional(),
+  responsavelId: z.string().cuid('ID do responsável inválido').optional(),
+  prazo: z.string().datetime('Data de prazo inválida').optional(),
+}).refine(data => Object.keys(data).length > 0, {
+  message: 'Pelo menos um campo deve ser fornecido para atualização'
 });
 
 // ===== SCHEMAS DE APROVAÇÃO =====
@@ -157,11 +189,7 @@ export const EnableTwoFactorRequestSchema = z.object({
   code: z.string()
     .length(6, 'Código 2FA deve ter 6 dígitos')
     .regex(/^\d{6}$/, 'Código 2FA deve conter apenas números'),
-  secret: z.string()
-    .min(16, 'Secret 2FA inválido')
-    .max(64, 'Secret 2FA inválido'),
-  backupCodes: z.array(z.string().length(10, 'Código de backup inválido'))
-    .length(10, 'Devem ser fornecidos exatamente 10 códigos de backup'),
+  // "secret" e "backupCodes" não são aceitos do cliente — o servidor gerencia esses dados
 });
 
 export const DisableTwoFactorRequestSchema = z.object({
@@ -272,6 +300,8 @@ export type UpdateProjetoRequest = z.infer<typeof UpdateProjetoRequestSchema>;
 export type CreateArteRequest = z.infer<typeof CreateArteRequestSchema>;
 export type CreateFeedbackRequest = z.infer<typeof CreateFeedbackRequestSchema>;
 export type CreateAprovacaoRequest = z.infer<typeof CreateAprovacaoRequestSchema>;
+export type CreateTarefaRequest = z.infer<typeof CreateTarefaRequestSchema>;
+export type UpdateTarefaRequest = z.infer<typeof UpdateTarefaRequestSchema>;
 
 // 2FA Types
 export type EnableTwoFactorRequest = z.infer<typeof EnableTwoFactorRequestSchema>;
