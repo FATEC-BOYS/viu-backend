@@ -74,6 +74,10 @@ export const ResetPasswordRequestSchema = z.object({
   password: strongPasswordSchema,
 });
 
+export const ResendVerificationSchema = z.object({
+  email: z.string().email('Email inválido'),
+});
+
 // ===== SCHEMAS DE PROJETO =====
 
 export const CreateProjetoRequestSchema = z.object({
