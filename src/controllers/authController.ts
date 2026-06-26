@@ -2,9 +2,11 @@ import { FastifyRequest, FastifyReply } from 'fastify'
 import { PasswordResetService } from '../services/passwordResetService.js'
 import { verifyEmail, resendVerificationEmail } from '../services/emailVerificationService.js'
 import { UsuarioService } from '../services/usuarioService.js'
+import { TwoFactorService } from '../services/twoFactorService.js'
 
 const passwordResetService = new PasswordResetService()
 const usuarioService = new UsuarioService()
+const twoFactorService = new TwoFactorService()
 
 export async function forgotPassword(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
@@ -96,4 +98,21 @@ export async function logoutHandler(request: FastifyRequest, reply: FastifyReply
     // always return success — client-side cleanup happens regardless
   }
   reply.send({ message: 'Logout realizado com sucesso', success: true })
+}
+
+export async function twoFactorLoginHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  try {
+    const { userId, code } = request.body as { userId: string; code: string }
+
+    const verified = await twoFactorService.verifyTwoFactorCode(userId, code)
+    if (!verified.valid) {
+      reply.status(400).send({ message: 'Código 2FA inválido', success: false })
+      return
+    }
+
+    const result = await usuarioService.completeTwoFactorLogin(userId)
+    reply.send({ data: result, success: true })
+  } catch (error: any) {
+    reply.status(400).send({ message: error.message ?? 'Erro na verificação 2FA', success: false })
+  }
 }

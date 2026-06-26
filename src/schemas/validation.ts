@@ -82,6 +82,11 @@ export const RefreshTokenSchema = z.object({
   refreshToken: z.string().min(1, 'Refresh token é obrigatório'),
 });
 
+export const TwoFactorLoginSchema = z.object({
+  userId: z.string().min(1, 'userId é obrigatório'),
+  code: z.string().min(6).max(10),
+});
+
 // ===== SCHEMAS DE PROJETO =====
 
 export const CreateProjetoRequestSchema = z.object({
