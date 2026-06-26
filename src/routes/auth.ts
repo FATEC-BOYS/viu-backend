@@ -6,6 +6,7 @@ import {
   resendVerification,
   refreshTokenHandler,
   logoutHandler,
+  twoFactorLoginHandler,
 } from '../controllers/authController.js'
 import { validateBody } from '../middleware/validationMiddleware.js'
 import {
@@ -13,6 +14,7 @@ import {
   ResetPasswordRequestSchema,
   ResendVerificationSchema,
   RefreshTokenSchema,
+  TwoFactorLoginSchema,
 } from '../schemas/validation.js'
 
 export async function authRoutes(fastify: FastifyInstance) {
@@ -41,4 +43,9 @@ export async function authRoutes(fastify: FastifyInstance) {
   }, refreshTokenHandler)
 
   fastify.post('/auth/logout', {}, logoutHandler)
+
+  fastify.post('/auth/2fa-login', {
+    config: { rateLimit: { max: 5, timeWindow: '15 minutes' } },
+    preHandler: [validateBody(TwoFactorLoginSchema)],
+  }, twoFactorLoginHandler)
 }
