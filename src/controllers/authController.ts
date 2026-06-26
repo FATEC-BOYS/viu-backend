@@ -1,8 +1,10 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { PasswordResetService } from '../services/passwordResetService.js'
 import { verifyEmail, resendVerificationEmail } from '../services/emailVerificationService.js'
+import { UsuarioService } from '../services/usuarioService.js'
 
 const passwordResetService = new PasswordResetService()
+const usuarioService = new UsuarioService()
 
 export async function forgotPassword(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
@@ -68,4 +70,30 @@ export async function resendVerification(request: FastifyRequest, reply: Fastify
   const { email } = request.body as { email: string }
   resendVerificationEmail(email).catch(() => {})
   reply.send({ message: 'Se o e-mail estiver pendente de verificação, você receberá um novo link.', success: true })
+}
+
+export async function refreshTokenHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  try {
+    const { refreshToken } = request.body as { refreshToken?: string }
+    if (!refreshToken) {
+      reply.status(400).send({ message: 'Refresh token é obrigatório', success: false })
+      return
+    }
+    const result = await usuarioService.refresh(refreshToken)
+    reply.send({ data: result, success: true })
+  } catch (error: any) {
+    reply.status(401).send({ message: error.message ?? 'Token inválido ou expirado', success: false })
+  }
+}
+
+export async function logoutHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  try {
+    const authHeader = request.headers.authorization
+    if (authHeader?.startsWith('Bearer ')) {
+      await usuarioService.logout(authHeader.slice(7))
+    }
+  } catch {
+    // always return success — client-side cleanup happens regardless
+  }
+  reply.send({ message: 'Logout realizado com sucesso', success: true })
 }

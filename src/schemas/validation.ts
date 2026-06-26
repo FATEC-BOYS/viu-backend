@@ -78,6 +78,10 @@ export const ResendVerificationSchema = z.object({
   email: z.string().email('Email inválido'),
 });
 
+export const RefreshTokenSchema = z.object({
+  refreshToken: z.string().min(1, 'Refresh token é obrigatório'),
+});
+
 // ===== SCHEMAS DE PROJETO =====
 
 export const CreateProjetoRequestSchema = z.object({

@@ -220,10 +220,12 @@ model Notificacao {
 
 // 🔐 Sessões (para JWT/Auth)
 model Sessao {
-  id        String   @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
-  token     String   @unique
-  expiresAt DateTime
-  ativo     Boolean  @default(true)
+  id               String    @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  token            String    @unique
+  expiresAt        DateTime
+  refreshToken     String?   @unique
+  refreshExpiresAt DateTime?
+  ativo            Boolean   @default(true)
 
   // Relacionamentos
   usuarioId String
@@ -234,6 +236,7 @@ model Sessao {
 
   @@index([usuarioId])
   @@index([token])
+  @@index([refreshToken])
   @@index([expiresAt])
   @@index([ativo])
   @@map("sessoes")

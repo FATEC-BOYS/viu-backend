@@ -2,7 +2,9 @@ import prisma from '../database/client.js'
 import bcrypt from 'bcryptjs'
 import { SignJWT } from 'jose'
 import { getJWTSecret, env } from '../config/env.js'
-import { randomUUID } from 'crypto'
+import { randomUUID, randomBytes } from 'crypto'
+
+const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
 
 export interface ListUsuariosParams {
   page?: number
@@ -26,7 +28,7 @@ export class UsuarioService {
     email: string
     nome: string
     tipo: string
-  }): Promise<{ token: string; expiresAt: Date }> {
+  }): Promise<{ token: string; expiresAt: Date; refreshToken: string; refreshExpiresAt: Date }> {
     const secret = new TextEncoder().encode(getJWTSecret())
     const jti = randomUUID()
     const expiresAt = parseJwtExpiry(env.JWT_EXPIRES_IN)
@@ -41,7 +43,10 @@ export class UsuarioService {
       .setIssuedAt()
       .setJti(jti)
       .sign(secret)
-    return { token, expiresAt }
+
+    const refreshToken = randomBytes(32).toString('hex')
+    const refreshExpiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS)
+    return { token, expiresAt, refreshToken, refreshExpiresAt }
   }
 
   async listUsuarios({ page = 1, limit = 10, tipo, ativo }: ListUsuariosParams) {
@@ -222,14 +227,15 @@ export class UsuarioService {
       }
     }
 
-    const { token, expiresAt } = await this.signToken(usuario)
+    const { token, expiresAt, refreshToken, refreshExpiresAt } = await this.signToken(usuario)
 
     await prisma.sessao.create({
-      data: { token, expiresAt, usuarioId: usuario.id },
+      data: { token, expiresAt, usuarioId: usuario.id, refreshToken, refreshExpiresAt },
     })
 
     return {
       token,
+      refreshToken,
       usuario: {
         id: usuario.id,
         email: usuario.email,
@@ -238,6 +244,49 @@ export class UsuarioService {
         avatar: usuario.avatar,
       },
     }
+  }
+
+  async refresh(refreshToken: string) {
+    const sessao = await prisma.sessao.findFirst({
+      where: {
+        refreshToken,
+        ativo: true,
+        refreshExpiresAt: { gt: new Date() },
+      },
+      include: {
+        usuario: {
+          select: { id: true, email: true, nome: true, tipo: true, avatar: true, ativo: true },
+        },
+      },
+    })
+
+    if (!sessao || !sessao.usuario.ativo) {
+      throw new Error('Refresh token inválido ou expirado')
+    }
+
+    // Revoke old session (token rotation)
+    await prisma.sessao.update({ where: { id: sessao.id }, data: { ativo: false } })
+
+    const { token, expiresAt, refreshToken: newRefresh, refreshExpiresAt } = await this.signToken(sessao.usuario)
+    await prisma.sessao.create({
+      data: { token, expiresAt, usuarioId: sessao.usuarioId, refreshToken: newRefresh, refreshExpiresAt },
+    })
+
+    return {
+      token,
+      refreshToken: newRefresh,
+      usuario: {
+        id: sessao.usuario.id,
+        email: sessao.usuario.email,
+        nome: sessao.usuario.nome,
+        tipo: sessao.usuario.tipo,
+        avatar: sessao.usuario.avatar,
+      },
+    }
+  }
+
+  async logout(token: string) {
+    await prisma.sessao.updateMany({ where: { token }, data: { ativo: false } })
   }
 
   async completeTwoFactorLogin(userId: string) {
@@ -257,14 +306,15 @@ export class UsuarioService {
       throw new Error('Usuário não encontrado ou inativo')
     }
 
-    const { token, expiresAt } = await this.signToken(usuario)
+    const { token, expiresAt, refreshToken, refreshExpiresAt } = await this.signToken(usuario)
 
     await prisma.sessao.create({
-      data: { token, expiresAt, usuarioId: usuario.id },
+      data: { token, expiresAt, usuarioId: usuario.id, refreshToken, refreshExpiresAt },
     })
 
     return {
       token,
+      refreshToken,
       usuario: {
         id: usuario.id,
         email: usuario.email,
