@@ -8,15 +8,17 @@ export interface ListFeedbacksParams {
   arteId?: string
   autorId?: string
   tipo?: string
+  projetoIds?: string[] // access-control scope (set by controller for non-admins)
 }
 
 export class FeedbackService {
-  async listFeedbacks({ page = 1, limit = 10, arteId, autorId, tipo }: ListFeedbacksParams) {
+  async listFeedbacks({ page = 1, limit = 10, arteId, autorId, tipo, projetoIds }: ListFeedbacksParams) {
     const skip = (page - 1) * limit
     const where: any = {
       ...(arteId && { arteId }),
       ...(autorId && { autorId }),
       ...(tipo && { tipo }),
+      ...(projetoIds && { arte: { projetoId: { in: projetoIds } } }),
     }
     const [feedbacks, total] = await Promise.all([
       prisma.feedback.findMany({

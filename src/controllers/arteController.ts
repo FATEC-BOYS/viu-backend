@@ -1,11 +1,13 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { ArteService, ListArtesParams } from '../services/arteService.js'
-import { signPath } from '../utils/supabaseStorage.js'
+import { signPath } from '../utils/storage.js'
+import prisma from '../database/client.js'
 
 const arteService = new ArteService()
 
 export async function listArtes(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
+    const usuario = (request as any).usuario
     const { page = 1, limit = 10, projetoId, autorId, status, tipo, search } =
       (request.query || {}) as any
     const params: ListArtesParams = {
@@ -17,6 +19,21 @@ export async function listArtes(request: FastifyRequest, reply: FastifyReply): P
       tipo: tipo as string | undefined,
       search: search as string | undefined,
     }
+
+    if (usuario.tipo !== 'ADMIN') {
+      const projetos = await prisma.projeto.findMany({
+        where: { OR: [{ designerId: usuario.id }, { clienteId: usuario.id }] },
+        select: { id: true },
+      })
+      const accessibleIds = projetos.map((p: { id: string }) => p.id)
+
+      if (params.projetoId && !accessibleIds.includes(params.projetoId)) {
+        reply.status(403).send({ message: 'Acesso negado', success: false })
+        return
+      }
+      params.projetoIds = accessibleIds
+    }
+
     const { artes, total } = await arteService.listArtes(params)
     reply.send({
       data: artes,
@@ -52,7 +69,17 @@ export async function getArteById(request: FastifyRequest, reply: FastifyReply):
 export async function createArte(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
     const usuario = (request as any).usuario
-    const data = { ...(request.body as Record<string, any>), autorId: usuario?.id }
+    const body = request.body as any
+    // Whitelist fields — never accept status, versao, or autorId from client
+    const data = {
+      nome: body.nome,
+      descricao: body.descricao,
+      tipo: body.tipo,
+      tamanho: body.tamanho,
+      arquivo: body.arquivo,
+      projetoId: body.projetoId,
+      autorId: usuario.id,
+    }
     const arte = await arteService.createArte(data)
     reply.status(201).send({ message: 'Arte criada com sucesso', data: arte, success: true })
   } catch (error: any) {
@@ -67,7 +94,13 @@ export async function createArte(request: FastifyRequest, reply: FastifyReply): 
 export async function updateArte(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
     const { id } = request.params as { id: string }
-    const arte = await arteService.updateArte(id, request.body)
+    const body = request.body as any
+    // Whitelist fields — never accept autorId, projetoId, or status override from client
+    const allowedUpdates: Record<string, any> = {}
+    for (const field of ['nome', 'descricao', 'tipo', 'tamanho', 'arquivo'] as const) {
+      if (body[field] !== undefined) allowedUpdates[field] = body[field]
+    }
+    const arte = await arteService.updateArte(id, allowedUpdates)
     reply.send({ message: 'Arte atualizada com sucesso', data: arte, success: true })
   } catch (error: any) {
     if (error.message.includes('Arte não encontrada')) {

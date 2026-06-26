@@ -13,6 +13,7 @@ export interface ListArtesParams {
   page?: number
   limit?: number
   projetoId?: string
+  projetoIds?: string[] // access-control scope (set by controller for non-admins)
   autorId?: string
   status?: string
   tipo?: string
@@ -27,6 +28,7 @@ export class ArteService {
     page = 1,
     limit = 10,
     projetoId,
+    projetoIds,
     autorId,
     status,
     tipo,
@@ -34,7 +36,10 @@ export class ArteService {
   }: ListArtesParams) {
     const skip = (page - 1) * limit
     const where: any = {
-      ...(projetoId && { projetoId }),
+      // projetoId takes precedence; projetoIds is the access-control fallback
+      ...(projetoId
+        ? { projetoId }
+        : projetoIds && { projetoId: { in: projetoIds } }),
       ...(autorId && { autorId }),
       ...(status && { status }),
       ...(tipo && { tipo }),

@@ -44,7 +44,7 @@ export class LinkService {
       where: { id: link.arteId },
       include: {
         projeto: { select: { nome: true } },
-        autor: { select: { nome: true, email: true } },
+        autor: { select: { nome: true } }, // email omitted from public preview
       },
     })
     if (!arte) throw new Error('Arte não encontrada')
@@ -54,7 +54,7 @@ export class LinkService {
     const feedbacks = await prisma.feedback.findMany({
       where: { arteId: arte.id },
       orderBy: { criadoEm: 'desc' },
-      include: { autor: { select: { nome: true, email: true } } },
+      include: { autor: { select: { nome: true } } }, // email omitted from public preview
     })
 
     const feedbacksComUrl = await Promise.all(

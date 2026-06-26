@@ -104,8 +104,16 @@ export async function listProjetosByDesigner(
   reply: FastifyReply,
 ): Promise<void> {
   try {
+    const usuario = (request as any).usuario
     const { designerId } = request.params as { designerId: string }
     const { status } = (request.query || {}) as any
+
+    // Non-admins can only list their own projects
+    if (usuario.tipo !== 'ADMIN' && usuario.id !== designerId) {
+      reply.status(403).send({ message: 'Acesso negado', success: false })
+      return
+    }
+
     const projetos = await projetoService.listProjetosByDesigner(designerId, status as string | undefined)
     reply.send({ data: projetos, success: true })
   } catch {

@@ -1,11 +1,13 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { FeedbackService, ListFeedbacksParams } from '../services/feedbackService.js'
-import { signPath } from '../utils/supabaseStorage.js'
+import { signPath } from '../utils/storage.js'
+import prisma from '../database/client.js'
 
 const feedbackService = new FeedbackService()
 
 export async function listFeedbacks(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
+    const usuario = (request as any).usuario
     const { page = 1, limit = 10, arteId, autorId, tipo } = (request.query || {}) as any
     const params: ListFeedbacksParams = {
       page: Number(page) || 1,
@@ -14,6 +16,15 @@ export async function listFeedbacks(request: FastifyRequest, reply: FastifyReply
       autorId: autorId as string | undefined,
       tipo: tipo as string | undefined,
     }
+
+    if (usuario.tipo !== 'ADMIN') {
+      const projetos = await prisma.projeto.findMany({
+        where: { OR: [{ designerId: usuario.id }, { clienteId: usuario.id }] },
+        select: { id: true },
+      })
+      params.projetoIds = projetos.map((p: { id: string }) => p.id)
+    }
+
     const { feedbacks, total } = await feedbackService.listFeedbacks(params)
     const feedbacksComUrl = await Promise.all(
       feedbacks.map(async (fb: any) => ({
@@ -50,7 +61,16 @@ export async function getFeedbackById(request: FastifyRequest, reply: FastifyRep
 export async function createFeedback(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
     const usuario = (request as any).usuario
-    const data = { ...(request.body as Record<string, any>), autorId: usuario?.id }
+    const body = request.body as any
+    // Whitelist fields — autorId always comes from authenticated session
+    const data = {
+      conteudo: body.conteudo,
+      tipo: body.tipo ?? 'TEXTO',
+      arteId: body.arteId,
+      posicaoX: body.posicaoX,
+      posicaoY: body.posicaoY,
+      autorId: usuario.id,
+    }
     const feedback = await feedbackService.createFeedback(data)
     reply.status(201).send({ message: 'Feedback criado com sucesso', data: feedback, success: true })
   } catch (error: any) {
@@ -64,10 +84,8 @@ export async function createFeedback(request: FastifyRequest, reply: FastifyRepl
 
 /**
  * POST /feedbacks/audio — multipart/form-data
- * Campos: audio (arquivo), arteId, posicaoX?, posicaoY?
- *
- * O middleware validateAudioUpload lê o arquivo e armazena em request.audioData
- * incluindo os campos do form (audioData.fields), evitando dupla leitura do stream.
+ * Fields: audio (file), arteId, posicaoX?, posicaoY?
+ * validateAudioUpload reads the stream first and populates request.audioData
  */
 export async function createFeedbackComAudio(
   request: FastifyRequest,

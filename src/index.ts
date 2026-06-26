@@ -16,6 +16,7 @@ import { securityRoutes } from './routes/security.js'
 import { linksRoutes } from './routes/links.js'
 import { setupErrorHandler } from './middleware/errorHandlerMiddleware.js'
 import { auditLogMiddleware } from './middleware/auditLogMiddleware.js'
+import { auditLogService } from './services/auditLogService.js'
 import { env } from './config/env.js'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -33,11 +34,12 @@ export async function buildServer() {
 
   await app.register(import('@fastify/cors'), {
     origin: (origin, callback) => {
-      if (!origin && env.NODE_ENV === 'development') {
-        callback(null, true)
+      // Always reject requests without Origin header — prevents CSRF from non-browser clients
+      if (!origin) {
+        callback(new Error('Origin header ausente'), false)
         return
       }
-      if (origin && allowedOrigins.includes(origin)) {
+      if (allowedOrigins.includes(origin)) {
         callback(null, true)
         return
       }
@@ -78,6 +80,20 @@ export async function buildServer() {
   })
 
   app.addHook('preHandler', auditLogMiddleware)
+
+  // Persist audit log after each response so we capture the final status code
+  app.addHook('onResponse', async (request, reply) => {
+    const auditData = (request as any).auditLog
+    if (!auditData) return
+    try {
+      await auditLogService.log({
+        ...auditData,
+        status: reply.statusCode < 400 ? 'SUCCESS' : 'FAILURE',
+      })
+    } catch {
+      // Never let audit log failure affect the response
+    }
+  })
 
   app.get('/', async () => ({
     status: 'ok',

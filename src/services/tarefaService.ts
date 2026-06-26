@@ -12,6 +12,7 @@ export interface ListTarefasParams {
   page?: number
   limit?: number
   projetoId?: string
+  projetoIds?: string[] // access-control scope (set by controller for non-admins)
   responsavelId?: string
   status?: string
   prioridade?: string
@@ -22,13 +23,16 @@ export class TarefaService {
     page = 1,
     limit = 10,
     projetoId,
+    projetoIds,
     responsavelId,
     status,
     prioridade,
   }: ListTarefasParams) {
     const skip = (page - 1) * limit
     const where: any = {
-      ...(projetoId && { projetoId }),
+      ...(projetoId
+        ? { projetoId }
+        : projetoIds && { projetoId: { in: projetoIds } }),
       ...(responsavelId && { responsavelId }),
       ...(status && { status }),
       ...(prioridade && { prioridade }),
