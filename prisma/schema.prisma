@@ -23,6 +23,11 @@ model Usuario {
   twoFactorSecret      String?
   twoFactorBackupCodes String[] @default([])
 
+  // Email verification
+  emailVerificado            Boolean   @default(false)
+  emailVerificacaoToken      String?   @unique
+  emailVerificacaoExpiresAt  DateTime?
+
   // Password reset
   passwordResetToken     String?   @unique
   passwordResetExpiresAt DateTime?

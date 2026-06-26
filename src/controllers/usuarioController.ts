@@ -1,5 +1,6 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { UsuarioService, ListUsuariosParams } from '../services/usuarioService.js'
+import { sendVerificationEmail } from '../services/emailVerificationService.js'
 
 const usuarioService = new UsuarioService()
 
@@ -40,7 +41,11 @@ export async function getUsuarioById(request: FastifyRequest, reply: FastifyRepl
 export async function createUsuario(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
     const usuario = await usuarioService.createUsuario(request.body)
-    reply.status(201).send({ message: 'Usuário criado com sucesso', data: usuario, success: true })
+
+    // Fire-and-forget — não bloqueia o registro se o email falhar
+    sendVerificationEmail(usuario.id, usuario.email).catch(() => {})
+
+    reply.status(201).send({ message: 'Usuário criado com sucesso. Verifique seu e-mail para ativar a conta.', data: usuario, success: true })
   } catch (error: any) {
     if (error.message.includes('Email já está em uso')) {
       reply.status(400).send({ message: error.message, success: false })
