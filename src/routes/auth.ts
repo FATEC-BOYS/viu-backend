@@ -4,12 +4,15 @@ import {
   resetPassword,
   verifyEmailHandler,
   resendVerification,
+  refreshTokenHandler,
+  logoutHandler,
 } from '../controllers/authController.js'
 import { validateBody } from '../middleware/validationMiddleware.js'
 import {
   ForgotPasswordRequestSchema,
   ResetPasswordRequestSchema,
   ResendVerificationSchema,
+  RefreshTokenSchema,
 } from '../schemas/validation.js'
 
 export async function authRoutes(fastify: FastifyInstance) {
@@ -31,4 +34,11 @@ export async function authRoutes(fastify: FastifyInstance) {
     config: { rateLimit: { max: 3, timeWindow: '15 minutes' } },
     preHandler: [validateBody(ResendVerificationSchema)],
   }, resendVerification)
+
+  fastify.post('/auth/refresh', {
+    config: { rateLimit: { max: 20, timeWindow: '15 minutes' } },
+    preHandler: [validateBody(RefreshTokenSchema)],
+  }, refreshTokenHandler)
+
+  fastify.post('/auth/logout', {}, logoutHandler)
 }
