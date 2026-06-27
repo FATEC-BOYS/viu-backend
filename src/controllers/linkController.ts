@@ -125,6 +125,53 @@ export async function createAudioFeedbackViaLink(
   }
 }
 
+export async function listLinks(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  try {
+    const links = await linkService.listLinks()
+    reply.send({ data: links, success: true })
+  } catch {
+    reply.status(500).send({ message: 'Erro ao listar links', success: false })
+  }
+}
+
+export async function updateLink(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  try {
+    const { id } = request.params as { id: string }
+    const body = request.body as { expiraEm?: string | null; somenteLeitura?: boolean }
+    const link = await linkService.updateLink(id, body)
+    reply.send({ message: 'Link atualizado', data: link, success: true })
+  } catch (error: any) {
+    if (error.message.includes('não encontrad')) {
+      reply.status(404).send({ message: error.message, success: false })
+      return
+    }
+    reply.status(500).send({ message: 'Erro ao atualizar link', success: false })
+  }
+}
+
+export async function deleteLink(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  try {
+    const { id } = request.params as { id: string }
+    await linkService.deleteLink(id)
+    reply.send({ message: 'Link removido', success: true })
+  } catch (error: any) {
+    if (error.message.includes('não encontrad')) {
+      reply.status(404).send({ message: error.message, success: false })
+      return
+    }
+    reply.status(500).send({ message: 'Erro ao remover link', success: false })
+  }
+}
+
 export async function getPreviewByToken(
   request: FastifyRequest,
   reply: FastifyReply,
