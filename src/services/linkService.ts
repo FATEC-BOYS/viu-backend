@@ -28,6 +28,14 @@ export class LinkService {
     return link
   }
 
+  async resolveArteIdFromToken(token: string): Promise<string> {
+    const link = await prisma.linkCompartilhado.findUnique({ where: { token } })
+    if (!link) throw new Error('Link inválido')
+    if (link.expiraEm && new Date(link.expiraEm) < new Date()) throw new Error('Link expirado')
+    if (link.tipo !== 'ARTE' || !link.arteId) throw new Error('Tipo de link não suportado')
+    return link.arteId
+  }
+
   async getPreviewByToken(token: string) {
     const link = await prisma.linkCompartilhado.findUnique({ where: { token } })
     if (!link) throw new Error('Link inválido')
