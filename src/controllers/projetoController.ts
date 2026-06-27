@@ -1,5 +1,6 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { ProjetoService, ListProjetosParams } from '../services/projetoService.js'
+import { evaluateBriefing } from '../services/evalForgeService.js'
 
 const projetoService = new ProjetoService()
 
@@ -47,7 +48,23 @@ export async function getProjetoById(request: FastifyRequest, reply: FastifyRepl
 
 export async function createProjeto(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
-    const projeto = await projetoService.createProjeto(request.body)
+    const body = request.body as any
+    const skipBriefingEval = body.skipBriefingEval === true
+    const descricao: string | undefined = body.descricao
+
+    if (!skipBriefingEval && descricao && descricao.trim().length >= 30) {
+      const evalResult = await evaluateBriefing(descricao)
+      if (!evalResult.passed) {
+        reply.status(422).send({
+          message: 'O briefing precisa de melhorias antes de criar o projeto.',
+          evalResult,
+          success: false,
+        })
+        return
+      }
+    }
+
+    const projeto = await projetoService.createProjeto(body)
     reply.status(201).send({ message: 'Projeto criado com sucesso', data: projeto, success: true })
   } catch (error: any) {
     if (error.message.includes('não encontrado') || error.message.includes('inativo')) {
