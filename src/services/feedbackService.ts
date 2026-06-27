@@ -8,26 +8,51 @@ export interface ListFeedbacksParams {
   arteId?: string
   autorId?: string
   tipo?: string
+  status?: string
+  search?: string
   projetoIds?: string[] // access-control scope (set by controller for non-admins)
 }
 
 export class FeedbackService {
-  async listFeedbacks({ page = 1, limit = 10, arteId, autorId, tipo, projetoIds }: ListFeedbacksParams) {
+  async listFeedbacks({ page = 1, limit = 10, arteId, autorId, tipo, status, search, projetoIds }: ListFeedbacksParams) {
     const skip = (page - 1) * limit
-    const where: any = {
-      ...(arteId && { arteId }),
-      ...(autorId && { autorId }),
-      ...(tipo && { tipo }),
-      ...(projetoIds && { arte: { projetoId: { in: projetoIds } } }),
+    const and: any[] = []
+    if (arteId) and.push({ arteId })
+    if (autorId) and.push({ autorId })
+    if (tipo) and.push({ tipo })
+    if (status) and.push({ status })
+    if (projetoIds) and.push({ arte: { projetoId: { in: projetoIds } } })
+    if (search) {
+      and.push({
+        OR: [
+          { conteudo: { contains: search, mode: 'insensitive' } },
+          { arte: { nome: { contains: search, mode: 'insensitive' } } },
+        ],
+      })
     }
+    const where = and.length > 0 ? { AND: and } : {}
     const [feedbacks, total] = await Promise.all([
       prisma.feedback.findMany({
         where,
         skip,
         take: Number(limit),
         include: {
-          autor: { select: { id: true, nome: true, avatar: true } },
-          arte: { select: { id: true, nome: true } },
+          autor: { select: { id: true, nome: true, tipo: true } },
+          arte: {
+            select: {
+              id: true,
+              nome: true,
+              status: true,
+              arquivo: true,
+              projeto: {
+                select: {
+                  id: true,
+                  nome: true,
+                  cliente: { select: { id: true, nome: true } },
+                },
+              },
+            },
+          },
         },
         orderBy: { criadoEm: 'desc' },
       }),

@@ -44,7 +44,7 @@ export async function authRoutes(fastify: FastifyInstance) {
 
   fastify.post('/auth/logout', {}, logoutHandler)
 
-  fastify.post('/auth/2fa-login', {
+  fastify.post('/auth/2fa/login', {
     config: { rateLimit: { max: 5, timeWindow: '15 minutes' } },
     preHandler: [validateBody(TwoFactorLoginSchema)],
   }, twoFactorLoginHandler)

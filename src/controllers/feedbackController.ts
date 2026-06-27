@@ -8,13 +8,15 @@ const feedbackService = new FeedbackService()
 export async function listFeedbacks(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
     const usuario = (request as any).usuario
-    const { page = 1, limit = 10, arteId, autorId, tipo } = (request.query || {}) as any
+    const { page = 1, limit = 10, arteId, autorId, tipo, status, search } = (request.query || {}) as any
     const params: ListFeedbacksParams = {
       page: Number(page) || 1,
       limit: Number(limit) || 10,
       arteId: arteId as string | undefined,
       autorId: autorId as string | undefined,
       tipo: tipo as string | undefined,
+      status: status as string | undefined,
+      search: search as string | undefined,
     }
 
     if (usuario.tipo !== 'ADMIN') {
@@ -30,6 +32,7 @@ export async function listFeedbacks(request: FastifyRequest, reply: FastifyReply
       feedbacks.map(async (fb: any) => ({
         ...fb,
         arquivo_url: fb.tipo === 'AUDIO' && fb.arquivo ? await signPath(fb.arquivo) : null,
+        arte_preview_url: fb.arte?.arquivo ? await signPath(fb.arte.arquivo, 3600) : null,
       })),
     )
     reply.send({

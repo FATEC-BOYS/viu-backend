@@ -264,7 +264,6 @@ export class UsuarioService {
       throw new Error('Refresh token inválido ou expirado')
     }
 
-    // Revoke old session (token rotation)
     await prisma.sessao.update({ where: { id: sessao.id }, data: { ativo: false } })
 
     const { token, expiresAt, refreshToken: newRefresh, refreshExpiresAt } = await this.signToken(sessao.usuario)

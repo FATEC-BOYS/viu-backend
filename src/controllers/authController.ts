@@ -68,7 +68,6 @@ export async function verifyEmailHandler(request: FastifyRequest, reply: Fastify
 }
 
 export async function resendVerification(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // Fire-and-forget — always same response (anti-enumeration)
   const { email } = request.body as { email: string }
   resendVerificationEmail(email).catch(() => {})
   reply.send({ message: 'Se o e-mail estiver pendente de verificação, você receberá um novo link.', success: true })

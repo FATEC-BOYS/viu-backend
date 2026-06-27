@@ -28,6 +28,7 @@ model Usuario {
   emailVerificacaoToken      String?   @unique
   emailVerificacaoExpiresAt  DateTime?
 
+
   // Password reset
   passwordResetToken     String?   @unique
   passwordResetExpiresAt DateTime?
