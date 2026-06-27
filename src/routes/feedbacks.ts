@@ -10,7 +10,7 @@ import {
   deleteFeedback,
 } from '../controllers/feedbackController.js'
 import { authenticate } from '../middleware/authMiddleware.js'
-import { requireProjectAccess, requireAuthor } from '../middleware/authorizationMiddleware.js'
+import { requireProjectAccess } from '../middleware/authorizationMiddleware.js'
 import { validateAudioUpload } from '../middleware/fileUploadMiddleware.js'
 import { validateBody } from '../middleware/validationMiddleware.js'
 import { CreateFeedbackRequestSchema } from '../schemas/validation.js'
@@ -28,6 +28,6 @@ export async function feedbacksRoutes(fastify: FastifyInstance) {
   fastify.post('/feedbacks/audio', {
     preHandler: [authenticate, validateAudioUpload, requireProjectAccess],
   }, createFeedbackComAudio)
-  fastify.put('/feedbacks/:id', { preHandler: [authenticate, requireAuthor] }, updateFeedback)
-  fastify.delete('/feedbacks/:id', { preHandler: [authenticate, requireAuthor] }, deleteFeedback)
+  fastify.put('/feedbacks/:id', { preHandler: [authenticate, requireProjectAccess] }, updateFeedback)
+  fastify.delete('/feedbacks/:id', { preHandler: [authenticate, requireProjectAccess] }, deleteFeedback)
 }
