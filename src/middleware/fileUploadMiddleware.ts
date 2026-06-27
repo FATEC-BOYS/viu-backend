@@ -203,3 +203,68 @@ export async function validateAudioUpload(
     return reply.status(500).send({ message: 'Erro ao validar arquivo de áudio', success: false })
   }
 }
+
+export async function validateArteUpload(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  try {
+    const data = await request.file()
+    if (!data) {
+      return reply.status(400).send({ message: 'Nenhum arquivo fornecido', success: false })
+    }
+
+    const mimeType = data.mimetype
+    const extension = path.extname(data.filename)
+
+    if (!validateMimeType(mimeType, extension)) {
+      return reply.status(400).send({
+        message: 'Tipo de arquivo não permitido',
+        success: false,
+        allowedTypes: Object.keys(ALLOWED_MIME_TYPES),
+      })
+    }
+
+    // Captura campos do form antes de consumir o buffer
+    const fields = data.fields as Record<string, any>
+
+    const buffer = await data.toBuffer()
+    const fileSize = buffer.length
+    const category = getFileCategory(mimeType)
+
+    if (!validateFileSize(fileSize, category)) {
+      return reply.status(400).send({
+        message: `Arquivo muito grande. Máximo para ${category}: ${FILE_SIZE_LIMITS[category] / (1024 * 1024)}MB`,
+        success: false,
+      })
+    }
+
+    if (!checkMagicBytes(buffer, mimeType)) {
+      return reply.status(400).send({
+        message: 'Conteúdo do arquivo não corresponde ao tipo declarado',
+        success: false,
+      })
+    }
+
+    const nome = fields.nome?.value?.trim()
+    const projetoId = fields.projetoId?.value?.trim()
+    if (!nome || !projetoId) {
+      return reply.status(400).send({ message: 'nome e projetoId são obrigatórios', success: false })
+    }
+
+    ;(request as any).arteUploadData = {
+      filename: sanitizeFilename(data.filename),
+      mimetype: mimeType,
+      buffer,
+      size: fileSize,
+      category,
+      fields: {
+        nome,
+        descricao: fields.descricao?.value?.trim() || null,
+        projetoId,
+      },
+    }
+  } catch {
+    return reply.status(500).send({ message: 'Erro ao validar arquivo da arte', success: false })
+  }
+}

@@ -1,9 +1,12 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
+import { randomUUID } from 'crypto'
 import { ArteService, ListArtesParams } from '../services/arteService.js'
-import { signPath } from '../utils/storage.js'
+import { NotificacaoService } from '../services/notificacaoService.js'
+import { uploadFile, signPath } from '../utils/storage.js'
 import prisma from '../database/client.js'
 
 const arteService = new ArteService()
+const notificacaoService = new NotificacaoService()
 
 export async function listArtes(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
@@ -63,6 +66,59 @@ export async function getArteById(request: FastifyRequest, reply: FastifyReply):
     reply.send({ data: { ...arte, arquivo_url, feedbacks: feedbacksComUrl }, success: true })
   } catch {
     reply.status(500).send({ message: 'Erro ao buscar arte', success: false })
+  }
+}
+
+export async function uploadAndCreateArte(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  try {
+    const usuario = (request as any).usuario
+    const upload = (request as any).arteUploadData
+    const { nome, descricao, projetoId } = upload.fields
+
+    // verify project access for non-admins
+    if (usuario.tipo !== 'ADMIN') {
+      const projeto = await prisma.projeto.findFirst({
+        where: { id: projetoId, OR: [{ designerId: usuario.id }, { clienteId: usuario.id }] },
+        select: { id: true },
+      })
+      if (!projeto) {
+        reply.status(403).send({ message: 'Acesso negado ao projeto', success: false })
+        return
+      }
+    }
+
+    const arteId = randomUUID()
+    const key = `artes/${projetoId}/${arteId}/v1/${upload.filename}`
+    await uploadFile(key, upload.buffer, upload.mimetype)
+    const previewUrl = await signPath(key, 3600 * 24)
+
+    const arte = await arteService.createArte({
+      id: arteId,
+      nome,
+      descricao,
+      tipo: upload.mimetype,
+      tamanho: upload.size,
+      arquivo: key,
+      projetoId,
+      autorId: usuario.id,
+    })
+
+    // fire-and-forget: notifica o designer que criou a arte
+    notificacaoService.createNotificacao({
+      titulo: 'Arte criada',
+      conteudo: `${nome} — versão 1`,
+      tipo: 'ARTE',
+      canal: 'SISTEMA',
+      usuarioId: usuario.id,
+    }).catch(() => {})
+
+    reply.status(201).send({ data: { ...arte, previewUrl }, success: true })
+  } catch (error: any) {
+    if (error.message?.includes('não encontrado')) {
+      reply.status(400).send({ message: error.message, success: false })
+      return
+    }
+    reply.status(500).send({ message: 'Erro ao criar arte', success: false })
   }
 }
 
