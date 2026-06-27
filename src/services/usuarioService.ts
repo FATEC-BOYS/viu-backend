@@ -201,6 +201,7 @@ export class UsuarioService {
         avatar: true,
         ativo: true,
         twoFactorEnabled: true,
+        emailVerificado: true,
       },
     })
 
@@ -242,6 +243,7 @@ export class UsuarioService {
         nome: usuario.nome,
         tipo: usuario.tipo,
         avatar: usuario.avatar,
+        emailVerificado: usuario.emailVerificado,
       },
     }
   }
@@ -255,7 +257,7 @@ export class UsuarioService {
       },
       include: {
         usuario: {
-          select: { id: true, email: true, nome: true, tipo: true, avatar: true, ativo: true },
+          select: { id: true, email: true, nome: true, tipo: true, avatar: true, ativo: true, emailVerificado: true },
         },
       },
     })
@@ -281,6 +283,7 @@ export class UsuarioService {
         nome: sessao.usuario.nome,
         tipo: sessao.usuario.tipo,
         avatar: sessao.usuario.avatar,
+        emailVerificado: sessao.usuario.emailVerificado,
       },
     }
   }
@@ -299,6 +302,7 @@ export class UsuarioService {
         tipo: true,
         avatar: true,
         ativo: true,
+        emailVerificado: true,
       },
     })
 
@@ -321,6 +325,7 @@ export class UsuarioService {
         nome: usuario.nome,
         tipo: usuario.tipo,
         avatar: usuario.avatar,
+        emailVerificado: usuario.emailVerificado,
       },
     }
   }
