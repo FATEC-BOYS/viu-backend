@@ -14,8 +14,9 @@ import {
   updateUsuario,
   deactivateUsuario,
   loginUsuario,
-  getCurrentUser, 
+  getCurrentUser,
   statsOverview,
+  uploadAvatar,
 } from '../controllers/usuarioController.js'
 import {
   validateCreateUsuario,
@@ -25,6 +26,7 @@ import {
 import { authenticate } from '../middleware/authMiddleware.js'
 import { requireOwnership, requireRole } from '../middleware/authorizationMiddleware.js'
 import { validatePagination, validateCuidParam } from '../middleware/validationMiddleware.js'
+import { validateFileUpload } from '../middleware/fileUploadMiddleware.js'
 
 export async function usuariosRoutes(fastify: FastifyInstance) {
   // Listagem de usuários (requer autenticação e validação)
@@ -67,6 +69,13 @@ export async function usuariosRoutes(fastify: FastifyInstance) {
   // <-- CORREÇÃO: Rota para obter o usuário autenticado adicionada
   // Usuário atual (me)
   fastify.get('/auth/me', { preHandler: [authenticate] }, getCurrentUser)
+
+  // Upload de avatar
+  fastify.post(
+    '/usuarios/:id/avatar',
+    { preHandler: [authenticate, validateCuidParam, validateFileUpload] },
+    uploadAvatar,
+  )
 
   // Estatísticas de usuários (requer autenticação e papel de ADMIN)
   fastify.get('/usuarios/stats/overview', { preHandler: [authenticate, requireRole('ADMIN')] }, statsOverview)

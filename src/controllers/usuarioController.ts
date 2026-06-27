@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { UsuarioService, ListUsuariosParams } from '../services/usuarioService.js'
 import { sendVerificationEmail } from '../services/emailVerificationService.js'
+import { uploadFile, signPath } from '../utils/storage.js'
 
 const usuarioService = new UsuarioService()
 
@@ -116,6 +117,43 @@ export async function getCurrentUser(request: FastifyRequest, reply: FastifyRepl
     reply.send({ data: usuario, success: true })
   } catch {
     reply.status(500).send({ message: 'Erro ao obter dados do usuário', success: false })
+  }
+}
+
+export async function uploadAvatar(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  try {
+    const usuario = (request as any).usuario
+    const { id } = request.params as { id: string }
+
+    if (usuario?.id !== id) {
+      reply.status(403).send({ message: 'Não autorizado', success: false })
+      return
+    }
+
+    const fileData = (request as any).fileData
+    if (!fileData) {
+      reply.status(400).send({ message: 'Nenhum arquivo fornecido', success: false })
+      return
+    }
+
+    if (!fileData.mimetype.startsWith('image/')) {
+      reply.status(400).send({ message: 'Apenas imagens são permitidas para avatar', success: false })
+      return
+    }
+
+    const key = `avatars/${id}/${Date.now()}_${fileData.filename}`
+    await uploadFile(key, fileData.buffer, fileData.mimetype)
+
+    const updated = await usuarioService.updateUsuario(id, { avatar: key })
+    const avatarUrl = await signPath(key, 3600 * 24)
+
+    reply.send({
+      message: 'Avatar atualizado com sucesso',
+      data: { ...updated, avatar: avatarUrl },
+      success: true,
+    })
+  } catch {
+    reply.status(500).send({ message: 'Erro ao fazer upload do avatar', success: false })
   }
 }
 
