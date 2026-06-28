@@ -15,6 +15,11 @@ import { twoFactorRoutes } from './routes/twoFactor.js'
 import { securityRoutes } from './routes/security.js'
 import { linksRoutes } from './routes/links.js'
 import { authRoutes } from './routes/auth.js'
+import { planosRoutes } from './routes/planos.js'
+import { assinaturasRoutes } from './routes/assinaturas.js'
+import { faturasRoutes } from './routes/faturas.js'
+import { pagamentosRoutes } from './routes/pagamentos.js'
+import { saquesRoutes } from './routes/saques.js'
 import { setupErrorHandler } from './middleware/errorHandlerMiddleware.js'
 import { auditLogMiddleware } from './middleware/auditLogMiddleware.js'
 import { auditLogService } from './services/auditLogService.js'
@@ -114,6 +119,11 @@ export async function buildServer() {
   await app.register(securityRoutes)
   await app.register(linksRoutes)
   await app.register(authRoutes)
+  await app.register(planosRoutes)
+  await app.register(assinaturasRoutes)
+  await app.register(faturasRoutes)
+  await app.register(pagamentosRoutes)
+  await app.register(saquesRoutes)
 
   return app
 }
