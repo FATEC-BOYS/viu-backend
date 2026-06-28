@@ -11,7 +11,7 @@ datasource db {
 model Usuario {
   id       String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
   email    String  @unique
-  senha    String? // Opcional para login social (Google, etc)
+  senha    String?
   nome     String
   telefone String?
   avatar   String?
@@ -24,10 +24,9 @@ model Usuario {
   twoFactorBackupCodes String[] @default([])
 
   // Email verification
-  emailVerificado            Boolean   @default(false)
-  emailVerificacaoToken      String?   @unique
-  emailVerificacaoExpiresAt  DateTime?
-
+  emailVerificado           Boolean   @default(false)
+  emailVerificacaoToken     String?   @unique
+  emailVerificacaoExpiresAt DateTime?
 
   // Password reset
   passwordResetToken     String?   @unique
@@ -37,7 +36,7 @@ model Usuario {
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
-  // Relacionamentos
+  // Relacionamentos existentes
   projetosDesigner Projeto[]       @relation("ProjetoDesigner")
   projetosCliente  Projeto[]       @relation("ProjetoCliente")
   artes            Arte[]          @relation("ArteAutor")
@@ -48,6 +47,14 @@ model Usuario {
   sessoes          Sessao[]        @relation("SessaoUsuario")
   auditLogs        AuditLog[]      @relation("AuditLogUsuario")
   securityEvents   SecurityEvent[] @relation("SecurityEventUsuario")
+
+  // Relacionamentos de pagamento
+  assinaturas         Assinatura[] @relation("AssinaturaUsuario")
+  pagamentos          Pagamento[]  @relation("PagamentosUsuario")
+  chavesPix           ChavePix[]   @relation("ChavesPixUsuario")
+  saques              Saque[]      @relation("SaquesDesigner")
+  faturasComoCliente  Fatura[]     @relation("FaturasCliente")
+  faturasComoDesigner Fatura[]     @relation("FaturasDesigner")
 
   @@index([email])
   @@index([tipo])
@@ -73,6 +80,7 @@ model Projeto {
 
   artes   Arte[]   @relation("ArtesProjeto")
   tarefas Tarefa[] @relation("TarefasProjeto")
+  faturas Fatura[] @relation("FaturasProjeto")
 
   // Timestamps
   criadoEm     DateTime @default(now())
@@ -243,29 +251,24 @@ model Sessao {
   @@map("sessoes")
 }
 
-// 📝 Audit Logs (Registro de Auditoria)
+// 📝 Audit Logs
 model AuditLog {
   id String @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
 
-  // Ação realizada
-  action     String  @db.Text // Ex: "LOGIN", "CREATE_PROJECT", "UPDATE_USER", "DELETE_ARTE"
-  resource   String  @db.Text // Ex: "Usuario", "Projeto", "Arte"
-  resourceId String? @db.Text // ID do recurso afetado
+  action     String  @db.Text
+  resource   String  @db.Text
+  resourceId String? @db.Text
 
-  // Detalhes da ação
-  details   Json?   @db.JsonB // Dados adicionais sobre a ação (before/after, params, etc)
-  ipAddress String? @db.Text // IP de origem
-  userAgent String? @db.Text // User agent do navegador
+  details   Json?   @db.JsonB
+  ipAddress String? @db.Text
+  userAgent String? @db.Text
 
-  // Status e resultado
-  status       String  @db.Text // "SUCCESS" ou "FAILURE"
-  errorMessage String? @db.Text // Mensagem de erro se falhou
+  status       String  @db.Text
+  errorMessage String? @db.Text
 
-  // Relacionamento com usuário (quem executou a ação)
   usuarioId String?
   usuario   Usuario? @relation("AuditLogUsuario", fields: [usuarioId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
-  // Timestamp
   criadoEm DateTime @default(now())
 
   @@index([usuarioId])
@@ -276,33 +279,27 @@ model AuditLog {
   @@map("audit_logs")
 }
 
-// 🔒 Security Events (Eventos de Segurança)
+// 🔒 Security Events
 model SecurityEvent {
   id String @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
 
-  // Tipo de evento de segurança
-  eventType String @db.Text // "FAILED_LOGIN", "ACCOUNT_LOCKOUT", "SUSPICIOUS_ACTIVITY", "PASSWORD_CHANGE"
-  severity  String @db.Text // "LOW", "MEDIUM", "HIGH", "CRITICAL"
+  eventType String @db.Text
+  severity  String @db.Text
 
-  // Detalhes do evento
   description String @db.Text
-  details     Json?  @db.JsonB // Informações adicionais
+  details     Json?  @db.JsonB
 
-  // Origem do evento
   ipAddress String? @db.Text
   userAgent String? @db.Text
-  location  String? @db.Text // Geolocalização (cidade, país)
+  location  String? @db.Text
 
-  // Relacionamento com usuário (se aplicável)
   usuarioId String?
   usuario   Usuario? @relation("SecurityEventUsuario", fields: [usuarioId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
-  // Status de resposta
   resolved   Boolean   @default(false)
   resolvedAt DateTime?
-  resolvedBy String?   @db.Text // ID do admin que resolveu
+  resolvedBy String?   @db.Text
 
-  // Timestamp
   criadoEm DateTime @default(now())
 
   @@index([usuarioId])
@@ -313,29 +310,174 @@ model SecurityEvent {
   @@map("security_events")
 }
 
-// 🔗 Links Compartilhados (Shared Links)
+// 🔗 Links Compartilhados
 model LinkCompartilhado {
   id String @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
 
-  // Token único para acesso
   token String @unique
+  tipo  String @db.Text
 
-  // Tipo de recurso compartilhado
-  tipo String @db.Text // "ARTE", "PROJETO", etc.
-
-  // Relacionamento com Arte (se tipo = "ARTE")
   arteId String?
   arte   Arte?   @relation("LinksArte", fields: [arteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
-  // Configurações de acesso
   somenteLeitura Boolean   @default(true)
-  expiraEm       DateTime? // Null = nunca expira
+  expiraEm       DateTime?
 
-  // Timestamps
   criadoEm DateTime @default(now())
 
   @@index([token])
   @@index([arteId])
   @@index([expiraEm])
   @@map("link_compartilhado")
+}
+
+// ====== SISTEMA DE PAGAMENTOS ======
+
+// 💰 Planos de Assinatura
+model Plano {
+  id               String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  nome             String // FREE | PRO | BUSINESS
+  tipo             String // DESIGNER | CLIENTE
+  precoMensal      Int // Em centavos (0 para FREE)
+  precoAnual       Int? // Em centavos
+  taxaPlataforma   Float   @default(0.10) // Percentual: 0.10 = 10%
+  limitesProjetos  Int? // null = ilimitado
+  limitesArtes     Int?
+  limitesStorageMb Int?
+  descricao        String?
+  ativo            Boolean @default(true)
+
+  assinaturas Assinatura[]
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@index([tipo])
+  @@index([ativo])
+  @@map("planos")
+}
+
+// 📋 Assinaturas
+model Assinatura {
+  id                  String    @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  status              String    @default("PENDENTE") // PENDENTE | ATIVA | CANCELADA | PAUSADA | EXPIRADA
+  periodoInicio       DateTime?
+  periodoFim          DateTime?
+  renovacaoAutomatica Boolean   @default(true)
+  mpPreapprovalId     String?   @unique // ID da preapproval no MercadoPago
+  mpPlanId            String? // ID do plano no MercadoPago
+
+  usuarioId String
+  usuario   Usuario @relation("AssinaturaUsuario", fields: [usuarioId], references: [id], onDelete: Cascade)
+  planoId   String
+  plano     Plano   @relation(fields: [planoId], references: [id])
+
+  pagamentos Pagamento[] @relation("PagamentosAssinatura")
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@index([usuarioId])
+  @@index([status])
+  @@map("assinaturas")
+}
+
+// 🧾 Faturas (cobranças de projeto)
+model Fatura {
+  id                   String    @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  valor                Int // Total em centavos
+  taxaPlataforma       Int // Taxa VIU em centavos
+  valorLiquidoDesigner Int // Valor que o designer recebe em centavos
+  status               String    @default("PENDENTE") // PENDENTE | PAGA | CANCELADA | ESTORNADA
+  dataVencimento       DateTime?
+  dataPagamento        DateTime?
+  descricao            String?
+
+  projetoId  String
+  projeto    Projeto @relation("FaturasProjeto", fields: [projetoId], references: [id])
+  clienteId  String
+  cliente    Usuario @relation("FaturasCliente", fields: [clienteId], references: [id])
+  designerId String
+  designer   Usuario @relation("FaturasDesigner", fields: [designerId], references: [id])
+
+  pagamento Pagamento? @relation("PagamentoFatura")
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@index([projetoId])
+  @@index([clienteId])
+  @@index([designerId])
+  @@index([status])
+  @@map("faturas")
+}
+
+// 💳 Pagamentos
+model Pagamento {
+  id              String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  tipo            String // ASSINATURA | FATURA
+  status          String  @default("PENDENTE") // PENDENTE | PROCESSANDO | APROVADO | REJEITADO | CANCELADO | ESTORNADO
+  valor           Int // Em centavos
+  metodoPagamento String? // PIX | CARTAO_CREDITO | BOLETO
+  mpPaymentId     String? @unique // ID do pagamento no MercadoPago
+  mpPreferenceId  String? // ID da preferência de checkout
+  mpStatus        String? // Status original do MercadoPago
+  mpQrCode        String? // QR code PIX em base64
+  mpQrCodeText    String? // Texto do PIX copia-e-cola
+
+  usuarioId    String
+  usuario      Usuario     @relation("PagamentosUsuario", fields: [usuarioId], references: [id])
+  assinaturaId String?
+  assinatura   Assinatura? @relation("PagamentosAssinatura", fields: [assinaturaId], references: [id])
+  faturaId     String?     @unique
+  fatura       Fatura?     @relation("PagamentoFatura", fields: [faturaId], references: [id])
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@index([usuarioId])
+  @@index([status])
+  @@index([tipo])
+  @@index([mpPaymentId])
+  @@map("pagamentos")
+}
+
+// 🏦 Chaves PIX dos Designers
+model ChavePix {
+  id      String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  tipo    String // CPF | EMAIL | TELEFONE | ALEATORIA
+  chave   String
+  titular String
+  ativa   Boolean @default(true)
+
+  usuarioId String
+  usuario   Usuario @relation("ChavesPixUsuario", fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  saques Saque[]
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@index([usuarioId])
+  @@map("chaves_pix")
+}
+
+// 💸 Saques
+model Saque {
+  id         String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  valor      Int // Em centavos
+  status     String  @default("SOLICITADO") // SOLICITADO | PROCESSANDO | CONCLUIDO | REJEITADO
+  mpPayoutId String? @unique
+
+  designerId String
+  designer   Usuario  @relation("SaquesDesigner", fields: [designerId], references: [id])
+  chavePixId String
+  chavePix   ChavePix @relation(fields: [chavePixId], references: [id])
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@index([designerId])
+  @@index([status])
+  @@map("saques")
 }
