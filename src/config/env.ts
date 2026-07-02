@@ -14,6 +14,9 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().default('VIU <noreply@viu.app>'),
+  // MercadoPago
+  MP_ACCESS_TOKEN: z.string().default(''),
+  MP_WEBHOOK_SECRET: z.string().default(''),
 })
 
 export type Env = z.infer<typeof envSchema>
