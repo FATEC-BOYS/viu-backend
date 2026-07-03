@@ -74,6 +74,8 @@ export async function createProjeto(request: FastifyRequest, reply: FastifyReply
       }
     }
 
+    // TODO(ux): implement invite/accept flow so a designer can't pick any active client
+    // and vice-versa. For now any active user of the correct type is allowed (MVP).
     // Non-admin users can only create projects where they are the participant
     if (usuario?.tipo === 'DESIGNER' && body.designerId !== usuario.id) {
       reply.status(403).send({ message: 'Designers só podem criar projetos onde são o designer', success: false })

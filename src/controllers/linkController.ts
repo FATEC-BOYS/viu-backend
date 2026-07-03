@@ -99,6 +99,10 @@ export async function createFeedbackViaLink(
 
     reply.status(201).send({ message: 'Feedback criado', data: feedback, success: true })
   } catch (error: any) {
+    if (error.message === 'somenteLeitura') {
+      reply.status(403).send({ message: 'Este link é somente leitura — feedbacks não são permitidos', success: false })
+      return
+    }
     if (
       error.message.includes('inválido') ||
       error.message.includes('expirado') ||
@@ -143,6 +147,10 @@ export async function createAudioFeedbackViaLink(
 
     reply.status(201).send({ message: 'Feedback com áudio criado', data: feedback, success: true })
   } catch (error: any) {
+    if (error.message === 'somenteLeitura') {
+      reply.status(403).send({ message: 'Este link é somente leitura — feedbacks não são permitidos', success: false })
+      return
+    }
     if (
       error.message.includes('inválido') ||
       error.message.includes('expirado') ||
