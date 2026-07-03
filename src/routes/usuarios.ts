@@ -1,11 +1,3 @@
-// src/routes/usuarios.ts
-/**
- * Definições das rotas de usuários
- *
- * Este arquivo mapeia as URLs às funções de controller e aplica
- * middlewares de validação quando necessário. Mantê-lo separado da
- * implementação facilita a leitura e a manutenção das rotas disponíveis.
- */
 import { FastifyInstance } from 'fastify'
 import {
   listUsuarios,
@@ -29,54 +21,41 @@ import { validatePagination, validateCuidParam } from '../middleware/validationM
 import { validateFileUpload } from '../middleware/fileUploadMiddleware.js'
 
 export async function usuariosRoutes(fastify: FastifyInstance) {
-  // Listagem de usuários (requer autenticação e validação)
   fastify.get('/usuarios', { preHandler: [authenticate, validatePagination] }, listUsuarios)
-
-  // Detalhes de usuário (requer autenticação e validação de ID)
   fastify.get('/usuarios/:id', { preHandler: [authenticate, validateCuidParam] }, getUsuarioById)
 
-  // Criação de usuário (público para registro)
-  fastify.post(
-    '/usuarios',
-    { preHandler: [validateCreateUsuario] },
-    createUsuario,
-  )
+  fastify.post('/usuarios', {
+    // 5 registros por IP a cada 15 min — evita criação em massa automatizada
+    config: { rateLimit: { max: 5, timeWindow: '15 minutes' } },
+    preHandler: [validateCreateUsuario],
+  }, createUsuario)
 
-  // Registro (alias para criação de usuário - compatibilidade com frontend)
-  fastify.post(
-    '/auth/register',
-    { preHandler: [validateCreateUsuario] },
-    createUsuario,
-  )
+  fastify.post('/auth/register', {
+    config: { rateLimit: { max: 5, timeWindow: '15 minutes' } },
+    preHandler: [validateCreateUsuario],
+  }, createUsuario)
 
-  // Atualização de usuário (requer autenticação, validação de ID e ownership)
+  fastify.post('/auth/login', {
+    // 10 tentativas por IP a cada 15 min — bloqueia brute-force sem prejudicar usuário normal
+    config: { rateLimit: { max: 10, timeWindow: '15 minutes' } },
+    preHandler: [validateLogin],
+  }, loginUsuario)
+
+  fastify.get('/auth/me', { preHandler: [authenticate] }, getCurrentUser)
+
   fastify.put(
     '/usuarios/:id',
     { preHandler: [authenticate, validateCuidParam, requireOwnership('usuario'), validateUpdateUsuario] },
     updateUsuario,
   )
 
-  // Desativação de usuário (soft delete - requer autenticação, validação de ID e ownership)
   fastify.delete('/usuarios/:id', { preHandler: [authenticate, validateCuidParam, requireOwnership('usuario')] }, deactivateUsuario)
 
-  // Login
-  fastify.post(
-    '/auth/login',
-    { preHandler: [validateLogin] },
-    loginUsuario,
-  )
+  fastify.post('/usuarios/:id/avatar', {
+    // 30 uploads de avatar por hora
+    config: { rateLimit: { max: 30, timeWindow: '1 hour' } },
+    preHandler: [authenticate, validateCuidParam, validateFileUpload],
+  }, uploadAvatar)
 
-  // <-- CORREÇÃO: Rota para obter o usuário autenticado adicionada
-  // Usuário atual (me)
-  fastify.get('/auth/me', { preHandler: [authenticate] }, getCurrentUser)
-
-  // Upload de avatar
-  fastify.post(
-    '/usuarios/:id/avatar',
-    { preHandler: [authenticate, validateCuidParam, validateFileUpload] },
-    uploadAvatar,
-  )
-
-  // Estatísticas de usuários (requer autenticação e papel de ADMIN)
   fastify.get('/usuarios/stats/overview', { preHandler: [authenticate, requireRole('ADMIN')] }, statsOverview)
 }
