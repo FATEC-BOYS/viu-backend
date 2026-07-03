@@ -24,12 +24,16 @@ export async function createSharedLink(
       limiteTentativas?: number
     }
 
-    const link = await linkService.createSharedLink({
-      arteId: data.arteId,
-      expiraEm: data.expiraEm,
-      somenteLeitura: data.somenteLeitura ?? true,
-      limiteTentativas: data.limiteTentativas,
-    })
+    const link = await linkService.createSharedLink(
+      {
+        arteId: data.arteId,
+        expiraEm: data.expiraEm,
+        somenteLeitura: data.somenteLeitura ?? true,
+        limiteTentativas: data.limiteTentativas,
+      },
+      usuario.id,
+      usuario.tipo === 'ADMIN',
+    )
 
     const url = `${env.FRONTEND_URL}/viewer/${link.token}`
 
@@ -39,6 +43,10 @@ export async function createSharedLink(
       success: true,
     })
   } catch (error: any) {
+    if (error.message === 'Acesso negado') {
+      reply.status(403).send({ message: 'Acesso negado', success: false })
+      return
+    }
     if (error.message.includes('não encontrad')) {
       reply.status(400).send({ message: error.message, success: false })
       return
@@ -52,10 +60,16 @@ export async function revokeLink(
   reply: FastifyReply,
 ): Promise<void> {
   try {
+    const usuario = (request as any).usuario
     const { id } = request.params as { id: string }
+    await linkService.assertLinkOwnership(id, usuario.id, usuario.tipo === 'ADMIN')
     const link = await linkService.revokeLink(id)
     reply.send({ message: 'Link revogado com sucesso', data: link, success: true })
   } catch (error: any) {
+    if (error.message === 'Acesso negado') {
+      reply.status(403).send({ message: 'Acesso negado', success: false })
+      return
+    }
     if (error.message.includes('não encontrad')) {
       reply.status(404).send({ message: error.message, success: false })
       return
@@ -152,7 +166,8 @@ export async function listLinks(
   reply: FastifyReply,
 ): Promise<void> {
   try {
-    const links = await linkService.listLinks()
+    const usuario = (request as any).usuario
+    const links = await linkService.listLinks(usuario.id, usuario.tipo === 'ADMIN')
     reply.send({ data: links, success: true })
   } catch {
     reply.status(500).send({ message: 'Erro ao listar links', success: false })
@@ -164,11 +179,17 @@ export async function updateLink(
   reply: FastifyReply,
 ): Promise<void> {
   try {
+    const usuario = (request as any).usuario
     const { id } = request.params as { id: string }
+    await linkService.assertLinkOwnership(id, usuario.id, usuario.tipo === 'ADMIN')
     const body = request.body as { expiraEm?: string | null; somenteLeitura?: boolean; limiteTentativas?: number | null }
     const link = await linkService.updateLink(id, body)
     reply.send({ message: 'Link atualizado', data: link, success: true })
   } catch (error: any) {
+    if (error.message === 'Acesso negado') {
+      reply.status(403).send({ message: 'Acesso negado', success: false })
+      return
+    }
     if (error.message.includes('não encontrad')) {
       reply.status(404).send({ message: error.message, success: false })
       return
@@ -182,10 +203,16 @@ export async function deleteLink(
   reply: FastifyReply,
 ): Promise<void> {
   try {
+    const usuario = (request as any).usuario
     const { id } = request.params as { id: string }
+    await linkService.assertLinkOwnership(id, usuario.id, usuario.tipo === 'ADMIN')
     await linkService.deleteLink(id)
     reply.send({ message: 'Link removido', success: true })
   } catch (error: any) {
+    if (error.message === 'Acesso negado') {
+      reply.status(403).send({ message: 'Acesso negado', success: false })
+      return
+    }
     if (error.message.includes('não encontrad')) {
       reply.status(404).send({ message: error.message, success: false })
       return

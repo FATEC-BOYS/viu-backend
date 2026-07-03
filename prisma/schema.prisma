@@ -149,6 +149,9 @@ model Feedback {
   transcricao String?
   audioGerado String?
 
+  // false = comentário interno (não aparece em links públicos de revisão)
+  publico Boolean @default(true)
+
   arteId  String
   arte    Arte    @relation("FeedbacksArte", fields: [arteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   autorId String

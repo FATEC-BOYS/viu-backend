@@ -21,7 +21,7 @@ import { validatePagination, validateCuidParam } from '../middleware/validationM
 import { validateFileUpload } from '../middleware/fileUploadMiddleware.js'
 
 export async function usuariosRoutes(fastify: FastifyInstance) {
-  fastify.get('/usuarios', { preHandler: [authenticate, validatePagination] }, listUsuarios)
+  fastify.get('/usuarios', { preHandler: [authenticate, requireRole('ADMIN'), validatePagination] }, listUsuarios)
   fastify.get('/usuarios/:id', { preHandler: [authenticate, validateCuidParam] }, getUsuarioById)
 
   fastify.post('/usuarios', {

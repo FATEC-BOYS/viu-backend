@@ -7,14 +7,33 @@ export class LinkService {
     return crypto.randomBytes(length).toString('hex')
   }
 
+  async assertLinkOwnership(id: string, userId: string, isAdmin: boolean) {
+    if (isAdmin) return
+    const link = await prisma.linkCompartilhado.findUnique({
+      where: { id },
+      include: { arte: { include: { projeto: { select: { designerId: true, clienteId: true } } } } },
+    })
+    if (!link) throw new Error('Link não encontrado')
+    const projeto = link.arte?.projeto
+    if (!projeto || (projeto.designerId !== userId && projeto.clienteId !== userId)) {
+      throw new Error('Acesso negado')
+    }
+  }
+
   async createSharedLink(data: {
     arteId: string
     expiraEm?: string
     somenteLeitura: boolean
     limiteTentativas?: number
-  }) {
-    const arte = await prisma.arte.findUnique({ where: { id: data.arteId } })
+  }, userId: string, isAdmin: boolean) {
+    const arte = await prisma.arte.findUnique({
+      where: { id: data.arteId },
+      include: { projeto: { select: { designerId: true, clienteId: true } } },
+    })
     if (!arte) throw new Error('Arte não encontrada')
+    if (!isAdmin && arte.projeto.designerId !== userId && arte.projeto.clienteId !== userId) {
+      throw new Error('Acesso negado')
+    }
 
     const token = this.generateToken()
     return prisma.linkCompartilhado.create({
@@ -52,8 +71,12 @@ export class LinkService {
     return link.arteId!
   }
 
-  async listLinks() {
+  async listLinks(userId: string, isAdmin: boolean) {
+    const where = isAdmin ? {} : {
+      arte: { projeto: { OR: [{ designerId: userId }, { clienteId: userId }] } },
+    }
     return prisma.linkCompartilhado.findMany({
+      where,
       orderBy: { criadoEm: 'desc' },
       include: {
         arte: {
@@ -117,7 +140,7 @@ export class LinkService {
     const arquivo_url = await signPath(arte.arquivo)
 
     const feedbacks = await prisma.feedback.findMany({
-      where: { arteId: arte.id },
+      where: { arteId: arte.id, publico: true },
       orderBy: { criadoEm: 'desc' },
       include: { autor: { select: { nome: true } } },
     })

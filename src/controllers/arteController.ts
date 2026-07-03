@@ -166,7 +166,8 @@ export async function updateArte(request: FastifyRequest, reply: FastifyReply): 
     const { id } = request.params as { id: string }
     const body = request.body as any
     const allowedUpdates: Record<string, any> = {}
-    for (const field of ['nome', 'descricao', 'tipo', 'tamanho', 'arquivo'] as const) {
+    // arquivo, tipo and tamanho are immutable outside the upload flow
+    for (const field of ['nome', 'descricao'] as const) {
       if (body[field] !== undefined) allowedUpdates[field] = body[field]
     }
     const arte = await arteService.updateArte(id, allowedUpdates)

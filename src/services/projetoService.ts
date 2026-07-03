@@ -24,15 +24,14 @@ export interface ListProjetosParams {
   designerId?: string
   clienteId?: string
   search?: string
+  // When set, restricts to projects where this user is designer OR client (non-admin path)
+  userId?: string
 }
 
 /**
  * Serviço responsável por operações relacionadas a projetos.
  */
 export class ProjetoService {
-  /**
-   * Lista projetos com filtros e paginação.
-   */
   async listProjetos({
     page = 1,
     limit = 10,
@@ -40,20 +39,21 @@ export class ProjetoService {
     designerId,
     clienteId,
     search,
+    userId,
   }: ListProjetosParams) {
     const skip = (page - 1) * limit
 
-    const where: any = {
-      ...(status && { status }),
-      ...(designerId && { designerId }),
-      ...(clienteId && { clienteId }),
-      ...(search && {
-        OR: [
-          { nome: { contains: search } },
-          { descricao: { contains: search } },
-        ],
-      }),
+    // Build conditions as an AND array so OR clauses don't collide
+    const conditions: any[] = []
+    if (userId) {
+      conditions.push({ OR: [{ designerId: userId }, { clienteId: userId }] })
+    } else {
+      if (designerId) conditions.push({ designerId })
+      if (clienteId) conditions.push({ clienteId })
     }
+    if (status) conditions.push({ status })
+    if (search) conditions.push({ OR: [{ nome: { contains: search } }, { descricao: { contains: search } }] })
+    const where = conditions.length > 0 ? { AND: conditions } : {}
 
     const [projetos, total] = await Promise.all([
       prisma.projeto.findMany({
