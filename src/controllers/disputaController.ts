@@ -23,7 +23,11 @@ export async function abrirDisputa(request: FastifyRequest, reply: FastifyReply)
 
     reply.status(201).send({ data: disputa, success: true })
   } catch (error: any) {
-    if (error.message.includes('não encontrado') || error.message.includes('inválido')) {
+    if (error.message.includes('Acesso negado')) {
+      reply.status(403).send({ message: error.message, success: false })
+      return
+    }
+    if (error.message.includes('não encontrado') || error.message.includes('inválido') || error.message.includes('não pertence')) {
       reply.status(400).send({ message: error.message, success: false })
       return
     }

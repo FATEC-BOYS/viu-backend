@@ -145,8 +145,7 @@ export async function createArte(request: FastifyRequest, reply: FastifyReply): 
       nome: body.nome,
       descricao: body.descricao,
       tipo: body.tipo,
-      tamanho: body.tamanho,
-      arquivo: body.arquivo,
+      // arquivo and tamanho are set only by the upload flow — never accepted from JSON body
       projetoId: body.projetoId,
       autorId: usuario.id,
     }
