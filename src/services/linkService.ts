@@ -41,6 +41,7 @@ export class LinkService {
         token,
         tipo: 'ARTE',
         arteId: data.arteId,
+        criadorId: userId,
         expiraEm: data.expiraEm ? new Date(data.expiraEm) : null,
         somenteLeitura: data.somenteLeitura,
         limiteTentativas: data.limiteTentativas ?? null,
