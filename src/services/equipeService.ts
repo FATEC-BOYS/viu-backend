@@ -170,6 +170,21 @@ export class EquipeService {
 
     return prisma.projeto.update({ where: { id: projetoId }, data: { equipeId: null } })
   }
+
+  /** Retorna true se o usuário é dono ou membro da equipe. */
+  async isMembro(equipeId: string, usuarioId: string): Promise<boolean> {
+    const result = await prisma.equipe.findFirst({
+      where: {
+        id: equipeId,
+        OR: [
+          { donoPrincipalId: usuarioId },
+          { membros: { some: { usuarioId } } },
+        ],
+      },
+      select: { id: true },
+    })
+    return result !== null
+  }
 }
 
 const _svc = new EquipeService()
@@ -183,3 +198,4 @@ export const removerMembro = (...args: Parameters<EquipeService['removerMembro']
 export const atualizarPapel = (...args: Parameters<EquipeService['atualizarPapel']>) => _svc.atualizarPapel(...args)
 export const vincularProjeto = (...args: Parameters<EquipeService['vincularProjeto']>) => _svc.vincularProjeto(...args)
 export const desvincularProjeto = (...args: Parameters<EquipeService['desvincularProjeto']>) => _svc.desvincularProjeto(...args)
+export const isMembroEquipe = (...args: Parameters<EquipeService['isMembro']>) => _svc.isMembro(...args)

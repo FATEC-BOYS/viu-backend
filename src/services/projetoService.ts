@@ -14,6 +14,9 @@ import {
   formatDate,
 } from '../utils/formatters.js'
 
+// equipeId is organizational only and does not grant project access
+const EQUIPE_SELECT = { select: { id: true, nome: true, slug: true } } as const
+
 /**
  * Tipagem para os filtros de listagem de projetos.
  */
@@ -77,6 +80,7 @@ export class ProjetoService {
               avatar: true,
             },
           },
+          equipe: EQUIPE_SELECT,
           _count: {
             select: {
               artes: true,
@@ -157,6 +161,7 @@ export class ProjetoService {
           },
           orderBy: { criadoEm: 'desc' },
         },
+        equipe: EQUIPE_SELECT,
       },
     })
 
@@ -225,6 +230,7 @@ export class ProjetoService {
             avatar: true,
           },
         },
+        equipe: EQUIPE_SELECT,
       },
     })
 
@@ -269,6 +275,7 @@ export class ProjetoService {
             avatar: true,
           },
         },
+        equipe: EQUIPE_SELECT,
       },
     })
 
