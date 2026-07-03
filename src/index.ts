@@ -30,6 +30,9 @@ import { env } from './config/env.js'
 
 const __filename = fileURLToPath(import.meta.url)
 
+// BigInt não serializa para JSON nativamente; converte para Number (seguro até ~9 PB)
+;(BigInt.prototype as any).toJSON = function () { return Number(this) }
+
 export async function buildServer() {
   const app = fastify({
     logger: true,

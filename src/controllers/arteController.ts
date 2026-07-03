@@ -113,7 +113,7 @@ export async function uploadAndCreateArte(request: FastifyRequest, reply: Fastif
       nome,
       descricao,
       tipo: upload.mimetype,
-      tamanho: upload.size,
+      tamanho: BigInt(upload.size),
       arquivo: key,
       projetoId,
       autorId: usuario.id,

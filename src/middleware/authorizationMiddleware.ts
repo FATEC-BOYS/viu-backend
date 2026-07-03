@@ -93,9 +93,17 @@ export function requireOwnership(resourceType: 'usuario' | 'projeto') {
   }
 }
 
+// Seletor mínimo de acesso ao projeto — reutilizado em todos os branches
+const PROJETO_ACCESS_SELECT = { designerId: true, clienteId: true } as const
+
 /**
- * Middleware para verificar se o usuário tem acesso ao projeto relacionado
+ * Middleware para verificar se o usuário tem acesso ao projeto relacionado.
  * Usado para artes, feedbacks, tarefas, etc.
+ *
+ * Quando o projetoId já está no params/body: 1 query (projeto).
+ * Quando só temos o id do recurso (arte/tarefa): 1 query com include,
+ * eliminando o N+1 da versão anterior (recurso → projetoId → projeto).
+ * O projetoId resolvido é salvo em request.projetoId para reuso nos controllers.
  */
 export async function requireProjectAccess(
   request: FastifyRequest,
@@ -103,75 +111,69 @@ export async function requireProjectAccess(
 ): Promise<void> {
   try {
     const usuario = (request as any).usuario
-    let projetoId: string | null = null
 
     if (!usuario) {
-      return reply.status(401).send({
-        message: 'Usuário não autenticado',
-        success: false,
-      })
+      return reply.status(401).send({ message: 'Usuário não autenticado', success: false })
     }
 
-    // Admins podem acessar tudo
-    if (usuario.tipo === 'ADMIN') {
-      return
-    }
+    if (usuario.tipo === 'ADMIN') return
 
-    // Extrai projetoId da requisição (pode vir de diferentes lugares)
     const params = request.params as any
     const body = request.body as any
     const audioData = (request as any).audioData
 
+    let projeto: { designerId: string; clienteId: string } | null = null
+    let projetoId: string | null = null
+
     if (params.projetoId) {
       projetoId = params.projetoId
+      projeto = await prisma.projeto.findUnique({
+        where: { id: projetoId },
+        select: PROJETO_ACCESS_SELECT,
+      })
     } else if (body?.projetoId) {
       projetoId = body.projetoId
+      projeto = await prisma.projeto.findUnique({
+        where: { id: projetoId },
+        select: PROJETO_ACCESS_SELECT,
+      })
     } else if (params.id) {
-      // Se for um recurso específico (arte, tarefa, etc), busca o projetoId
-      const arteId = params.id
+      // Busca arte + projeto em 1 query (evita N+1)
       const arte = await prisma.arte.findUnique({
-        where: { id: arteId },
-        select: { projetoId: true },
+        where: { id: params.id },
+        select: { projetoId: true, projeto: { select: PROJETO_ACCESS_SELECT } },
       })
       if (arte) {
         projetoId = arte.projetoId
+        projeto = arte.projeto
       } else {
-        // Tenta buscar como tarefa
+        // Tenta tarefa com mesmo join
         const tarefa = await prisma.tarefa.findUnique({
-          where: { id: arteId },
-          select: { projetoId: true },
+          where: { id: params.id },
+          select: { projetoId: true, projeto: { select: PROJETO_ACCESS_SELECT } },
         })
         if (tarefa) {
           projetoId = tarefa.projetoId
+          projeto = tarefa.projeto
         }
       }
     } else if (audioData?.fields?.arteId?.value) {
-      // Audio upload: arteId comes from multipart fields parsed by validateAudioUpload
       const arte = await prisma.arte.findUnique({
         where: { id: audioData.fields.arteId.value },
-        select: { projetoId: true },
+        select: { projetoId: true, projeto: { select: PROJETO_ACCESS_SELECT } },
       })
-      if (arte) projetoId = arte.projetoId
+      if (arte) {
+        projetoId = arte.projetoId
+        projeto = arte.projeto
+      }
     }
 
     if (!projetoId) {
-      return reply.status(400).send({
-        message: 'ID do projeto não fornecido',
-        success: false,
-      })
+      return reply.status(400).send({ message: 'ID do projeto não fornecido', success: false })
     }
 
-    // Verifica se o usuário tem acesso ao projeto
-    const projeto = await prisma.projeto.findUnique({
-      where: { id: projetoId },
-      select: { designerId: true, clienteId: true },
-    })
-
     if (!projeto) {
-      return reply.status(404).send({
-        message: 'Projeto não encontrado',
-        success: false,
-      })
+      return reply.status(404).send({ message: 'Projeto não encontrado', success: false })
     }
 
     if (projeto.designerId !== usuario.id && projeto.clienteId !== usuario.id) {
@@ -180,11 +182,11 @@ export async function requireProjectAccess(
         success: false,
       })
     }
-  } catch (error: any) {
-    return reply.status(500).send({
-      message: 'Erro ao verificar acesso ao projeto',
-      success: false,
-    })
+
+    // Disponibiliza projetoId para controllers evitarem nova query
+    ;(request as any).projetoId = projetoId
+  } catch {
+    return reply.status(500).send({ message: 'Erro ao verificar acesso ao projeto', success: false })
   }
 }
 
