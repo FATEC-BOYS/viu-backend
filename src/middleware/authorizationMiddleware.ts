@@ -100,6 +100,11 @@ const PROJETO_ACCESS_SELECT = { designerId: true, clienteId: true } as const
  * Middleware para verificar se o usuário tem acesso ao projeto relacionado.
  * Usado para artes, feedbacks, tarefas, etc.
  *
+ * Fase A: acesso concedido apenas por designerId ou clienteId direto do Projeto.
+ * Equipe é agrupamento visual — pertencer a uma equipe NÃO dá acesso aos projetos dela.
+ * TODO(fase-b): quando houver demanda real (agência com múltiplos designers),
+ * criar requireEquipeAccess e expandir o OR para incluir EquipeMembro com papel LIDER/DESIGNER.
+ *
  * Quando o projetoId já está no params/body: 1 query (projeto).
  * Quando só temos o id do recurso (arte/tarefa): 1 query com include,
  * eliminando o N+1 da versão anterior (recurso → projetoId → projeto).
