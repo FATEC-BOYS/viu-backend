@@ -62,26 +62,33 @@ export class TarefaService {
     })
   }
   async createTarefa(data: any) {
-    // Verificar projeto se fornecido
-    if (data.projetoId) {
-      const projeto = await prisma.projeto.findUnique({ where: { id: data.projetoId } })
-      if (!projeto) throw new Error('Projeto não encontrado')
+    const projeto = await prisma.projeto.findUnique({ where: { id: data.projetoId } })
+    if (!projeto) throw new Error('Projeto não encontrado')
+
+    if (data.responsavelId) {
+      const isParticipant =
+        projeto.designerId === data.responsavelId || projeto.clienteId === data.responsavelId
+      if (!isParticipant) throw new Error('Responsável não é participante do projeto')
     }
-    const responsavel = await prisma.usuario.findUnique({ where: { id: data.responsavelId } })
-    if (!responsavel) throw new Error('Responsável não encontrado')
+
     return prisma.tarefa.create({ data })
   }
   async updateTarefa(id: string, updateData: any) {
-    const existing = await prisma.tarefa.findUnique({ where: { id } })
+    const existing = await prisma.tarefa.findUnique({ where: { id }, include: { projeto: true } })
     if (!existing) throw new Error('Tarefa não encontrada')
-    if (updateData.projetoId) {
-      const projeto = await prisma.projeto.findUnique({ where: { id: updateData.projetoId } })
-      if (!projeto) throw new Error('Projeto não encontrado')
+
+    const projetoId = updateData.projetoId ?? existing.projetoId
+    const projeto = projetoId !== existing.projetoId
+      ? await prisma.projeto.findUnique({ where: { id: projetoId } })
+      : existing.projeto
+    if (updateData.projetoId && !projeto) throw new Error('Projeto não encontrado')
+
+    if (updateData.responsavelId && projeto) {
+      const isParticipant =
+        projeto.designerId === updateData.responsavelId || projeto.clienteId === updateData.responsavelId
+      if (!isParticipant) throw new Error('Responsável não é participante do projeto')
     }
-    if (updateData.responsavelId) {
-      const responsavel = await prisma.usuario.findUnique({ where: { id: updateData.responsavelId } })
-      if (!responsavel) throw new Error('Responsável não encontrado')
-    }
+
     return prisma.tarefa.update({ where: { id }, data: updateData })
   }
   async deleteTarefa(id: string) {

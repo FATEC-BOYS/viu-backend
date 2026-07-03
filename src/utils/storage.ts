@@ -22,7 +22,8 @@ export async function signPath(
   expires = 3600,
 ): Promise<string | null> {
   if (!path) return null
-  if (/^https?:\/\//i.test(path)) return path
+  // Never pass through external URLs — only sign internal bucket keys
+  if (/^https?:\/\//i.test(path)) return null
 
   try {
     return await getSignedUrl(

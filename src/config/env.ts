@@ -14,9 +14,23 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().default('VIU <noreply@viu.app>'),
-  // MercadoPago
+  // Cloudflare R2
+  R2_ENDPOINT: z.string().min(1, 'R2_ENDPOINT é obrigatório'),
+  R2_ACCESS_KEY_ID: z.string().min(1, 'R2_ACCESS_KEY_ID é obrigatório'),
+  R2_SECRET_ACCESS_KEY: z.string().min(1, 'R2_SECRET_ACCESS_KEY é obrigatório'),
+  R2_BUCKET: z.string().default('viu'),
+  // MercadoPago — empty allowed in dev/test; required in production (see superRefine below)
   MP_ACCESS_TOKEN: z.string().default(''),
   MP_WEBHOOK_SECRET: z.string().default(''),
+}).superRefine((data, ctx) => {
+  if (data.NODE_ENV === 'production') {
+    if (!data.MP_ACCESS_TOKEN) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['MP_ACCESS_TOKEN'], message: 'MP_ACCESS_TOKEN é obrigatório em produção' })
+    }
+    if (!data.MP_WEBHOOK_SECRET) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['MP_WEBHOOK_SECRET'], message: 'MP_WEBHOOK_SECRET é obrigatório em produção' })
+    }
+  }
 })
 
 export type Env = z.infer<typeof envSchema>
