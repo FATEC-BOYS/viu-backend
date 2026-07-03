@@ -351,3 +351,37 @@ export const CadastrarChavePixSchema = z.object({
   chave: z.string().min(1, 'Chave PIX é obrigatória').max(256),
   titular: z.string().min(1, 'Nome do titular é obrigatório').max(256),
 })
+
+// ===== SCHEMAS DE EQUIPE =====
+
+const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+
+export const CriarEquipeSchema = z.object({
+  nome: z.string().min(2, 'Nome deve ter ao menos 2 caracteres').max(100),
+  slug: z.string()
+    .min(2)
+    .max(50)
+    .regex(SLUG_REGEX, 'Slug deve conter apenas letras minúsculas, números e hífens'),
+})
+
+export const AtualizarEquipeSchema = z.object({
+  nome: z.string().min(2).max(100).optional(),
+  slug: z.string().min(2).max(50).regex(SLUG_REGEX, 'Slug inválido').optional(),
+})
+
+export const AdicionarMembroSchema = z.object({
+  usuarioId: z.string().cuid('ID de usuário inválido'),
+  papel: z.enum(['LIDER', 'DESIGNER', 'REVISOR', 'CLIENTE'], {
+    errorMap: () => ({ message: 'Papel deve ser LIDER, DESIGNER, REVISOR ou CLIENTE' }),
+  }),
+})
+
+export const AtualizarPapelSchema = z.object({
+  papel: z.enum(['LIDER', 'DESIGNER', 'REVISOR', 'CLIENTE'], {
+    errorMap: () => ({ message: 'Papel deve ser LIDER, DESIGNER, REVISOR ou CLIENTE' }),
+  }),
+})
+
+export const VincularProjetoSchema = z.object({
+  projetoId: z.string().cuid('ID de projeto inválido'),
+})

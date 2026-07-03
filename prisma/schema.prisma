@@ -69,6 +69,9 @@ model Usuario {
   aceites         AceiteContratual[]
   disputasAbertas Disputa[]          @relation("DisputasAbertas")
 
+  equipesComoDono Equipe[]       @relation("EquipeDono")
+  equipesMembro   EquipeMembro[]
+
   @@index([email])
   @@index([tipo])
   @@index([ativo])
@@ -90,6 +93,9 @@ model Projeto {
   clienteId  String
   cliente    Usuario @relation("ProjetoCliente", fields: [clienteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
+  equipeId String?
+  equipe   Equipe? @relation(fields: [equipeId], references: [id], onDelete: SetNull)
+
   artes    Arte[]   @relation("ArtesProjeto")
   tarefas  Tarefa[] @relation("TarefasProjeto")
   faturas  Fatura[] @relation("FaturasProjeto")
@@ -102,6 +108,7 @@ model Projeto {
   @@index([designerId])
   @@index([clienteId])
   @@index([status])
+  @@index([equipeId])
   @@index([criadoEm])
   @@map("projetos")
 }
@@ -530,4 +537,40 @@ model Disputa {
   @@index([abertaPorId])
   @@index([status])
   @@map("disputas")
+}
+
+// ====== EQUIPES ======
+
+model Equipe {
+  id   String @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  nome String
+  slug String @unique
+
+  donoPrincipalId String
+  donoPrincipal   Usuario @relation("EquipeDono", fields: [donoPrincipalId], references: [id])
+
+  membros  EquipeMembro[]
+  projetos Projeto[]
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@index([donoPrincipalId])
+  @@index([slug])
+  @@map("equipes")
+}
+
+model EquipeMembro {
+  equipeId  String
+  equipe    Equipe  @relation(fields: [equipeId], references: [id], onDelete: Cascade)
+  usuarioId String
+  usuario   Usuario @relation(fields: [usuarioId], references: [id])
+  // LIDER | DESIGNER | REVISOR | CLIENTE
+  papel     String
+
+  criadoEm DateTime @default(now())
+
+  @@id([equipeId, usuarioId])
+  @@index([usuarioId])
+  @@map("equipe_membros")
 }
