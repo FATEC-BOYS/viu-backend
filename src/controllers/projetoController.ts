@@ -2,6 +2,7 @@ import { FastifyRequest, FastifyReply } from 'fastify'
 import { ProjetoService, ListProjetosParams } from '../services/projetoService.js'
 import { evaluateBriefing } from '../services/evalForgeService.js'
 import { AceiteService } from '../services/aceiteService.js'
+import prisma from '../database/client.js'
 
 const projetoService = new ProjetoService()
 const aceiteService = new AceiteService()
@@ -84,6 +85,27 @@ export async function createProjeto(request: FastifyRequest, reply: FastifyReply
     if (usuario?.tipo === 'CLIENTE' && body.clienteId !== usuario.id) {
       reply.status(403).send({ message: 'Clientes só podem criar projetos onde são o cliente', success: false })
       return
+    }
+
+    // Fase A: equipeId é agrupamento visual — não concede acesso ao projeto.
+    // Valida apenas que o usuário pertence à equipe para evitar vincular a equipes alheias.
+    // TODO(fase-b): quando equipe conceder acesso, mover essa lógica para requireEquipeAccess
+    // e ajustar ownership para incluir membros com papel LIDER/DESIGNER.
+    if (body.equipeId && usuario?.tipo !== 'ADMIN') {
+      const pertenceAEquipe = await prisma.equipe.findFirst({
+        where: {
+          id: body.equipeId,
+          OR: [
+            { donoPrincipalId: usuario.id },
+            { membros: { some: { usuarioId: usuario.id } } },
+          ],
+        },
+        select: { id: true },
+      })
+      if (!pertenceAEquipe) {
+        reply.status(403).send({ message: 'Você não pertence a essa equipe', success: false })
+        return
+      }
     }
 
     const projeto = await projetoService.createProjeto(body)
