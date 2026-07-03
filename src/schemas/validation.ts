@@ -97,6 +97,8 @@ export const CreateProjetoRequestSchema = z.object({
   orcamento: z.number().int().positive('Orçamento deve ser um valor positivo em centavos').optional(),
   prazo: z.string().datetime('Data de prazo inválida').optional(),
   // status omitted — always starts as EM_ANDAMENTO; callers cannot pre-set it
+  // equipeId is organizational only and does not grant project access
+  equipeId: z.string().cuid('ID da equipe inválido').optional(),
 });
 
 export const UpdateProjetoRequestSchema = z.object({
@@ -105,6 +107,8 @@ export const UpdateProjetoRequestSchema = z.object({
   status: z.enum(['EM_ANDAMENTO', 'CONCLUIDO', 'PAUSADO', 'CANCELADO']).optional(),
   orcamento: z.number().int().positive('Orçamento deve ser um valor positivo em centavos').optional(),
   prazo: z.string().datetime('Data de prazo inválida').optional(),
+  // equipeId is organizational only and does not grant project access; null removes the link
+  equipeId: z.string().cuid('ID da equipe inválido').nullable().optional(),
 }).refine(data => Object.keys(data).length > 0, {
   message: 'Pelo menos um campo deve ser fornecido para atualização'
 });

@@ -2,10 +2,24 @@ import { FastifyRequest, FastifyReply } from 'fastify'
 import { ProjetoService, ListProjetosParams } from '../services/projetoService.js'
 import { evaluateBriefing } from '../services/evalForgeService.js'
 import { AceiteService } from '../services/aceiteService.js'
-import prisma from '../database/client.js'
+import { isMembroEquipe } from '../services/equipeService.js'
 
 const projetoService = new ProjetoService()
 const aceiteService = new AceiteService()
+
+/**
+ * Valida que o usuário pertence à equipe antes de vinculá-la ao projeto.
+ * equipeId is organizational only and does not grant project access.
+ * Retorna false se o usuário não pertencer (caller envia 403).
+ */
+async function assertEquipeMembership(
+  equipeId: string | null | undefined,
+  usuarioId: string,
+  isAdmin: boolean,
+): Promise<boolean> {
+  if (!equipeId || isAdmin) return true
+  return isMembroEquipe(equipeId, usuarioId)
+}
 
 export async function listProjetos(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
@@ -88,24 +102,11 @@ export async function createProjeto(request: FastifyRequest, reply: FastifyReply
     }
 
     // Fase A: equipeId é agrupamento visual — não concede acesso ao projeto.
-    // Valida apenas que o usuário pertence à equipe para evitar vincular a equipes alheias.
-    // TODO(fase-b): quando equipe conceder acesso, mover essa lógica para requireEquipeAccess
-    // e ajustar ownership para incluir membros com papel LIDER/DESIGNER.
-    if (body.equipeId && usuario?.tipo !== 'ADMIN') {
-      const pertenceAEquipe = await prisma.equipe.findFirst({
-        where: {
-          id: body.equipeId,
-          OR: [
-            { donoPrincipalId: usuario.id },
-            { membros: { some: { usuarioId: usuario.id } } },
-          ],
-        },
-        select: { id: true },
-      })
-      if (!pertenceAEquipe) {
-        reply.status(403).send({ message: 'Você não pertence a essa equipe', success: false })
-        return
-      }
+    // TODO(fase-b): quando equipe conceder acesso, substituir por requireEquipeAccess
+    // e expandir ownership para incluir membros com papel LIDER/DESIGNER.
+    if (!(await assertEquipeMembership(body.equipeId, usuario.id, usuario?.tipo === 'ADMIN'))) {
+      reply.status(403).send({ message: 'Você não pertence a essa equipe', success: false })
+      return
     }
 
     const projeto = await projetoService.createProjeto(body)
@@ -135,7 +136,17 @@ export async function createProjeto(request: FastifyRequest, reply: FastifyReply
 export async function updateProjeto(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
     const { id } = request.params as { id: string }
-    const projeto = await projetoService.updateProjeto(id, request.body)
+    const usuario = (request as any).usuario
+    const body = request.body as any
+
+    // Fase A: equipeId é agrupamento visual — não concede acesso ao projeto.
+    // null é permitido (desvincula equipe); string deve pertencer ao usuário.
+    if (!(await assertEquipeMembership(body.equipeId, usuario?.id, usuario?.tipo === 'ADMIN'))) {
+      reply.status(403).send({ message: 'Você não pertence a essa equipe', success: false })
+      return
+    }
+
+    const projeto = await projetoService.updateProjeto(id, body)
     reply.send({ message: 'Projeto atualizado com sucesso', data: projeto, success: true })
   } catch (error: any) {
     if (error.message.includes('Projeto não encontrado')) {

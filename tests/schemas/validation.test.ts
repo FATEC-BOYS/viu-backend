@@ -98,13 +98,34 @@ describe('CreateProjetoRequestSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  it('deve aplicar status default EM_ANDAMENTO', () => {
-    const data = { nome: 'Projeto', clienteId: 'clxxxxxxxxxxxxxxxxxxxxxxxxx' }
-    const result = CreateProjetoRequestSchema.safeParse(data)
+  // cenário 1: usuário cria projeto sem equipe
+  it('deve aceitar projeto sem equipeId', () => {
+    const result = CreateProjetoRequestSchema.safeParse({
+      nome: 'Projeto Sem Equipe',
+      clienteId: 'clxxxxxxxxxxxxxxxxxxxxxxxxx',
+    })
     expect(result.success).toBe(true)
-    if (result.success) {
-      expect(result.data.status).toBe('EM_ANDAMENTO')
-    }
+    if (result.success) expect(result.data.equipeId).toBeUndefined()
+  })
+
+  // cenário 2: usuário cria projeto com equipe — equipeId é aceito pelo schema
+  it('deve aceitar equipeId válido (CUID)', () => {
+    const result = CreateProjetoRequestSchema.safeParse({
+      nome: 'Projeto Com Equipe',
+      clienteId: 'clxxxxxxxxxxxxxxxxxxxxxxxxx',
+      equipeId: 'clyyyyyyyyyyyyyyyyyyyyyyy',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data.equipeId).toBe('clyyyyyyyyyyyyyyyyyyyyyyy')
+  })
+
+  it('deve rejeitar equipeId com formato inválido', () => {
+    const result = CreateProjetoRequestSchema.safeParse({
+      nome: 'Projeto',
+      clienteId: 'clxxxxxxxxxxxxxxxxxxxxxxxxx',
+      equipeId: 'not-a-cuid',
+    })
+    expect(result.success).toBe(false)
   })
 })
 
@@ -117,6 +138,22 @@ describe('UpdateProjetoRequestSchema', () => {
   it('deve aceitar status válido', () => {
     const result = UpdateProjetoRequestSchema.safeParse({ status: 'CONCLUIDO' })
     expect(result.success).toBe(true)
+  })
+
+  it('deve aceitar equipeId nulo para desvincular equipe', () => {
+    const result = UpdateProjetoRequestSchema.safeParse({ equipeId: null })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data.equipeId).toBeNull()
+  })
+
+  it('deve aceitar equipeId válido para vincular equipe', () => {
+    const result = UpdateProjetoRequestSchema.safeParse({ equipeId: 'clyyyyyyyyyyyyyyyyyyyyyyy' })
+    expect(result.success).toBe(true)
+  })
+
+  it('deve rejeitar equipeId com formato inválido', () => {
+    const result = UpdateProjetoRequestSchema.safeParse({ equipeId: 'nao-e-cuid' })
+    expect(result.success).toBe(false)
   })
 })
 
