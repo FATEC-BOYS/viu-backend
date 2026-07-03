@@ -92,7 +92,7 @@ static/uploads/
 *.db
 *.db3
 database.db
-prisma/migrations/
+# prisma/migrations/ — NÃO ignorar: migrations devem ser versionadas
 .env.database
 
 # 🚀 Deployment
