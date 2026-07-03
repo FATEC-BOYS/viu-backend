@@ -8,15 +8,22 @@ const aceiteService = new AceiteService()
 
 export async function listProjetos(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
+    const usuario = (request as any).usuario
     const { page = 1, limit = 10, status, designerId, clienteId, search } =
       (request.query || {}) as any
     const params: ListProjetosParams = {
       page: Number(page) || 1,
       limit: Number(limit) || 10,
       status: status as string | undefined,
-      designerId: designerId as string | undefined,
-      clienteId: clienteId as string | undefined,
       search: search as string | undefined,
+    }
+    if (usuario?.tipo === 'ADMIN') {
+      // Admins can filter by arbitrary designer/client
+      params.designerId = designerId as string | undefined
+      params.clienteId = clienteId as string | undefined
+    } else {
+      // Non-admins see only their own projects; ignore caller-supplied filters
+      params.userId = usuario?.id
     }
     const { projetos, total } = await projetoService.listProjetos(params)
     reply.send({
@@ -65,6 +72,16 @@ export async function createProjeto(request: FastifyRequest, reply: FastifyReply
         })
         return
       }
+    }
+
+    // Non-admin users can only create projects where they are the participant
+    if (usuario?.tipo === 'DESIGNER' && body.designerId !== usuario.id) {
+      reply.status(403).send({ message: 'Designers só podem criar projetos onde são o designer', success: false })
+      return
+    }
+    if (usuario?.tipo === 'CLIENTE' && body.clienteId !== usuario.id) {
+      reply.status(403).send({ message: 'Clientes só podem criar projetos onde são o cliente', success: false })
+      return
     }
 
     const projeto = await projetoService.createProjeto(body)
