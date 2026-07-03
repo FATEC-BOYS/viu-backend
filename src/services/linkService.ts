@@ -68,6 +68,7 @@ export class LinkService {
     const link = await prisma.linkCompartilhado.findUnique({ where: { token } })
     if (!link) throw new Error('Link inválido')
     this.assertLinkValid(link)
+    if (link.somenteLeitura) throw new Error('somenteLeitura')
     return link.arteId!
   }
 
