@@ -56,6 +56,22 @@ export async function getArteById(request: FastifyRequest, reply: FastifyReply):
       reply.status(404).send({ message: 'Arte não encontrada', success: false })
       return
     }
+
+    // Block download for clients with an unpaid fatura on this project (CDC art. 49)
+    const usuario = (request as any).usuario
+    if (usuario?.tipo === 'CLIENTE') {
+      const faturasPendentes = await prisma.fatura.count({
+        where: { projetoId: arte.projetoId, clienteId: usuario.id, status: 'PENDENTE' },
+      })
+      if (faturasPendentes > 0) {
+        reply.status(402).send({
+          message: 'Pagamento pendente. Quite a fatura do projeto para acessar os arquivos.',
+          success: false,
+        })
+        return
+      }
+    }
+
     const arquivo_url = await signPath(arte.arquivo)
     const feedbacksComUrl = await Promise.all(
       (arte.feedbacks || []).map(async (fb: any) => ({

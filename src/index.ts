@@ -20,6 +20,8 @@ import { assinaturasRoutes } from './routes/assinaturas.js'
 import { faturasRoutes } from './routes/faturas.js'
 import { pagamentosRoutes } from './routes/pagamentos.js'
 import { saquesRoutes } from './routes/saques.js'
+import { aceitesRoutes } from './routes/aceites.js'
+import { disputasRoutes } from './routes/disputas.js'
 import { setupErrorHandler } from './middleware/errorHandlerMiddleware.js'
 import { auditLogMiddleware } from './middleware/auditLogMiddleware.js'
 import { auditLogService } from './services/auditLogService.js'
@@ -124,6 +126,8 @@ export async function buildServer() {
   await app.register(faturasRoutes)
   await app.register(pagamentosRoutes)
   await app.register(saquesRoutes)
+  await app.register(aceitesRoutes)
+  await app.register(disputasRoutes)
 
   return app
 }

@@ -1,8 +1,10 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { ProjetoService, ListProjetosParams } from '../services/projetoService.js'
 import { evaluateBriefing } from '../services/evalForgeService.js'
+import { AceiteService } from '../services/aceiteService.js'
 
 const projetoService = new ProjetoService()
+const aceiteService = new AceiteService()
 
 export async function listProjetos(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
@@ -49,6 +51,7 @@ export async function getProjetoById(request: FastifyRequest, reply: FastifyRepl
 export async function createProjeto(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
     const body = request.body as any
+    const usuario = (request as any).usuario
     const skipBriefingEval = body.skipBriefingEval === true
     const descricao: string | undefined = body.descricao
 
@@ -65,6 +68,19 @@ export async function createProjeto(request: FastifyRequest, reply: FastifyReply
     }
 
     const projeto = await projetoService.createProjeto(body)
+
+    // Record electronic contract acceptance (Lei 14.063/20)
+    if (body.aceiteTermos === true && usuario?.id) {
+      const ip = request.ip ?? request.headers['x-forwarded-for']?.toString().split(',')[0].trim()
+      const userAgent = request.headers['user-agent']
+      aceiteService.registrarAceite({
+        usuarioId: usuario.id,
+        projetoId: projeto.id,
+        ip,
+        userAgent,
+      }).catch(() => {})
+    }
+
     reply.status(201).send({ message: 'Projeto criado com sucesso', data: projeto, success: true })
   } catch (error: any) {
     if (error.message.includes('não encontrado') || error.message.includes('inativo')) {

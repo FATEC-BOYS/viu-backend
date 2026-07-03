@@ -56,6 +56,10 @@ model Usuario {
   faturasComoCliente  Fatura[]     @relation("FaturasCliente")
   faturasComoDesigner Fatura[]     @relation("FaturasDesigner")
 
+  // Relacionamentos de proteção legal
+  aceites         AceiteContratual[]
+  disputasAbertas Disputa[]          @relation("DisputasAbertas")
+
   @@index([email])
   @@index([tipo])
   @@index([ativo])
@@ -78,9 +82,11 @@ model Projeto {
   clienteId  String
   cliente    Usuario @relation("ProjetoCliente", fields: [clienteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
-  artes   Arte[]   @relation("ArtesProjeto")
-  tarefas Tarefa[] @relation("TarefasProjeto")
-  faturas Fatura[] @relation("FaturasProjeto")
+  artes    Arte[]   @relation("ArtesProjeto")
+  tarefas  Tarefa[] @relation("TarefasProjeto")
+  faturas  Fatura[] @relation("FaturasProjeto")
+  aceites  AceiteContratual[]
+  disputas Disputa[]
 
   // Timestamps
   criadoEm     DateTime @default(now())
@@ -401,6 +407,7 @@ model Fatura {
   designer   Usuario @relation("FaturasDesigner", fields: [designerId], references: [id])
 
   pagamento Pagamento? @relation("PagamentoFatura")
+  disputas  Disputa[]  @relation("DisputasFatura")
 
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
@@ -480,4 +487,54 @@ model Saque {
   @@index([designerId])
   @@index([status])
   @@map("saques")
+}
+
+// ====== PROTEÇÃO LEGAL ======
+
+// 📜 Aceite Contratual (Lei 14.063/20 – validade da assinatura eletrônica)
+model AceiteContratual {
+  id          String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  termoVersao String  @default("1.0")
+  ip          String?
+  userAgent   String?
+
+  usuarioId String
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  projetoId String
+  projeto   Projeto @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+
+  criadoEm DateTime @default(now())
+
+  @@unique([usuarioId, projetoId])
+  @@index([usuarioId])
+  @@index([projetoId])
+  @@map("aceites_contratuais")
+}
+
+// ⚖️ Disputas (canal de denúncia / mediação)
+model Disputa {
+  id             String    @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  // CALOTE | ENTREGA_INCOMPLETA | FRAUDE | OUTRO
+  tipo           String
+  // ABERTA | EM_ANALISE | RESOLVIDA_DESIGNER | RESOLVIDA_CLIENTE | ESCALADA
+  status         String    @default("ABERTA")
+  descricao      String
+  resolucao      String?
+  saldoBloqueado Int       @default(0) // centavos bloqueados durante a disputa
+  resolvidaEm    DateTime?
+
+  abertaPorId String
+  abertaPor   Usuario @relation("DisputasAbertas", fields: [abertaPorId], references: [id])
+  projetoId   String
+  projeto     Projeto @relation(fields: [projetoId], references: [id])
+  faturaId    String?
+  fatura      Fatura? @relation("DisputasFatura", fields: [faturaId], references: [id])
+
+  criadoEm    DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@index([projetoId])
+  @@index([abertaPorId])
+  @@index([status])
+  @@map("disputas")
 }
