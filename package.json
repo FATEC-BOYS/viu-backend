@@ -6,13 +6,14 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
+    "build": "tsc && prisma generate",
+    "start": "prisma migrate deploy && node dist/index.js",
+    "start:no-migrate": "node dist/index.js",
     "test": "vitest",
     "lint": "eslint src --ext .ts --fix",
     "db:generate": "prisma generate",
-    "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "db:seed": "tsx src/database/seed.ts"
   },
