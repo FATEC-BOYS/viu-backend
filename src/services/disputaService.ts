@@ -27,6 +27,9 @@ export class DisputaService {
 
     const projeto = await prisma.projeto.findUnique({ where: { id: data.projetoId } })
     if (!projeto) throw new Error('Projeto não encontrado')
+    if (projeto.designerId !== data.abertaPorId && projeto.clienteId !== data.abertaPorId) {
+      throw new Error('Acesso negado: apenas participantes do projeto podem abrir disputas')
+    }
 
     // Freeze the fatura's net designer value as saldoBloqueado
     let saldoBloqueado = 0

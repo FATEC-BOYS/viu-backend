@@ -58,32 +58,36 @@ export class SaqueService {
       throw new Error(`Valor mínimo de saque é ${formatCurrency(VALOR_MINIMO_SAQUE)}`)
     }
 
-    // Atomic transaction prevents double-spend race: saldo read and saque create happen
-    // in the same PostgreSQL transaction, so two concurrent requests can't both pass the
-    // balance check before either one commits.
-    return prisma.$transaction(async (tx) => {
-      const chave = await tx.chavePix.findUnique({ where: { id: chavePixId } })
-      if (!chave || !chave.ativa) throw new Error('Chave PIX não encontrada ou inativa')
-      if (chave.usuarioId !== designerId) throw new Error('Acesso negado')
+    // SERIALIZABLE isolation: PostgreSQL serializes concurrent saque requests for the same
+    // designer — one will succeed, the other will get a serialization error and be retried.
+    // READ COMMITTED alone is insufficient because two concurrent reads see the same balance
+    // snapshot before either write commits, allowing both to pass the balance check.
+    return prisma.$transaction(
+      async (tx) => {
+        const chave = await tx.chavePix.findUnique({ where: { id: chavePixId } })
+        if (!chave || !chave.ativa) throw new Error('Chave PIX não encontrada ou inativa')
+        if (chave.usuarioId !== designerId) throw new Error('Acesso negado')
 
-      const [faturasPagas, saquesAtivos] = await Promise.all([
-        tx.fatura.aggregate({
-          _sum: { valorLiquidoDesigner: true },
-          where: { designerId, status: 'PAGA' },
-        }),
-        tx.saque.aggregate({
-          _sum: { valor: true },
-          where: { designerId, status: { in: ['SOLICITADO', 'PROCESSANDO', 'CONCLUIDO'] } },
-        }),
-      ])
-      const saldo = (faturasPagas._sum.valorLiquidoDesigner ?? 0) - (saquesAtivos._sum.valor ?? 0)
-      if (valor > saldo) throw new Error('Saldo insuficiente para o saque solicitado')
+        const [faturasPagas, saquesAtivos] = await Promise.all([
+          tx.fatura.aggregate({
+            _sum: { valorLiquidoDesigner: true },
+            where: { designerId, status: 'PAGA' },
+          }),
+          tx.saque.aggregate({
+            _sum: { valor: true },
+            where: { designerId, status: { in: ['SOLICITADO', 'PROCESSANDO', 'CONCLUIDO'] } },
+          }),
+        ])
+        const saldo = (faturasPagas._sum.valorLiquidoDesigner ?? 0) - (saquesAtivos._sum.valor ?? 0)
+        if (valor > saldo) throw new Error('Saldo insuficiente para o saque solicitado')
 
-      return tx.saque.create({
-        data: { designerId, chavePixId, valor, status: 'SOLICITADO' },
-        include: { chavePix: true },
-      })
-    })
+        return tx.saque.create({
+          data: { designerId, chavePixId, valor, status: 'SOLICITADO' },
+          include: { chavePix: true },
+        })
+      },
+      { isolationLevel: 'Serializable' },
+    )
   }
 
   async listarSaques(designerId: string) {
@@ -99,3 +103,11 @@ export class SaqueService {
     }))
   }
 }
+
+const _svc = new SaqueService()
+export const listarChavesPix = (...args: Parameters<SaqueService['listarChavesPix']>) => _svc.listarChavesPix(...args)
+export const cadastrarChavePix = (...args: Parameters<SaqueService['cadastrarChavePix']>) => _svc.cadastrarChavePix(...args)
+export const removerChavePix = (...args: Parameters<SaqueService['removerChavePix']>) => _svc.removerChavePix(...args)
+export const getSaldoDisponivel = (...args: Parameters<SaqueService['getSaldoDisponivel']>) => _svc.getSaldoDisponivel(...args)
+export const solicitarSaque = (...args: Parameters<SaqueService['solicitarSaque']>) => _svc.solicitarSaque(...args)
+export const listarSaques = (...args: Parameters<SaqueService['listarSaques']>) => _svc.listarSaques(...args)

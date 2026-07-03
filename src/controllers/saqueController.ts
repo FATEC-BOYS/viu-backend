@@ -88,6 +88,15 @@ export async function solicitarSaqueHandler(
       reply.status(400).send({ message: error.message, success: false })
       return
     }
+    if (error.message.includes('Acesso negado')) {
+      reply.status(403).send({ message: error.message, success: false })
+      return
+    }
+    // Prisma P2034: serialization failure from concurrent saque requests
+    if (error.code === 'P2034') {
+      reply.status(409).send({ message: 'Requisição conflitante. Tente novamente.', success: false })
+      return
+    }
     reply.status(500).send({ message: 'Erro ao solicitar saque', success: false })
   }
 }
