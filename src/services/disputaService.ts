@@ -58,10 +58,18 @@ export class DisputaService {
     })
   }
 
-  async listarDisputas(filtros: { abertaPorId?: string; projetoId?: string; status?: string }) {
+  async listarDisputas(filtros: { participanteId?: string; projetoId?: string; status?: string }) {
     return prisma.disputa.findMany({
       where: {
-        ...(filtros.abertaPorId ? { abertaPorId: filtros.abertaPorId } : {}),
+        // participanteId matches both the opener AND the other party in the project
+        ...(filtros.participanteId
+          ? {
+              OR: [
+                { abertaPorId: filtros.participanteId },
+                { projeto: { OR: [{ designerId: filtros.participanteId }, { clienteId: filtros.participanteId }] } },
+              ],
+            }
+          : {}),
         ...(filtros.projetoId ? { projetoId: filtros.projetoId } : {}),
         ...(filtros.status ? { status: filtros.status } : {}),
       },

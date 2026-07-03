@@ -43,8 +43,8 @@ export async function listarDisputas(request: FastifyRequest, reply: FastifyRepl
     const filtros = {
       projetoId: projetoId as string | undefined,
       status: status as string | undefined,
-      // Non-admins only see their own disputes
-      ...(usuario.tipo !== 'ADMIN' ? { abertaPorId: usuario.id } : {}),
+      // Non-admins see disputes they opened OR that were opened against them
+      ...(usuario.tipo !== 'ADMIN' ? { participanteId: usuario.id } : {}),
     }
 
     const disputas = await disputaService.listarDisputas(filtros)
