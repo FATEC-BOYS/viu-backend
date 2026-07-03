@@ -126,8 +126,8 @@ export class FaturaService {
     }))
   }
 
-  async getFaturaById(id: string) {
-    return prisma.fatura.findUnique({
+  async getFaturaById(id: string, requesterId: string, isAdmin: boolean) {
+    const fatura = await prisma.fatura.findUnique({
       where: { id },
       include: {
         projeto: { select: { id: true, nome: true } },
@@ -136,6 +136,11 @@ export class FaturaService {
         pagamento: true,
       },
     })
+    if (!fatura) throw new Error('Fatura não encontrada')
+    if (!isAdmin && fatura.clienteId !== requesterId && fatura.designerId !== requesterId) {
+      throw new Error('Acesso negado')
+    }
+    return fatura
   }
 
   async cancelarFatura(id: string, requesterId: string) {
@@ -154,3 +159,10 @@ export class FaturaService {
     })
   }
 }
+
+const _svc = new FaturaService()
+export const criarFatura = (...args: Parameters<FaturaService['criarFatura']>) => _svc.criarFatura(...args)
+export const pagarFaturaComPix = (...args: Parameters<FaturaService['pagarFaturaComPix']>) => _svc.pagarFaturaComPix(...args)
+export const listarFaturas = (...args: Parameters<FaturaService['listarFaturas']>) => _svc.listarFaturas(...args)
+export const getFaturaById = (...args: Parameters<FaturaService['getFaturaById']>) => _svc.getFaturaById(...args)
+export const cancelarFatura = (...args: Parameters<FaturaService['cancelarFatura']>) => _svc.cancelarFatura(...args)

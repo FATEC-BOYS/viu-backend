@@ -96,7 +96,7 @@ export const CreateProjetoRequestSchema = z.object({
   designerId: z.string().cuid('ID do designer inválido').optional(),
   orcamento: z.number().int().positive('Orçamento deve ser um valor positivo em centavos').optional(),
   prazo: z.string().datetime('Data de prazo inválida').optional(),
-  status: z.enum(['EM_ANDAMENTO', 'CONCLUIDO', 'PAUSADO', 'CANCELADO']).default('EM_ANDAMENTO'),
+  // status omitted — always starts as EM_ANDAMENTO; callers cannot pre-set it
 });
 
 export const UpdateProjetoRequestSchema = z.object({
@@ -328,3 +328,26 @@ export type AuditStatsQuery = z.infer<typeof AuditStatsQuerySchema>;
 export type SecurityEventsQuery = z.infer<typeof SecurityEventsQuerySchema>;
 export type SecurityStatsQuery = z.infer<typeof SecurityStatsQuerySchema>;
 export type RecentActivityQuery = z.infer<typeof RecentActivityQuerySchema>;
+// ===== SCHEMAS FINANCEIROS =====
+
+export const CriarFaturaSchema = z.object({
+  descricao: z.string().max(500).optional(),
+  dataVencimento: z.string().datetime('Data de vencimento inválida').optional(),
+})
+
+export const PagarFaturaPixSchema = z.object({
+  cpf: z.string().regex(/^\d{11}$/, 'CPF deve conter exatamente 11 dígitos numéricos'),
+})
+
+export const SolicitarSaqueSchema = z.object({
+  chavePixId: z.string().min(1, 'chavePixId é obrigatório'),
+  valor: z.number().int('Valor deve ser inteiro em centavos').positive('Valor deve ser positivo'),
+})
+
+export const CadastrarChavePixSchema = z.object({
+  tipo: z.enum(['CPF', 'EMAIL', 'TELEFONE', 'ALEATORIA'], {
+    errorMap: () => ({ message: 'Tipo deve ser CPF, EMAIL, TELEFONE ou ALEATORIA' }),
+  }),
+  chave: z.string().min(1, 'Chave PIX é obrigatória').max(256),
+  titular: z.string().min(1, 'Nome do titular é obrigatório').max(256),
+})

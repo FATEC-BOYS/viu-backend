@@ -80,10 +80,15 @@ export async function getFaturaHandler(
   reply: FastifyReply,
 ): Promise<void> {
   try {
+    const usuario = (request as any).usuario
     const { id } = request.params as { id: string }
-    const fatura = await getFaturaById(id)
+    const fatura = await getFaturaById(id, usuario.id, usuario.tipo === 'ADMIN')
     reply.send({ data: fatura, success: true })
   } catch (error: any) {
+    if (error.message === 'Acesso negado') {
+      reply.status(403).send({ message: 'Acesso negado', success: false })
+      return
+    }
     if (error.message.includes('não encontrada')) {
       reply.status(404).send({ message: error.message, success: false })
       return
