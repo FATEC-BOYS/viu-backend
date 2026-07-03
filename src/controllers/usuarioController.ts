@@ -157,6 +157,19 @@ export async function uploadAvatar(request: FastifyRequest, reply: FastifyReply)
   }
 }
 
+export async function buscarUsuarios(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  try {
+    const { q, limit = 5 } = (request.query || {}) as { q?: string; limit?: number }
+    if (!q || q.trim().length < 3) {
+      return reply.status(400).send({ message: 'Parâmetro "q" deve ter ao menos 3 caracteres', success: false })
+    }
+    const data = await usuarioService.buscarUsuarios(q, Number(limit))
+    reply.send({ data, success: true })
+  } catch {
+    reply.status(500).send({ message: 'Erro ao buscar usuários', success: false })
+  }
+}
+
 export async function statsOverview(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
     const data = await usuarioService.statsOverview()

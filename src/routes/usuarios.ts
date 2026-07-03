@@ -9,6 +9,7 @@ import {
   getCurrentUser,
   statsOverview,
   uploadAvatar,
+  buscarUsuarios,
 } from '../controllers/usuarioController.js'
 import {
   validateCreateUsuario,
@@ -22,6 +23,13 @@ import { validateFileUpload } from '../middleware/fileUploadMiddleware.js'
 
 export async function usuariosRoutes(fastify: FastifyInstance) {
   fastify.get('/usuarios', { preHandler: [authenticate, requireRole('ADMIN'), validatePagination] }, listUsuarios)
+
+  // busca leve para typeahead (qualquer usuário autenticado, campos mínimos)
+  fastify.get('/usuarios/buscar', {
+    config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+    preHandler: [authenticate],
+  }, buscarUsuarios)
+
   fastify.get('/usuarios/:id', { preHandler: [authenticate, validateCuidParam, requireOwnership('usuario')] }, getUsuarioById)
 
   fastify.post('/usuarios', {

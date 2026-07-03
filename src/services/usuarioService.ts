@@ -49,6 +49,22 @@ export class UsuarioService {
     return { token, expiresAt, refreshToken, refreshExpiresAt }
   }
 
+  async buscarUsuarios(q: string, limit = 5) {
+    const termo = q.trim()
+    return prisma.usuario.findMany({
+      where: {
+        ativo: true,
+        OR: [
+          { nome: { contains: termo, mode: 'insensitive' } },
+          { email: { contains: termo, mode: 'insensitive' } },
+        ],
+      },
+      take: Math.min(limit, 20),
+      select: { id: true, nome: true, email: true, avatar: true, tipo: true },
+      orderBy: { nome: 'asc' },
+    })
+  }
+
   async listUsuarios({ page = 1, limit = 10, tipo, ativo }: ListUsuariosParams) {
     const skip = (page - 1) * limit
     let ativoFilter: boolean | undefined
