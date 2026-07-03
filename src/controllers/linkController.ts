@@ -21,20 +21,21 @@ export async function createSharedLink(
       arteId: string
       expiraEm?: string
       somenteLeitura?: boolean
+      limiteTentativas?: number
     }
 
     const link = await linkService.createSharedLink({
       arteId: data.arteId,
       expiraEm: data.expiraEm,
       somenteLeitura: data.somenteLeitura ?? true,
+      limiteTentativas: data.limiteTentativas,
     })
 
-    // Aponta para o viewer no FRONTEND, não para o backend
     const url = `${env.FRONTEND_URL}/viewer/${link.token}`
 
     reply.status(201).send({
       message: 'Link compartilhado criado com sucesso',
-      data: { url, token: link.token },
+      data: { url, token: link.token, limiteTentativas: link.limiteTentativas },
       success: true,
     })
   } catch (error: any) {
@@ -46,10 +47,23 @@ export async function createSharedLink(
   }
 }
 
-/**
- * POST /links/:token/feedbacks — cria feedback via link compartilhado (requer auth)
- * Body JSON: { conteudo, tipo?, posicaoX?, posicaoY? }
- */
+export async function revokeLink(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  try {
+    const { id } = request.params as { id: string }
+    const link = await linkService.revokeLink(id)
+    reply.send({ message: 'Link revogado com sucesso', data: link, success: true })
+  } catch (error: any) {
+    if (error.message.includes('não encontrad')) {
+      reply.status(404).send({ message: error.message, success: false })
+      return
+    }
+    reply.status(500).send({ message: 'Erro ao revogar link', success: false })
+  }
+}
+
 export async function createFeedbackViaLink(
   request: FastifyRequest,
   reply: FastifyReply,
@@ -71,7 +85,13 @@ export async function createFeedbackViaLink(
 
     reply.status(201).send({ message: 'Feedback criado', data: feedback, success: true })
   } catch (error: any) {
-    if (error.message.includes('inválido') || error.message.includes('expirado') || error.message.includes('não encontrad')) {
+    if (
+      error.message.includes('inválido') ||
+      error.message.includes('expirado') ||
+      error.message.includes('revogado') ||
+      error.message.includes('Limite') ||
+      error.message.includes('não encontrad')
+    ) {
       reply.status(404).send({ message: error.message, success: false })
       return
     }
@@ -79,10 +99,6 @@ export async function createFeedbackViaLink(
   }
 }
 
-/**
- * POST /links/:token/feedbacks/audio — multipart, requer auth
- * Fields: audio (file), posicaoX?, posicaoY?
- */
 export async function createAudioFeedbackViaLink(
   request: FastifyRequest,
   reply: FastifyReply,
@@ -113,7 +129,13 @@ export async function createAudioFeedbackViaLink(
 
     reply.status(201).send({ message: 'Feedback com áudio criado', data: feedback, success: true })
   } catch (error: any) {
-    if (error.message.includes('inválido') || error.message.includes('expirado') || error.message.includes('não encontrad')) {
+    if (
+      error.message.includes('inválido') ||
+      error.message.includes('expirado') ||
+      error.message.includes('revogado') ||
+      error.message.includes('Limite') ||
+      error.message.includes('não encontrad')
+    ) {
       reply.status(404).send({ message: error.message, success: false })
       return
     }
@@ -143,7 +165,7 @@ export async function updateLink(
 ): Promise<void> {
   try {
     const { id } = request.params as { id: string }
-    const body = request.body as { expiraEm?: string | null; somenteLeitura?: boolean }
+    const body = request.body as { expiraEm?: string | null; somenteLeitura?: boolean; limiteTentativas?: number | null }
     const link = await linkService.updateLink(id, body)
     reply.send({ message: 'Link atualizado', data: link, success: true })
   } catch (error: any) {
@@ -181,10 +203,12 @@ export async function getPreviewByToken(
     const preview = await linkService.getPreviewByToken(token)
     reply.send({ data: preview, success: true })
   } catch (error: any) {
-    // Sempre 404 para não revelar se o token existe mas está expirado (S-08)
+    // Always 404 — never reveal whether token exists but is revoked/expired
     if (
       error.message.includes('inválido') ||
       error.message.includes('expirado') ||
+      error.message.includes('revogado') ||
+      error.message.includes('Limite') ||
       error.message.includes('não encontrad')
     ) {
       reply.status(404).send({ message: 'Link não encontrado', success: false })

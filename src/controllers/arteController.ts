@@ -2,7 +2,7 @@ import { FastifyRequest, FastifyReply } from 'fastify'
 import { randomUUID } from 'crypto'
 import { ArteService, ListArtesParams } from '../services/arteService.js'
 import { NotificacaoService } from '../services/notificacaoService.js'
-import { uploadFile, signPath } from '../utils/storage.js'
+import { uploadFile, signPath, deleteFile } from '../utils/storage.js'
 import prisma from '../database/client.js'
 
 const arteService = new ArteService()
@@ -29,7 +29,6 @@ export async function listArtes(request: FastifyRequest, reply: FastifyReply): P
         select: { id: true },
       })
       const accessibleIds = projetos.map((p: { id: string }) => p.id)
-
       if (params.projetoId && !accessibleIds.includes(params.projetoId)) {
         reply.status(403).send({ message: 'Acesso negado', success: false })
         return
@@ -57,7 +56,7 @@ export async function getArteById(request: FastifyRequest, reply: FastifyReply):
       return
     }
 
-    // Block download for clients with an unpaid fatura on this project (CDC art. 49)
+    // Block download for clients with an unpaid fatura (CDC art. 49)
     const usuario = (request as any).usuario
     if (usuario?.tipo === 'CLIENTE') {
       const faturasPendentes = await prisma.fatura.count({
@@ -91,7 +90,6 @@ export async function uploadAndCreateArte(request: FastifyRequest, reply: Fastif
     const upload = (request as any).arteUploadData
     const { nome, descricao, projetoId } = upload.fields
 
-    // verify project access for non-admins
     if (usuario.tipo !== 'ADMIN') {
       const projeto = await prisma.projeto.findFirst({
         where: { id: projetoId, OR: [{ designerId: usuario.id }, { clienteId: usuario.id }] },
@@ -104,7 +102,9 @@ export async function uploadAndCreateArte(request: FastifyRequest, reply: Fastif
     }
 
     const arteId = randomUUID()
-    const key = `artes/${projetoId}/${arteId}/v1/${upload.filename}`
+    // Always use a UUID-based key — never trust the original filename for the storage path
+    const ext = upload.filename.includes('.') ? upload.filename.split('.').pop() : ''
+    const key = `artes/${projetoId}/${arteId}/v1/${arteId}${ext ? '.' + ext : ''}`
     await uploadFile(key, upload.buffer, upload.mimetype)
     const previewUrl = await signPath(key, 3600 * 24)
 
@@ -119,7 +119,6 @@ export async function uploadAndCreateArte(request: FastifyRequest, reply: Fastif
       autorId: usuario.id,
     })
 
-    // fire-and-forget: notifica o designer que criou a arte
     notificacaoService.createNotificacao({
       titulo: 'Arte criada',
       conteudo: `${nome} — versão 1`,
@@ -142,7 +141,6 @@ export async function createArte(request: FastifyRequest, reply: FastifyReply): 
   try {
     const usuario = (request as any).usuario
     const body = request.body as any
-    // Whitelist fields — never accept status, versao, or autorId from client
     const data = {
       nome: body.nome,
       descricao: body.descricao,
@@ -167,7 +165,6 @@ export async function updateArte(request: FastifyRequest, reply: FastifyReply): 
   try {
     const { id } = request.params as { id: string }
     const body = request.body as any
-    // Whitelist fields — never accept autorId, projetoId, or status override from client
     const allowedUpdates: Record<string, any> = {}
     for (const field of ['nome', 'descricao', 'tipo', 'tamanho', 'arquivo'] as const) {
       if (body[field] !== undefined) allowedUpdates[field] = body[field]
@@ -186,7 +183,19 @@ export async function updateArte(request: FastifyRequest, reply: FastifyReply): 
 export async function deleteArte(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
     const { id } = request.params as { id: string }
+
+    // Fetch before delete to get the storage key
+    const arte = await arteService.getArteById(id)
+    if (!arte) {
+      reply.status(404).send({ message: 'Arte não encontrada', success: false })
+      return
+    }
+
     await arteService.deleteArte(id)
+
+    // Remove from object storage — fire-and-forget so DB delete is never rolled back
+    if (arte.arquivo) deleteFile(arte.arquivo).catch(() => {})
+
     reply.send({ message: 'Arte removida com sucesso', success: true })
   } catch (error: any) {
     if (error.message.includes('Arte não encontrada')) {

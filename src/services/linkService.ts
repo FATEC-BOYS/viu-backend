@@ -11,29 +11,45 @@ export class LinkService {
     arteId: string
     expiraEm?: string
     somenteLeitura: boolean
+    limiteTentativas?: number
   }) {
     const arte = await prisma.arte.findUnique({ where: { id: data.arteId } })
     if (!arte) throw new Error('Arte não encontrada')
 
     const token = this.generateToken()
-    const link = await prisma.linkCompartilhado.create({
+    return prisma.linkCompartilhado.create({
       data: {
         token,
         tipo: 'ARTE',
         arteId: data.arteId,
         expiraEm: data.expiraEm ? new Date(data.expiraEm) : null,
         somenteLeitura: data.somenteLeitura,
+        limiteTentativas: data.limiteTentativas ?? null,
       },
     })
-    return link
+  }
+
+  private assertLinkValid(link: {
+    revogado: boolean
+    expiraEm: Date | null
+    limiteTentativas: number | null
+    acessos: number
+    tipo: string
+    arteId: string | null
+  }) {
+    if (link.revogado) throw new Error('Link revogado')
+    if (link.expiraEm && new Date(link.expiraEm) < new Date()) throw new Error('Link expirado')
+    if (link.limiteTentativas !== null && link.acessos >= link.limiteTentativas) {
+      throw new Error('Limite de acessos atingido')
+    }
+    if (link.tipo !== 'ARTE' || !link.arteId) throw new Error('Tipo de link não suportado')
   }
 
   async resolveArteIdFromToken(token: string): Promise<string> {
     const link = await prisma.linkCompartilhado.findUnique({ where: { token } })
     if (!link) throw new Error('Link inválido')
-    if (link.expiraEm && new Date(link.expiraEm) < new Date()) throw new Error('Link expirado')
-    if (link.tipo !== 'ARTE' || !link.arteId) throw new Error('Tipo de link não suportado')
-    return link.arteId
+    this.assertLinkValid(link)
+    return link.arteId!
   }
 
   async listLinks() {
@@ -44,30 +60,30 @@ export class LinkService {
           select: {
             id: true,
             nome: true,
-            projeto: {
-              select: {
-                nome: true,
-                cliente: { select: { nome: true } },
-              },
-            },
+            projeto: { select: { nome: true, cliente: { select: { nome: true } } } },
           },
         },
       },
     })
   }
 
-  async updateLink(id: string, data: { expiraEm?: string | null; somenteLeitura?: boolean }) {
+  async updateLink(id: string, data: { expiraEm?: string | null; somenteLeitura?: boolean; limiteTentativas?: number | null }) {
     const link = await prisma.linkCompartilhado.findUnique({ where: { id } })
     if (!link) throw new Error('Link não encontrado')
     return prisma.linkCompartilhado.update({
       where: { id },
       data: {
         ...(data.somenteLeitura !== undefined && { somenteLeitura: data.somenteLeitura }),
-        ...(data.expiraEm !== undefined && {
-          expiraEm: data.expiraEm === null ? null : new Date(data.expiraEm),
-        }),
+        ...(data.expiraEm !== undefined && { expiraEm: data.expiraEm === null ? null : new Date(data.expiraEm) }),
+        ...(data.limiteTentativas !== undefined && { limiteTentativas: data.limiteTentativas }),
       },
     })
+  }
+
+  async revokeLink(id: string) {
+    const link = await prisma.linkCompartilhado.findUnique({ where: { id } })
+    if (!link) throw new Error('Link não encontrado')
+    return prisma.linkCompartilhado.update({ where: { id }, data: { revogado: true } })
   }
 
   async deleteLink(id: string) {
@@ -80,19 +96,20 @@ export class LinkService {
     const link = await prisma.linkCompartilhado.findUnique({ where: { token } })
     if (!link) throw new Error('Link inválido')
 
-    if (link.expiraEm && new Date(link.expiraEm) < new Date()) {
-      throw new Error('Link inválido')
-    }
+    // All validity checks unified — caller always gets a generic 404
+    this.assertLinkValid(link)
 
-    if (link.tipo !== 'ARTE' || !link.arteId) {
-      throw new Error('Tipo de link não suportado')
-    }
+    // Increment access counter (fire-and-forget — counter failure never blocks the response)
+    prisma.linkCompartilhado.update({
+      where: { token },
+      data: { acessos: { increment: 1 } },
+    }).catch(() => {})
 
     const arte = await prisma.arte.findUnique({
-      where: { id: link.arteId },
+      where: { id: link.arteId! },
       include: {
         projeto: { select: { nome: true } },
-        autor: { select: { nome: true } }, // email omitted from public preview
+        autor: { select: { nome: true } },
       },
     })
     if (!arte) throw new Error('Arte não encontrada')
@@ -102,7 +119,7 @@ export class LinkService {
     const feedbacks = await prisma.feedback.findMany({
       where: { arteId: arte.id },
       orderBy: { criadoEm: 'desc' },
-      include: { autor: { select: { nome: true } } }, // email omitted from public preview
+      include: { autor: { select: { nome: true } } },
     })
 
     const feedbacksComUrl = await Promise.all(
@@ -112,6 +129,6 @@ export class LinkService {
       })),
     )
 
-    return { somenteLeitura: link.somenteLeitura, arte: { ...arte, arquivo_url }, feedbacks: feedbacksComUrl }
+    return { somenteLeitura: link.somenteLeitura, acessos: link.acessos + 1, arte: { ...arte, arquivo_url }, feedbacks: feedbacksComUrl }
   }
 }

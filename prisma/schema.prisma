@@ -7,6 +7,19 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// TODO(architecture): Introduce Workspace model for multi-tenant isolation.
+// Every entity (Projeto, Arte, Tarefa, etc.) should belong to a Workspace.
+// This enables:
+//   - Strict row-level isolation between companies (no cross-tenant ID guessing)
+//   - Per-workspace billing / Plano assignments
+//   - Onboarding: create workspace → invite users
+// Migration path:
+//   1. Add model Workspace { id, nome, planoId, criadoEm }
+//   2. Add workspaceId to Usuario, Projeto, Arte, Tarefa, Fatura, Assinatura
+//   3. Update all Prisma queries to filter by workspaceId
+//   4. Auth middleware attaches workspace to request context
+//   5. Migrate existing data: one workspace per existing Designer
+
 // 👤 Usuários
 model Usuario {
   id       String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
@@ -18,7 +31,7 @@ model Usuario {
   tipo     String  @default("DESIGNER") // TipoUsuario: DESIGNER, CLIENTE, ADMIN
   ativo    Boolean @default(true)
 
-  // 2FA (Two-Factor Authentication)
+  // 2FA
   twoFactorEnabled     Boolean  @default(false)
   twoFactorSecret      String?
   twoFactorBackupCodes String[] @default([])
@@ -32,11 +45,9 @@ model Usuario {
   passwordResetToken     String?   @unique
   passwordResetExpiresAt DateTime?
 
-  // Timestamps
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
-  // Relacionamentos existentes
   projetosDesigner Projeto[]       @relation("ProjetoDesigner")
   projetosCliente  Projeto[]       @relation("ProjetoCliente")
   artes            Arte[]          @relation("ArteAutor")
@@ -48,7 +59,6 @@ model Usuario {
   auditLogs        AuditLog[]      @relation("AuditLogUsuario")
   securityEvents   SecurityEvent[] @relation("SecurityEventUsuario")
 
-  // Relacionamentos de pagamento
   assinaturas         Assinatura[] @relation("AssinaturaUsuario")
   pagamentos          Pagamento[]  @relation("PagamentosUsuario")
   chavesPix           ChavePix[]   @relation("ChavesPixUsuario")
@@ -56,7 +66,6 @@ model Usuario {
   faturasComoCliente  Fatura[]     @relation("FaturasCliente")
   faturasComoDesigner Fatura[]     @relation("FaturasDesigner")
 
-  // Relacionamentos de proteção legal
   aceites         AceiteContratual[]
   disputasAbertas Disputa[]          @relation("DisputasAbertas")
 
@@ -72,11 +81,10 @@ model Projeto {
   id        String    @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
   nome      String
   descricao String?
-  status    String    @default("EM_ANDAMENTO") // StatusProjeto: EM_ANDAMENTO, CONCLUIDO, CANCELADO
-  orcamento Int? // Em centavos
+  status    String    @default("EM_ANDAMENTO")
+  orcamento Int?
   prazo     DateTime?
 
-  // Relacionamentos
   designerId String
   designer   Usuario @relation("ProjetoDesigner", fields: [designerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   clienteId  String
@@ -88,7 +96,6 @@ model Projeto {
   aceites  AceiteContratual[]
   disputas Disputa[]
 
-  // Timestamps
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
@@ -104,13 +111,12 @@ model Arte {
   id        String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
   nome      String
   descricao String?
-  arquivo   String // URL/path do arquivo
-  tipo      String // TipoArte: IMAGEM, VIDEO, PDF, etc
-  tamanho   Int // Em bytes
+  arquivo   String
+  tipo      String
+  tamanho   Int
   versao    Int     @default(1)
-  status    String  @default("EM_ANALISE") // StatusArte: EM_ANALISE, APROVADO, REJEITADO
+  status    String  @default("EM_ANALISE")
 
-  // Relacionamentos
   projetoId String
   projeto   Projeto @relation("ArtesProjeto", fields: [projetoId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   autorId   String
@@ -120,7 +126,6 @@ model Arte {
   aprovacoes          Aprovacao[]         @relation("AprovacoesArte")
   linksCompartilhados LinkCompartilhado[] @relation("LinksArte")
 
-  // Timestamps
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
@@ -136,22 +141,19 @@ model Arte {
 model Feedback {
   id       String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
   conteudo String
-  tipo     String  @default("TEXTO") // TipoFeedback: TEXTO, AUDIO, POSICIONAL
-  arquivo  String? // Para feedback de áudio
-  posicaoX Float? // Para feedback posicional
+  tipo     String  @default("TEXTO")
+  arquivo  String?
+  posicaoX Float?
   posicaoY Float?
 
-  // Campos de transcrição / TTS
-  transcricao String? // Texto transcrito a partir do áudio (STT)
-  audioGerado String? // URL do áudio gerado a partir do texto (TTS)
+  transcricao String?
+  audioGerado String?
 
-  // Relacionamentos
   arteId  String
   arte    Arte    @relation("FeedbacksArte", fields: [arteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   autorId String
   autor   Usuario @relation("FeedbackAutor", fields: [autorId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
-  // Timestamps
   criadoEm DateTime @default(now())
 
   @@index([arteId])
@@ -164,16 +166,14 @@ model Feedback {
 // ✅ Aprovações
 model Aprovacao {
   id         String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
-  status     String  @default("PENDENTE") // StatusAprovacao: PENDENTE, APROVADO, REJEITADO
+  status     String  @default("PENDENTE")
   comentario String?
 
-  // Relacionamentos
   arteId      String
   arte        Arte    @relation("AprovacoesArte", fields: [arteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   aprovadorId String
   aprovador   Usuario @relation("AprovacaoAprovador", fields: [aprovadorId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
-  // Timestamps
   criadoEm DateTime @default(now())
 
   @@index([arteId])
@@ -188,17 +188,15 @@ model Tarefa {
   id         String    @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
   titulo     String
   descricao  String?
-  status     String    @default("PENDENTE") // StatusTarefa: PENDENTE, EM_ANDAMENTO, CONCLUIDA
-  prioridade String    @default("MEDIA") // Prioridade: BAIXA, MEDIA, ALTA
+  status     String    @default("PENDENTE")
+  prioridade String    @default("MEDIA")
   prazo      DateTime?
 
-  // Relacionamentos
   projetoId     String?
   projeto       Projeto? @relation("TarefasProjeto", fields: [projetoId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   responsavelId String
   responsavel   Usuario  @relation("TarefaResponsavel", fields: [responsavelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
-  // Timestamps
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
@@ -215,15 +213,13 @@ model Notificacao {
   id       String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
   titulo   String
   conteudo String
-  tipo     String // TipoNotificacao: SISTEMA, FEEDBACK, APROVACAO, TAREFA
-  canal    String  @default("SISTEMA") // CanalNotificacao: SISTEMA, EMAIL, PUSH
+  tipo     String
+  canal    String  @default("SISTEMA")
   lida     Boolean @default(false)
 
-  // Relacionamentos
   usuarioId String
   usuario   Usuario @relation("NotificacaoUsuario", fields: [usuarioId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
-  // Timestamps
   criadoEm DateTime @default(now())
 
   @@index([usuarioId])
@@ -233,7 +229,7 @@ model Notificacao {
   @@map("notificacoes")
 }
 
-// 🔐 Sessões (para JWT/Auth)
+// 🔐 Sessões
 model Sessao {
   id               String    @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
   token            String    @unique
@@ -242,11 +238,9 @@ model Sessao {
   refreshExpiresAt DateTime?
   ativo            Boolean   @default(true)
 
-  // Relacionamentos
   usuarioId String
   usuario   Usuario @relation("SessaoUsuario", fields: [usuarioId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
-  // Timestamps
   criadoEm DateTime @default(now())
 
   @@index([usuarioId])
@@ -329,25 +323,30 @@ model LinkCompartilhado {
   somenteLeitura Boolean   @default(true)
   expiraEm       DateTime?
 
+  // Segurança de links públicos
+  revogado        Boolean @default(false)  // revogação explícita independente de expiração
+  limiteTentativas Int?                   // null = sem limite de acessos
+  acessos         Int     @default(0)     // contador de acessos ao preview
+
   criadoEm DateTime @default(now())
 
   @@index([token])
   @@index([arteId])
   @@index([expiraEm])
+  @@index([revogado])
   @@map("link_compartilhado")
 }
 
 // ====== SISTEMA DE PAGAMENTOS ======
 
-// 💰 Planos de Assinatura
 model Plano {
   id               String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
-  nome             String // FREE | PRO | BUSINESS
-  tipo             String // DESIGNER | CLIENTE
-  precoMensal      Int // Em centavos (0 para FREE)
-  precoAnual       Int? // Em centavos
-  taxaPlataforma   Float   @default(0.10) // Percentual: 0.10 = 10%
-  limitesProjetos  Int? // null = ilimitado
+  nome             String
+  tipo             String
+  precoMensal      Int
+  precoAnual       Int?
+  taxaPlataforma   Float   @default(0.10)
+  limitesProjetos  Int?
   limitesArtes     Int?
   limitesStorageMb Int?
   descricao        String?
@@ -363,15 +362,14 @@ model Plano {
   @@map("planos")
 }
 
-// 📋 Assinaturas
 model Assinatura {
   id                  String    @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
-  status              String    @default("PENDENTE") // PENDENTE | ATIVA | CANCELADA | PAUSADA | EXPIRADA
+  status              String    @default("PENDENTE")
   periodoInicio       DateTime?
   periodoFim          DateTime?
   renovacaoAutomatica Boolean   @default(true)
-  mpPreapprovalId     String?   @unique // ID da preapproval no MercadoPago
-  mpPlanId            String? // ID do plano no MercadoPago
+  mpPreapprovalId     String?   @unique
+  mpPlanId            String?
 
   usuarioId String
   usuario   Usuario @relation("AssinaturaUsuario", fields: [usuarioId], references: [id], onDelete: Cascade)
@@ -388,13 +386,12 @@ model Assinatura {
   @@map("assinaturas")
 }
 
-// 🧾 Faturas (cobranças de projeto)
 model Fatura {
   id                   String    @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
-  valor                Int // Total em centavos
-  taxaPlataforma       Int // Taxa VIU em centavos
-  valorLiquidoDesigner Int // Valor que o designer recebe em centavos
-  status               String    @default("PENDENTE") // PENDENTE | PAGA | CANCELADA | ESTORNADA
+  valor                Int
+  taxaPlataforma       Int
+  valorLiquidoDesigner Int
+  status               String    @default("PENDENTE")
   dataVencimento       DateTime?
   dataPagamento        DateTime?
   descricao            String?
@@ -419,18 +416,17 @@ model Fatura {
   @@map("faturas")
 }
 
-// 💳 Pagamentos
 model Pagamento {
   id              String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
-  tipo            String // ASSINATURA | FATURA
-  status          String  @default("PENDENTE") // PENDENTE | PROCESSANDO | APROVADO | REJEITADO | CANCELADO | ESTORNADO
-  valor           Int // Em centavos
-  metodoPagamento String? // PIX | CARTAO_CREDITO | BOLETO
-  mpPaymentId     String? @unique // ID do pagamento no MercadoPago
-  mpPreferenceId  String? // ID da preferência de checkout
-  mpStatus        String? // Status original do MercadoPago
-  mpQrCode        String? // QR code PIX em base64
-  mpQrCodeText    String? // Texto do PIX copia-e-cola
+  tipo            String
+  status          String  @default("PENDENTE")
+  valor           Int
+  metodoPagamento String?
+  mpPaymentId     String? @unique
+  mpPreferenceId  String?
+  mpStatus        String?
+  mpQrCode        String?
+  mpQrCodeText    String?
 
   usuarioId    String
   usuario      Usuario     @relation("PagamentosUsuario", fields: [usuarioId], references: [id])
@@ -449,10 +445,9 @@ model Pagamento {
   @@map("pagamentos")
 }
 
-// 🏦 Chaves PIX dos Designers
 model ChavePix {
   id      String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
-  tipo    String // CPF | EMAIL | TELEFONE | ALEATORIA
+  tipo    String
   chave   String
   titular String
   ativa   Boolean @default(true)
@@ -469,11 +464,10 @@ model ChavePix {
   @@map("chaves_pix")
 }
 
-// 💸 Saques
 model Saque {
   id         String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
-  valor      Int // Em centavos
-  status     String  @default("SOLICITADO") // SOLICITADO | PROCESSANDO | CONCLUIDO | REJEITADO
+  valor      Int
+  status     String  @default("SOLICITADO")
   mpPayoutId String? @unique
 
   designerId String
@@ -491,7 +485,6 @@ model Saque {
 
 // ====== PROTEÇÃO LEGAL ======
 
-// 📜 Aceite Contratual (Lei 14.063/20 – validade da assinatura eletrônica)
 model AceiteContratual {
   id          String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
   termoVersao String  @default("1.0")
@@ -511,16 +504,13 @@ model AceiteContratual {
   @@map("aceites_contratuais")
 }
 
-// ⚖️ Disputas (canal de denúncia / mediação)
 model Disputa {
   id             String    @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
-  // CALOTE | ENTREGA_INCOMPLETA | FRAUDE | OUTRO
   tipo           String
-  // ABERTA | EM_ANALISE | RESOLVIDA_DESIGNER | RESOLVIDA_CLIENTE | ESCALADA
   status         String    @default("ABERTA")
   descricao      String
   resolucao      String?
-  saldoBloqueado Int       @default(0) // centavos bloqueados durante a disputa
+  saldoBloqueado Int       @default(0)
   resolvidaEm    DateTime?
 
   abertaPorId String

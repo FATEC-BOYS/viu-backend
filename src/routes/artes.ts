@@ -15,8 +15,14 @@ import { CreateArteRequestSchema } from '../schemas/validation.js'
 
 export async function artesRoutes(fastify: FastifyInstance) {
   fastify.get('/artes', { preHandler: [authenticate] }, listArtes)
+
   // /artes/upload must be registered before /artes/:id to avoid param collision
-  fastify.post('/artes/upload', { preHandler: [authenticate, validateArteUpload] }, uploadAndCreateArte)
+  fastify.post('/artes/upload', {
+    // 30 uploads por hora por IP — o produto precisa de fluxo, mas não de rajadas automatizadas
+    config: { rateLimit: { max: 30, timeWindow: '1 hour' } },
+    preHandler: [authenticate, validateArteUpload],
+  }, uploadAndCreateArte)
+
   fastify.get('/artes/:id', { preHandler: [authenticate, validateCuidParam, requireProjectAccess] }, getArteById)
   fastify.post('/artes', {
     preHandler: [authenticate, validateBody(CreateArteRequestSchema), requireProjectAccess],
