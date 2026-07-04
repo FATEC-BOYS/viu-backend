@@ -11,6 +11,7 @@ import {
   listarLedgerHandler,
 } from '../controllers/saqueController.js'
 import { authenticate } from '../middleware/authMiddleware.js'
+import { requireRole } from '../middleware/authorizationMiddleware.js'
 import { validateBody } from '../middleware/validationMiddleware.js'
 import { SolicitarSaqueSchema, CadastrarChavePixSchema } from '../schemas/validation.js'
 
@@ -27,8 +28,8 @@ export async function saquesRoutes(fastify: FastifyInstance) {
   fastify.delete('/chaves-pix/:id', { preHandler: [authenticate] }, removerChavePixHandler)
 
   // Admin: visualizar e processar saques de todos os designers
-  fastify.get('/admin/saques', { preHandler: [authenticate] }, listarSaquesAdminHandler)
-  fastify.put('/admin/saques/:id/status', { preHandler: [authenticate] }, processarSaqueHandler)
+  fastify.get('/admin/saques', { preHandler: [authenticate, requireRole('ADMIN')] }, listarSaquesAdminHandler)
+  fastify.put('/admin/saques/:id/status', { preHandler: [authenticate, requireRole('ADMIN')] }, processarSaqueHandler)
 
   // Ledger: extrato financeiro imutável (designers veem o próprio; admins podem ver qualquer um)
   fastify.get('/ledger', { preHandler: [authenticate] }, listarLedgerHandler)

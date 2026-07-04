@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { AprovacaoService, ListAprovacoesParams } from '../services/aprovacaoService.js'
 import prisma from '../database/client.js'
+// prisma used only by listAprovacoes to scope by project membership
 
 const aprovacaoService = new AprovacaoService()
 
@@ -39,26 +40,17 @@ export async function getAprovacaoById(request: FastifyRequest, reply: FastifyRe
   try {
     const usuario = (request as any).usuario
     const { id } = request.params as { id: string }
-    const aprovacao = await aprovacaoService.getAprovacaoById(id)
+    const aprovacao = await aprovacaoService.getAprovacaoById(id, usuario.id, usuario.tipo === 'ADMIN')
     if (!aprovacao) {
       reply.status(404).send({ message: 'Aprovação não encontrada', success: false })
       return
     }
-    // Non-admin can only see approvals from their projects
-    if (usuario.tipo !== 'ADMIN') {
-      const projeto = await prisma.projeto.findFirst({
-        where: {
-          artes: { some: { id: (aprovacao as any).arte?.id } },
-          OR: [{ designerId: usuario.id }, { clienteId: usuario.id }],
-        },
-      })
-      if (!projeto) {
-        reply.status(403).send({ message: 'Acesso negado', success: false })
-        return
-      }
-    }
     reply.send({ data: aprovacao, success: true })
-  } catch {
+  } catch (error: any) {
+    if (error.message === 'Acesso negado') {
+      reply.status(403).send({ message: 'Acesso negado', success: false })
+      return
+    }
     reply.status(500).send({ message: 'Erro ao buscar aprovação', success: false })
   }
 }
