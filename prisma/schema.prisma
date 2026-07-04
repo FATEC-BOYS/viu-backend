@@ -77,6 +77,8 @@ model Usuario {
   convitesRecebidos ConviteProjeto[] @relation("ConviteConvidado")
   convitesEnviados  ConviteProjeto[] @relation("ConviteConvidadoPor")
 
+  ledgerEntries LedgerEntry[] @relation("LedgerDesigner")
+
   @@index([email])
   @@index([tipo])
   @@index([ativo])
@@ -584,6 +586,48 @@ model EquipeMembro {
   @@id([equipeId, usuarioId])
   @@index([usuarioId])
   @@map("equipe_membros")
+}
+
+// ====== LEDGER FINANCEIRO ======
+
+model LedgerEntry {
+  id         String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  // CREDITO (fatura paga) ou DEBITO (saque concluído)
+  tipo       String
+  valor      Int
+  descricao  String
+  // "fatura:<id>" ou "saque:<id>" — rastreabilidade
+  referencia String?
+
+  designerId String
+  designer   Usuario @relation("LedgerDesigner", fields: [designerId], references: [id])
+
+  criadoEm DateTime @default(now())
+
+  @@index([designerId])
+  @@index([tipo])
+  @@index([criadoEm])
+  @@map("ledger_entries")
+}
+
+// ====== WEBHOOKS ======
+
+model WebhookLog {
+  id         String    @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  // MP x-request-id — chave de idempotência: impede reprocessar o mesmo evento
+  externalId String    @unique
+  tipo       String
+  // RECEBIDO | PROCESSADO | ERRO | IGNORADO
+  status     String    @default("RECEBIDO")
+  payload    Json
+  tentativas Int       @default(0)
+  erro       String?
+  processadoEm DateTime?
+  criadoEm   DateTime  @default(now())
+
+  @@index([status])
+  @@index([criadoEm])
+  @@map("webhook_logs")
 }
 
 // ====== CONVITES DE PROJETO ======

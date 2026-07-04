@@ -27,7 +27,6 @@ export class PagamentoService {
     if (!pagamento) return
 
     // Webhook may deliver duplicate or out-of-order events; skip invalid transitions silently
-    // (the gateway is authoritative — log and move on rather than erroring the webhook response)
     const allowedNext = PAGAMENTO_TRANSITIONS[pagamento.status] ?? []
     if (status !== pagamento.status && !allowedNext.includes(status)) {
       console.warn(`[pagamento] transição ignorada: ${pagamento.status} → ${status} (id=${pagamento.id})`)
@@ -40,23 +39,84 @@ export class PagamentoService {
     })
 
     if (status === 'APROVADO' && pagamento.faturaId) {
-      const fatura = await prisma.fatura.findUnique({ where: { id: pagamento.faturaId }, select: { status: true } })
+      const fatura = await prisma.fatura.findUnique({
+        where: { id: pagamento.faturaId },
+        select: { status: true, valorLiquidoDesigner: true, designerId: true },
+      })
       if (fatura && (FATURA_TRANSITIONS[fatura.status] ?? []).includes('PAGA')) {
-        await prisma.fatura.update({
-          where: { id: pagamento.faturaId },
-          data: { status: 'PAGA', dataPagamento: new Date() },
-        })
+        await prisma.$transaction([
+          prisma.fatura.update({
+            where: { id: pagamento.faturaId },
+            data: { status: 'PAGA', dataPagamento: new Date() },
+          }),
+          // Ledger: registra crédito para o designer no momento em que a fatura é liquidada
+          prisma.ledgerEntry.create({
+            data: {
+              tipo: 'CREDITO',
+              valor: fatura.valorLiquidoDesigner,
+              descricao: 'Pagamento de fatura recebido',
+              referencia: `fatura:${pagamento.faturaId}`,
+              designerId: fatura.designerId,
+            },
+          }),
+        ])
       }
     }
 
     if (status === 'ESTORNADO' && pagamento.faturaId) {
-      const fatura = await prisma.fatura.findUnique({ where: { id: pagamento.faturaId }, select: { status: true } })
+      const fatura = await prisma.fatura.findUnique({
+        where: { id: pagamento.faturaId },
+        select: { status: true, valorLiquidoDesigner: true, designerId: true },
+      })
       if (fatura && (FATURA_TRANSITIONS[fatura.status] ?? []).includes('ESTORNADA')) {
-        await prisma.fatura.update({
-          where: { id: pagamento.faturaId },
-          data: { status: 'ESTORNADA' },
-        })
+        await prisma.$transaction([
+          prisma.fatura.update({
+            where: { id: pagamento.faturaId },
+            data: { status: 'ESTORNADA' },
+          }),
+          // Ledger: estorno reverte o crédito anterior
+          prisma.ledgerEntry.create({
+            data: {
+              tipo: 'DEBITO',
+              valor: fatura.valorLiquidoDesigner,
+              descricao: 'Estorno de fatura',
+              referencia: `fatura:${pagamento.faturaId}`,
+              designerId: fatura.designerId,
+            },
+          }),
+        ])
       }
+    }
+  }
+
+  // Deduplicação por externalId (MP x-request-id). Responde ao gateway antes de processar
+  // para evitar retentativas por timeout — processamento é feito de forma assíncrona.
+  async processarWebhookAsync(externalId: string, tipo: string, mpPaymentId: string, payload: unknown) {
+    // Unique constraint no externalId impede processamento duplicado mesmo com alta concorrência
+    try {
+      await prisma.webhookLog.create({
+        data: { externalId, tipo, payload: payload as any, status: 'RECEBIDO' },
+      })
+    } catch (err: any) {
+      // P2002 = unique constraint violation — já processado
+      if (err?.code === 'P2002') {
+        console.info(`[webhook] duplicado ignorado: ${externalId}`)
+        return
+      }
+      throw err
+    }
+
+    try {
+      await this.handleWebhookPagamento(mpPaymentId)
+      await prisma.webhookLog.update({
+        where: { externalId },
+        data: { status: 'PROCESSADO', processadoEm: new Date() },
+      })
+    } catch (err: any) {
+      await prisma.webhookLog.update({
+        where: { externalId },
+        data: { status: 'ERRO', erro: String(err?.message ?? err), tentativas: { increment: 1 } },
+      })
     }
   }
 
@@ -84,3 +144,8 @@ export class PagamentoService {
     return 'CARTAO_CREDITO'
   }
 }
+
+const _svc = new PagamentoService()
+export const handleWebhookPagamento = (...args: Parameters<PagamentoService['handleWebhookPagamento']>) => _svc.handleWebhookPagamento(...args)
+export const processarWebhookAsync = (...args: Parameters<PagamentoService['processarWebhookAsync']>) => _svc.processarWebhookAsync(...args)
+export const listarPagamentos = (...args: Parameters<PagamentoService['listarPagamentos']>) => _svc.listarPagamentos(...args)
