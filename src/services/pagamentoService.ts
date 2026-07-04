@@ -2,6 +2,7 @@ import prisma from '../database/client.js'
 import { mpPayment } from './mercadoPagoService.js'
 import { formatCurrency, formatDate } from '../utils/formatters.js'
 import { PAGAMENTO_TRANSITIONS, FATURA_TRANSITIONS } from '../utils/stateMachine.js'
+import { notificacaoService } from './notificacaoService.js'
 
 const MP_PAYMENT_STATUS_MAP: Record<string, string> = {
   pending: 'PENDENTE',
@@ -60,6 +61,13 @@ export class PagamentoService {
             },
           }),
         ])
+        // Notify the designer that payment was received
+        notificacaoService.dispatch(
+          fatura.designerId,
+          'PAGAMENTO_CONFIRMADO',
+          'Pagamento confirmado 💰',
+          `Um pagamento de ${formatCurrency(fatura.valorLiquidoDesigner)} foi confirmado e adicionado ao seu saldo.`,
+        )
       }
     }
 

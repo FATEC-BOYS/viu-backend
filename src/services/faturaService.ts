@@ -2,6 +2,7 @@ import prisma from '../database/client.js'
 import { mpPayment } from './mercadoPagoService.js'
 import { formatCurrency, formatDate } from '../utils/formatters.js'
 import { assertValidTransition, FATURA_TRANSITIONS } from '../utils/stateMachine.js'
+import { notificacaoService } from './notificacaoService.js'
 
 const TAXA_PADRAO = 0.10
 
@@ -34,7 +35,7 @@ export class FaturaService {
     const taxaValor = Math.round(projeto.orcamento * taxaPercentual)
     const valorLiquido = projeto.orcamento - taxaValor
 
-    return prisma.fatura.create({
+    const fatura = await prisma.fatura.create({
       data: {
         projetoId,
         clienteId: projeto.clienteId,
@@ -51,6 +52,16 @@ export class FaturaService {
         designer: { select: { id: true, nome: true } },
       },
     })
+
+    // Notify the client that a new invoice is ready
+    notificacaoService.dispatch(
+      projeto.clienteId,
+      'FATURA_GERADA',
+      `Fatura gerada — ${projeto.nome}`,
+      `Uma fatura de ${formatCurrency(projeto.orcamento)} foi gerada para o projeto "${projeto.nome}". Acesse para realizar o pagamento.`,
+    )
+
+    return fatura
   }
 
   async pagarFaturaComPix(faturaId: string, usuarioId: string, cpf: string) {

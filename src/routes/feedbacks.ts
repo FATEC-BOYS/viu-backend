@@ -8,6 +8,8 @@ import {
   getFeedbackTranscricao,
   updateFeedback,
   deleteFeedback,
+  resolverThread,
+  reabrirThread,
 } from '../controllers/feedbackController.js'
 import { authenticate } from '../middleware/authMiddleware.js'
 import { requireProjectAccess, requireAuthor } from '../middleware/authorizationMiddleware.js'
@@ -33,4 +35,6 @@ export async function feedbacksRoutes(fastify: FastifyInstance) {
   }, createFeedbackComAudio)
   fastify.put('/feedbacks/:id', { preHandler: [authenticate, requireProjectAccess, requireAuthor] }, updateFeedback)
   fastify.delete('/feedbacks/:id', { preHandler: [authenticate, requireProjectAccess, requireAuthor] }, deleteFeedback)
+  fastify.put('/feedbacks/:id/resolver', { preHandler: [authenticate, requireProjectAccess] }, resolverThread)
+  fastify.put('/feedbacks/:id/reabrir', { preHandler: [authenticate, requireProjectAccess] }, reabrirThread)
 }

@@ -1,6 +1,7 @@
 import prisma from '../database/client.js'
 import { uploadFile } from '../utils/storage.js'
 import { transcreverAudio, sintetizarTexto } from './transcricaoService.js'
+import { notificacaoService } from './notificacaoService.js'
 
 export interface ListFeedbacksParams {
   page?: number
@@ -73,12 +74,39 @@ export class FeedbackService {
 
   async createFeedback(data: any) {
     const [arte, autor] = await Promise.all([
-      prisma.arte.findUnique({ where: { id: data.arteId } }),
-      prisma.usuario.findUnique({ where: { id: data.autorId } }),
+      prisma.arte.findUnique({
+        where: { id: data.arteId },
+        select: { id: true, nome: true, autorId: true, projeto: { select: { designerId: true, clienteId: true } } },
+      }),
+      prisma.usuario.findUnique({ where: { id: data.autorId }, select: { id: true, nome: true } }),
     ])
     if (!arte) throw new Error('Arte não encontrada')
     if (!autor) throw new Error('Autor não encontrado')
-    return prisma.feedback.create({ data })
+
+    // Validate thread: parent must belong to the same arte
+    if (data.parentId) {
+      const parent = await prisma.feedback.findUnique({ where: { id: data.parentId }, select: { arteId: true } })
+      if (!parent || parent.arteId !== data.arteId) {
+        throw new Error('Feedback pai não encontrado ou pertence a outra arte')
+      }
+    }
+
+    const feedback = await prisma.feedback.create({ data })
+
+    // Notify the other party: if autor is the designer, notify the client (and vice-versa)
+    const proj = arte.projeto
+    const recipientId = data.autorId === proj.designerId ? proj.clienteId : proj.designerId
+    if (recipientId && recipientId !== data.autorId) {
+      const threadLabel = data.parentId ? 'respondeu a um comentário' : 'adicionou um feedback'
+      notificacaoService.dispatch(
+        recipientId,
+        'NOVO_FEEDBACK',
+        `Novo feedback em "${arte.nome}"`,
+        `${autor.nome} ${threadLabel} na arte "${arte.nome}".`,
+      )
+    }
+
+    return feedback
   }
 
   async createFeedbackComAudio(params: {
@@ -178,5 +206,25 @@ export class FeedbackService {
     const existing = await prisma.feedback.findUnique({ where: { id } })
     if (!existing) throw new Error('Feedback não encontrado')
     await prisma.feedback.delete({ where: { id } })
+  }
+
+  async resolverThread(id: string, resolvidoPorId: string) {
+    const feedback = await prisma.feedback.findUnique({ where: { id } })
+    if (!feedback) throw new Error('Feedback não encontrado')
+    if (feedback.resolvidoEm) throw new Error('Thread já está resolvida')
+    return prisma.feedback.update({
+      where: { id },
+      data: { resolvidoEm: new Date(), resolvidoPor: resolvidoPorId },
+    })
+  }
+
+  async reabrirThread(id: string) {
+    const feedback = await prisma.feedback.findUnique({ where: { id } })
+    if (!feedback) throw new Error('Feedback não encontrado')
+    if (!feedback.resolvidoEm) throw new Error('Thread não está resolvida')
+    return prisma.feedback.update({
+      where: { id },
+      data: { resolvidoEm: null, resolvidoPor: null },
+    })
   }
 }

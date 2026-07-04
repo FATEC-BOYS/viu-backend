@@ -73,6 +73,7 @@ export async function createFeedback(request: FastifyRequest, reply: FastifyRepl
       posicaoX: body.posicaoX,
       posicaoY: body.posicaoY,
       autorId: usuario.id,
+      parentId: body.parentId,
     }
     const feedback = await feedbackService.createFeedback(data)
     reply.status(201).send({ message: 'Feedback criado com sucesso', data: feedback, success: true })
@@ -215,5 +216,42 @@ export async function deleteFeedback(request: FastifyRequest, reply: FastifyRepl
       return
     }
     reply.status(500).send({ message: 'Erro ao remover feedback', success: false })
+  }
+}
+
+export async function resolverThread(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  try {
+    const { id } = request.params as { id: string }
+    const usuario = (request as any).usuario
+    const feedback = await feedbackService.resolverThread(id, usuario.id)
+    reply.send({ message: 'Thread resolvida com sucesso', data: feedback, success: true })
+  } catch (error: any) {
+    if (error.message.includes('não encontrado')) {
+      reply.status(404).send({ message: error.message, success: false })
+      return
+    }
+    if (error.message.includes('já está resolvida')) {
+      reply.status(409).send({ message: error.message, success: false })
+      return
+    }
+    reply.status(500).send({ message: 'Erro ao resolver thread', success: false })
+  }
+}
+
+export async function reabrirThread(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  try {
+    const { id } = request.params as { id: string }
+    const feedback = await feedbackService.reabrirThread(id)
+    reply.send({ message: 'Thread reaberta com sucesso', data: feedback, success: true })
+  } catch (error: any) {
+    if (error.message.includes('não encontrado')) {
+      reply.status(404).send({ message: error.message, success: false })
+      return
+    }
+    if (error.message.includes('não está resolvida')) {
+      reply.status(409).send({ message: error.message, success: false })
+      return
+    }
+    reply.status(500).send({ message: 'Erro ao reabrir thread', success: false })
   }
 }
