@@ -51,6 +51,7 @@ model Usuario {
   projetosDesigner Projeto[]       @relation("ProjetoDesigner")
   projetosCliente  Projeto[]       @relation("ProjetoCliente")
   artes            Arte[]          @relation("ArteAutor")
+  arteVersoes      ArteVersao[]    @relation("ArteVersaoCriador")
   feedbacks        Feedback[]      @relation("FeedbackAutor")
   aprovacoes       Aprovacao[]     @relation("AprovacaoAprovador")
   tarefas          Tarefa[]        @relation("TarefaResponsavel")
@@ -143,6 +144,7 @@ model Arte {
   feedbacks           Feedback[]          @relation("FeedbacksArte")
   aprovacoes          Aprovacao[]         @relation("AprovacoesArte")
   linksCompartilhados LinkCompartilhado[] @relation("LinksArte")
+  versoes             ArteVersao[]        @relation("ArteVersoes")
 
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
@@ -153,6 +155,25 @@ model Arte {
   @@index([tipo])
   @@index([criadoEm])
   @@map("artes")
+}
+
+// 📷 Versões de Arte
+model ArteVersao {
+  id        String   @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  numero    Int
+  arquivo   String
+  tipo      String
+  tamanho   BigInt
+  descricao String?
+  criadoEm  DateTime @default(now())
+
+  arteId      String
+  arte        Arte    @relation("ArteVersoes", fields: [arteId], references: [id], onDelete: Cascade)
+  criadoPorId String
+  criadoPor   Usuario @relation("ArteVersaoCriador", fields: [criadoPorId], references: [id], onDelete: Restrict)
+
+  @@index([arteId])
+  @@map("arte_versoes")
 }
 
 // 💬 Feedbacks
