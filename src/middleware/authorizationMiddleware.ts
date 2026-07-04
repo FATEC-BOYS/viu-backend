@@ -160,6 +160,16 @@ export async function requireProjectAccess(
         if (tarefa) {
           projetoId = tarefa.projetoId
           projeto = tarefa.projeto
+        } else {
+          // Tenta feedback (arte → projeto em dois níveis)
+          const feedback = await prisma.feedback.findUnique({
+            where: { id: params.id },
+            select: { arte: { select: { projetoId: true, projeto: { select: PROJETO_ACCESS_SELECT } } } },
+          })
+          if (feedback?.arte) {
+            projetoId = feedback.arte.projetoId
+            projeto = feedback.arte.projeto
+          }
         }
       }
     } else if (audioData?.fields?.arteId?.value) {
