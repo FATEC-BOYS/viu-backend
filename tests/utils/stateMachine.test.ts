@@ -26,12 +26,16 @@ function fail(label: string, map: Record<string, string[]>, from: string, to: st
 // ─── Projeto ─────────────────────────────────────────────────────────────────
 
 describe('Projeto', () => {
+  ok('Projeto', PROJETO_TRANSITIONS, 'RASCUNHO', 'EM_ANDAMENTO')
+  ok('Projeto', PROJETO_TRANSITIONS, 'RASCUNHO', 'CANCELADO')
   ok('Projeto', PROJETO_TRANSITIONS, 'EM_ANDAMENTO', 'PAUSADO')
   ok('Projeto', PROJETO_TRANSITIONS, 'EM_ANDAMENTO', 'CONCLUIDO')
   ok('Projeto', PROJETO_TRANSITIONS, 'EM_ANDAMENTO', 'CANCELADO')
   ok('Projeto', PROJETO_TRANSITIONS, 'PAUSADO', 'EM_ANDAMENTO')
   ok('Projeto', PROJETO_TRANSITIONS, 'PAUSADO', 'CANCELADO')
 
+  fail('Projeto', PROJETO_TRANSITIONS, 'RASCUNHO', 'PAUSADO')
+  fail('Projeto', PROJETO_TRANSITIONS, 'RASCUNHO', 'CONCLUIDO')
   fail('Projeto', PROJETO_TRANSITIONS, 'CONCLUIDO', 'EM_ANDAMENTO')
   fail('Projeto', PROJETO_TRANSITIONS, 'CONCLUIDO', 'PAUSADO')
   fail('Projeto', PROJETO_TRANSITIONS, 'CANCELADO', 'EM_ANDAMENTO')
@@ -135,7 +139,7 @@ describe('Disputa', () => {
 
 describe('assertValidTransition — status desconhecido', () => {
   it('lança erro para status de origem desconhecido', () => {
-    expect(() => assertValidTransition('Projeto', PROJETO_TRANSITIONS, 'RASCUNHO', 'EM_ANDAMENTO'))
+    expect(() => assertValidTransition('Projeto', PROJETO_TRANSITIONS, 'INVALIDO', 'EM_ANDAMENTO'))
       .toThrow('Status desconhecido')
   })
 })

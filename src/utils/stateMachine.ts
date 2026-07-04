@@ -13,6 +13,8 @@ type TransitionMap = Record<string, string[]>
 // ─── Definições de transição ─────────────────────────────────────────────────
 
 export const PROJETO_TRANSITIONS: TransitionMap = {
+  // RASCUNHO: aguardando aceite do convite pela outra parte
+  RASCUNHO:     ['EM_ANDAMENTO', 'CANCELADO'],
   EM_ANDAMENTO: ['PAUSADO', 'CONCLUIDO', 'CANCELADO'],
   PAUSADO:      ['EM_ANDAMENTO', 'CANCELADO'],
   CONCLUIDO:    [],

@@ -23,6 +23,7 @@ import { saquesRoutes } from './routes/saques.js'
 import { aceitesRoutes } from './routes/aceites.js'
 import { disputasRoutes } from './routes/disputas.js'
 import { equipesRoutes } from './routes/equipes.js'
+import { convitesRoutes } from './routes/convites.js'
 import { setupErrorHandler } from './middleware/errorHandlerMiddleware.js'
 import { auditLogMiddleware } from './middleware/auditLogMiddleware.js'
 import { auditLogService } from './services/auditLogService.js'
@@ -133,6 +134,7 @@ export async function buildServer() {
   await app.register(aceitesRoutes)
   await app.register(disputasRoutes)
   await app.register(equipesRoutes)
+  await app.register(convitesRoutes)
 
   return app
 }
