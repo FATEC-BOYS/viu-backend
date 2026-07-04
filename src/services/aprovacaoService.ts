@@ -44,14 +44,22 @@ export class AprovacaoService {
     return { aprovacoes, total }
   }
 
-  async getAprovacaoById(id: string) {
-    return prisma.aprovacao.findUnique({
+  async getAprovacaoById(id: string, requesterId: string, isAdmin: boolean) {
+    const aprovacao = await prisma.aprovacao.findUnique({
       where: { id, deletedAt: null },
       include: {
-        arte: { select: { id: true, nome: true } },
+        arte: { select: { id: true, nome: true, projetoId: true, projeto: { select: { designerId: true, clienteId: true } } } },
         aprovador: { select: { id: true, nome: true, avatar: true } },
       },
     })
+    if (!aprovacao) return null
+    if (!isAdmin) {
+      const proj = aprovacao.arte?.projeto
+      if (!proj || (proj.designerId !== requesterId && proj.clienteId !== requesterId)) {
+        throw new Error('Acesso negado')
+      }
+    }
+    return aprovacao
   }
 
   async createAprovacao(data: {
