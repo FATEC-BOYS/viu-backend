@@ -5,20 +5,19 @@ import {
   getNotificacaoById,
   createNotificacao,
   markNotificacaoAsRead,
+  markAllNotificacoesAsRead,
   deleteNotificacao,
 } from '../controllers/notificacaoController.js'
 import { authenticate } from '../middleware/authMiddleware.js'
 import { requireRole } from '../middleware/authorizationMiddleware.js'
 
 export async function notificacoesRoutes(fastify: FastifyInstance) {
-  // Listar notificações do usuário autenticado
   fastify.get('/notificacoes', { preHandler: [authenticate] }, listNotificacoes)
-  // Buscar notificação específica do usuário
   fastify.get('/notificacoes/:id', { preHandler: [authenticate] }, getNotificacaoById)
-  // Criar notificação — restrito a ADMIN para evitar phishing interno
+  // Admin-only: direct creation for system messages
   fastify.post('/notificacoes', { preHandler: [authenticate, requireRole('ADMIN')] }, createNotificacao)
-  // Marcar notificação como lida/não lida
   fastify.put('/notificacoes/:id/lida', { preHandler: [authenticate] }, markNotificacaoAsRead)
-  // Excluir notificação do usuário
+  // Mark all as read in one shot — used by notification bell "mark all read"
+  fastify.put('/notificacoes/lidas/todas', { preHandler: [authenticate] }, markAllNotificacoesAsRead)
   fastify.delete('/notificacoes/:id', { preHandler: [authenticate] }, deleteNotificacao)
 }

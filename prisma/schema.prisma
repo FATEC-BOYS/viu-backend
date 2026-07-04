@@ -170,6 +170,14 @@ model Feedback {
   // false = comentário interno (não aparece em links públicos de revisão)
   publico Boolean @default(true)
 
+  // Threading: respostas a outro feedback na mesma arte
+  parentId     String?
+  parent       Feedback?  @relation("FeedbackThread", fields: [parentId], references: [id], onDelete: SetNull)
+  respostas    Feedback[] @relation("FeedbackThread")
+  // Thread fechada por um líder/revisor
+  resolvidoEm  DateTime?
+  resolvidoPor String?
+
   arteId  String
   arte    Arte    @relation("FeedbacksArte", fields: [arteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   autorId String
@@ -180,6 +188,7 @@ model Feedback {
   @@index([arteId])
   @@index([autorId])
   @@index([tipo])
+  @@index([parentId])
   @@index([criadoEm])
   @@map("feedbacks")
 }

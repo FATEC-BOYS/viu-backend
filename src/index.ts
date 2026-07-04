@@ -3,6 +3,7 @@ import './config/env.js'
 
 import fastify from 'fastify'
 import { fileURLToPath } from 'url'
+import { randomUUID } from 'crypto'
 import { projetosRoutes } from './routes/projetos.js'
 import { usuariosRoutes } from './routes/usuarios.js'
 import { artesRoutes } from './routes/artes.js'
@@ -37,7 +38,26 @@ const __filename = fileURLToPath(import.meta.url)
 
 export async function buildServer() {
   const app = fastify({
-    logger: true,
+    logger: {
+      level: process.env.LOG_LEVEL || 'info',
+      serializers: {
+        req(request) {
+          return {
+            method: request.method,
+            url: request.url,
+            hostname: request.hostname,
+            remoteAddress: request.ip,
+            requestId: request.id,
+          }
+        },
+        res(reply) {
+          return { statusCode: reply.statusCode }
+        },
+      },
+    },
+    genReqId: () => randomUUID(),
+    requestIdHeader: 'x-request-id',
+    requestIdLogLabel: 'requestId',
     bodyLimit: 10 * 1024 * 1024,
     maxParamLength: 500,
   })
@@ -91,6 +111,11 @@ export async function buildServer() {
       },
     },
     crossOriginEmbedderPolicy: false,
+  })
+
+  // Propagate request ID back to clients for log correlation
+  app.addHook('onSend', async (request, reply) => {
+    reply.header('x-request-id', request.id)
   })
 
   app.addHook('preHandler', auditLogMiddleware)

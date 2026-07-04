@@ -1,5 +1,6 @@
 import prisma from '../database/client.js'
 import { assertValidTransition, APROVACAO_TRANSITIONS } from '../utils/stateMachine.js'
+import { notificacaoService } from './notificacaoService.js'
 
 export interface ListAprovacoesParams {
   page?: number
@@ -85,7 +86,7 @@ export class AprovacaoService {
       throw new Error('O autor não pode aprovar a própria arte')
     }
 
-    return prisma.aprovacao.create({
+    const aprovacao = await prisma.aprovacao.create({
       data: {
         arteId: data.arteId,
         status: data.status,
@@ -93,6 +94,19 @@ export class AprovacaoService {
         aprovadorId: data.aprovadorId,
       },
     })
+
+    // Notify the designer of the decision
+    if (arte.autorId && (data.status === 'APROVADO' || data.status === 'REJEITADO')) {
+      const statusLabel = data.status === 'APROVADO' ? 'aprovada ✅' : 'rejeitada ❌'
+      notificacaoService.dispatch(
+        arte.autorId,
+        data.status === 'APROVADO' ? 'ARTE_APROVADA' : 'ARTE_REJEITADA',
+        `Arte ${statusLabel}`,
+        `A arte "${arte.nome}" foi ${statusLabel} pelo cliente.${data.comentario ? ` Comentário: ${data.comentario}` : ''}`,
+      )
+    }
+
+    return aprovacao
   }
 
   async updateAprovacao(id: string, updateData: { status?: string; comentario?: string }, userId: string) {

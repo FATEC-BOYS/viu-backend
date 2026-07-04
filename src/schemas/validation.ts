@@ -130,6 +130,7 @@ export const CreateFeedbackRequestSchema = z.object({
   arteId: z.string().cuid('ID da arte inválido'),
   posicaoX: z.number().optional(),
   posicaoY: z.number().optional(),
+  parentId: z.string().cuid('ID do feedback pai inválido').optional(),
 });
 
 // ===== SCHEMAS DE TAREFA =====
