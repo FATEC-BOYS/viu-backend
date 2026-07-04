@@ -1,6 +1,7 @@
 import prisma from '../database/client.js'
 import { mpPayment } from './mercadoPagoService.js'
 import { formatCurrency, formatDate } from '../utils/formatters.js'
+import { PAGAMENTO_TRANSITIONS, FATURA_TRANSITIONS } from '../utils/stateMachine.js'
 
 const MP_PAYMENT_STATUS_MAP: Record<string, string> = {
   pending: 'PENDENTE',
@@ -25,23 +26,37 @@ export class PagamentoService {
     })
     if (!pagamento) return
 
+    // Webhook may deliver duplicate or out-of-order events; skip invalid transitions silently
+    // (the gateway is authoritative — log and move on rather than erroring the webhook response)
+    const allowedNext = PAGAMENTO_TRANSITIONS[pagamento.status] ?? []
+    if (status !== pagamento.status && !allowedNext.includes(status)) {
+      console.warn(`[pagamento] transição ignorada: ${pagamento.status} → ${status} (id=${pagamento.id})`)
+      return
+    }
+
     await prisma.pagamento.update({
       where: { id: pagamento.id },
       data: { status, mpStatus: payment.status ?? null, metodoPagamento },
     })
 
     if (status === 'APROVADO' && pagamento.faturaId) {
-      await prisma.fatura.update({
-        where: { id: pagamento.faturaId },
-        data: { status: 'PAGA', dataPagamento: new Date() },
-      })
+      const fatura = await prisma.fatura.findUnique({ where: { id: pagamento.faturaId }, select: { status: true } })
+      if (fatura && (FATURA_TRANSITIONS[fatura.status] ?? []).includes('PAGA')) {
+        await prisma.fatura.update({
+          where: { id: pagamento.faturaId },
+          data: { status: 'PAGA', dataPagamento: new Date() },
+        })
+      }
     }
 
     if (status === 'ESTORNADO' && pagamento.faturaId) {
-      await prisma.fatura.update({
-        where: { id: pagamento.faturaId },
-        data: { status: 'ESTORNADA' },
-      })
+      const fatura = await prisma.fatura.findUnique({ where: { id: pagamento.faturaId }, select: { status: true } })
+      if (fatura && (FATURA_TRANSITIONS[fatura.status] ?? []).includes('ESTORNADA')) {
+        await prisma.fatura.update({
+          where: { id: pagamento.faturaId },
+          data: { status: 'ESTORNADA' },
+        })
+      }
     }
   }
 

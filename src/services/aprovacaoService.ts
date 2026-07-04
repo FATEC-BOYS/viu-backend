@@ -1,4 +1,5 @@
 import prisma from '../database/client.js'
+import { assertValidTransition, APROVACAO_TRANSITIONS } from '../utils/stateMachine.js'
 
 export interface ListAprovacoesParams {
   page?: number
@@ -98,7 +99,10 @@ export class AprovacaoService {
     }
 
     const allowedUpdate: Record<string, any> = {}
-    if (updateData.status !== undefined) allowedUpdate.status = updateData.status
+    if (updateData.status !== undefined) {
+      assertValidTransition('Aprovação', APROVACAO_TRANSITIONS, existing.status, updateData.status)
+      allowedUpdate.status = updateData.status
+    }
     if (updateData.comentario !== undefined) allowedUpdate.comentario = updateData.comentario
 
     return prisma.aprovacao.update({ where: { id }, data: allowedUpdate })
