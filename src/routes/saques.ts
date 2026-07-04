@@ -17,7 +17,11 @@ import { SolicitarSaqueSchema, CadastrarChavePixSchema } from '../schemas/valida
 export async function saquesRoutes(fastify: FastifyInstance) {
   fastify.get('/saques/saldo', { preHandler: [authenticate] }, getSaldoHandler)
   fastify.get('/saques', { preHandler: [authenticate] }, listarSaquesHandler)
-  fastify.post('/saques', { preHandler: [authenticate, validateBody(SolicitarSaqueSchema)] }, solicitarSaqueHandler)
+  fastify.post('/saques', {
+    // Saques são operações financeiras raras — 5/hora previne automação abusiva
+    config: { rateLimit: { max: 5, timeWindow: '1 hour' } },
+    preHandler: [authenticate, validateBody(SolicitarSaqueSchema)],
+  }, solicitarSaqueHandler)
   fastify.get('/chaves-pix', { preHandler: [authenticate] }, listarChavesPixHandler)
   fastify.post('/chaves-pix', { preHandler: [authenticate, validateBody(CadastrarChavePixSchema)] }, cadastrarChavePixHandler)
   fastify.delete('/chaves-pix/:id', { preHandler: [authenticate] }, removerChavePixHandler)

@@ -202,7 +202,36 @@ export class UsuarioService {
     if (!existingUser) {
       throw new Error('Usuário não encontrado')
     }
-    await prisma.usuario.update({ where: { id }, data: { ativo: false } })
+
+    // LGPD Art. 18 IV: anonimiza PII em vez de deletar fisicamente.
+    // Email único: usa deleted+<id>@removed.viu.app para preservar a constraint.
+    // Registros financeiros e contratuais permanecem intactos (obrigação fiscal de 5 anos).
+    await prisma.$transaction([
+      prisma.usuario.update({
+        where: { id },
+        data: {
+          ativo: false,
+          nome: 'Usuário Removido',
+          email: `deleted+${id}@removed.viu.app`,
+          telefone: null,
+          avatar: null,
+          senha: null,
+          emailVerificado: false,
+          emailVerificacaoToken: null,
+          emailVerificacaoExpiresAt: null,
+          passwordResetToken: null,
+          passwordResetExpiresAt: null,
+          twoFactorEnabled: false,
+          twoFactorSecret: null,
+          twoFactorBackupCodes: [],
+        },
+      }),
+      // Invalida todas as sessões ativas
+      prisma.sessao.updateMany({
+        where: { usuarioId: id, ativo: true },
+        data: { ativo: false },
+      }),
+    ])
   }
 
   async login(loginData: any) {

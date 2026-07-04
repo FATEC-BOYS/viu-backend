@@ -2,6 +2,7 @@ import { FastifyRequest, FastifyReply } from 'fastify'
 import { UsuarioService, ListUsuariosParams } from '../services/usuarioService.js'
 import { sendVerificationEmail } from '../services/emailVerificationService.js'
 import { uploadFile, signPath } from '../utils/storage.js'
+import { auditLogService } from '../services/auditLogService.js'
 
 const usuarioService = new UsuarioService()
 
@@ -77,14 +78,25 @@ export async function updateUsuario(request: FastifyRequest, reply: FastifyReply
 export async function deactivateUsuario(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
     const { id } = request.params as { id: string }
+    const actor = (request as any).usuario
     await usuarioService.deactivateUsuario(id)
-    reply.send({ message: 'Usuário desativado com sucesso', success: true })
+
+    // LGPD: registra anonimização com IP e user-agent do solicitante
+    auditLogService.logSuccess('LGPD_ANONIMIZAR', 'Usuario', {
+      resourceId: id,
+      usuarioId: actor?.id,
+      ipAddress: request.ip,
+      userAgent: request.headers['user-agent'],
+      details: { solicitadoPor: actor?.id, solicitadoParaId: id },
+    }).catch(() => {})
+
+    reply.send({ message: 'Conta removida e dados anonimizados', success: true })
   } catch (error: any) {
     if (error.message.includes('Usuário não encontrado')) {
       reply.status(404).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao desativar usuário', success: false })
+    reply.status(500).send({ message: 'Erro ao remover conta', success: false })
   }
 }
 

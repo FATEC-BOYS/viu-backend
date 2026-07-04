@@ -56,6 +56,26 @@ function mapRouteToAudit(
   if (url.includes('/password/change')) return { action: 'PASSWORD_CHANGE', resource: 'Usuario' }
   if (url.includes('/password/reset')) return { action: 'PASSWORD_RESET', resource: 'Usuario' }
 
+  if (url.includes('/saques')) {
+    if (method === 'POST') return { action: 'SAQUE_SOLICITADO', resource: 'Saque' }
+    if (method === 'PUT') return { action: 'SAQUE_PROCESSADO', resource: 'Saque' }
+  }
+
+  if (url.includes('/pagamentos')) {
+    if (method === 'POST') return { action: 'PAGAMENTO_PROCESSADO', resource: 'Pagamento' }
+  }
+
+  // Alteração de papel em equipe: PUT /equipes/:id/membros/:usuarioId
+  if (url.includes('/membros/') && (method === 'PUT' || method === 'PATCH')) {
+    return { action: 'PAPEL_ALTERADO', resource: 'Equipe' }
+  }
+
+  if (url.includes('/convites')) {
+    if (method === 'POST' && url.includes('/aceitar')) return { action: 'ACEITAR_CONVITE', resource: 'Convite' }
+    if (method === 'POST' && url.includes('/recusar')) return { action: 'RECUSAR_CONVITE', resource: 'Convite' }
+    if (method === 'POST') return { action: 'CRIAR_CONVITE', resource: 'Convite' }
+  }
+
   return null
 }
 
