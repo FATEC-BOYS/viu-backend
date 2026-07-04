@@ -22,6 +22,7 @@ export class AprovacaoService {
   }: ListAprovacoesParams) {
     const skip = (page - 1) * limit
     const where: any = {
+      deletedAt: null,
       ...(arteId && { arteId }),
       ...(aprovadorId && { aprovadorId }),
       ...(status && { status }),
@@ -45,7 +46,7 @@ export class AprovacaoService {
 
   async getAprovacaoById(id: string) {
     return prisma.aprovacao.findUnique({
-      where: { id },
+      where: { id, deletedAt: null },
       include: {
         arte: { select: { id: true, nome: true } },
         aprovador: { select: { id: true, nome: true, avatar: true } },
@@ -88,7 +89,7 @@ export class AprovacaoService {
 
   async updateAprovacao(id: string, updateData: { status?: string; comentario?: string }, userId: string) {
     const existing = await prisma.aprovacao.findUnique({
-      where: { id },
+      where: { id, deletedAt: null },
       include: { arte: { include: { projeto: { select: { clienteId: true } } } } },
     })
     if (!existing) throw new Error('Aprovação não encontrada')
@@ -109,13 +110,13 @@ export class AprovacaoService {
   }
 
   async deleteAprovacao(id: string, userId: string, isAdmin: boolean) {
-    const existing = await prisma.aprovacao.findUnique({ where: { id } })
+    const existing = await prisma.aprovacao.findUnique({ where: { id, deletedAt: null } })
     if (!existing) throw new Error('Aprovação não encontrada')
 
     if (!isAdmin && existing.aprovadorId !== userId) {
       throw new Error('Acesso negado: você não pode excluir esta aprovação')
     }
 
-    await prisma.aprovacao.delete({ where: { id } })
+    await prisma.aprovacao.update({ where: { id }, data: { deletedAt: new Date() } })
   }
 }
