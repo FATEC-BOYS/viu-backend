@@ -76,6 +76,12 @@ function mapRouteToAudit(
     if (method === 'POST') return { action: 'CRIAR_CONVITE', resource: 'Convite' }
   }
 
+  if (url.includes('/equipes') && url.includes('/convites')) {
+    if (method === 'POST' && url.includes('/aceitar')) return { action: 'ACEITAR_CONVITE', resource: 'Equipe' }
+    if (method === 'POST' && url.includes('/recusar')) return { action: 'RECUSAR_CONVITE', resource: 'Equipe' }
+    if (method === 'POST') return { action: 'CRIAR_CONVITE', resource: 'Equipe' }
+  }
+
   return null
 }
 

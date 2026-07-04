@@ -77,6 +77,9 @@ model Usuario {
   convitesRecebidos ConviteProjeto[] @relation("ConviteConvidado")
   convitesEnviados  ConviteProjeto[] @relation("ConviteConvidadoPor")
 
+  equipeConvitesRecebidos EquipeConvite[] @relation("EquipeConviteConvidado")
+  equipeConvitesEnviados  EquipeConvite[] @relation("EquipeConviteConvidadoPor")
+
   ledgerEntries LedgerEntry[] @relation("LedgerDesigner")
 
   @@index([email])
@@ -186,6 +189,8 @@ model Aprovacao {
   id         String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
   status     String  @default("PENDENTE")
   comentario String?
+  // Soft delete: registros de aprovação são evidência contratual — nunca deletados fisicamente
+  deletedAt  DateTime?
 
   arteId      String
   arte        Arte    @relation("AprovacoesArte", fields: [arteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -197,6 +202,7 @@ model Aprovacao {
   @@index([arteId])
   @@index([aprovadorId])
   @@index([status])
+  @@index([deletedAt])
   @@index([criadoEm])
   @@map("aprovacoes")
 }
@@ -564,6 +570,7 @@ model Equipe {
 
   membros  EquipeMembro[]
   projetos Projeto[]
+  convites EquipeConvite[]
 
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
@@ -628,6 +635,33 @@ model WebhookLog {
   @@index([status])
   @@index([criadoEm])
   @@map("webhook_logs")
+}
+
+// ====== CONVITES DE EQUIPE ======
+
+model EquipeConvite {
+  id        String   @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  tokenHash String   @unique
+  // PENDENTE | ACEITO | RECUSADO | CANCELADO | EXPIRADO
+  status    String   @default("PENDENTE")
+  // Papel proposto: LIDER | DESIGNER | REVISOR | CLIENTE
+  papel     String
+  expiraEm  DateTime
+
+  equipeId       String
+  equipe         Equipe  @relation(fields: [equipeId], references: [id], onDelete: Cascade)
+  convidadoId    String
+  convidado      Usuario @relation("EquipeConviteConvidado", fields: [convidadoId], references: [id], onDelete: Cascade)
+  convidadoPorId String
+  convidadoPor   Usuario @relation("EquipeConviteConvidadoPor", fields: [convidadoPorId], references: [id], onDelete: Cascade)
+
+  criadoEm    DateTime  @default(now())
+  respondidoEm DateTime?
+
+  @@index([equipeId])
+  @@index([convidadoId])
+  @@index([status])
+  @@map("equipe_convites")
 }
 
 // ====== CONVITES DE PROJETO ======
