@@ -74,6 +74,9 @@ model Usuario {
   equipesComoDono Equipe[]       @relation("EquipeDono")
   equipesMembro   EquipeMembro[]
 
+  convitesRecebidos ConviteProjeto[] @relation("ConviteConvidado")
+  convitesEnviados  ConviteProjeto[] @relation("ConviteConvidadoPor")
+
   @@index([email])
   @@index([tipo])
   @@index([ativo])
@@ -103,6 +106,7 @@ model Projeto {
   faturas  Fatura[] @relation("FaturasProjeto")
   aceites  AceiteContratual[]
   disputas Disputa[]
+  convites ConviteProjeto[]
 
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
@@ -580,4 +584,30 @@ model EquipeMembro {
   @@id([equipeId, usuarioId])
   @@index([usuarioId])
   @@map("equipe_membros")
+}
+
+// ====== CONVITES DE PROJETO ======
+
+model ConviteProjeto {
+  id        String   @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  // SHA-256 do token raw — token raw nunca é persistido
+  tokenHash String   @unique
+  // PENDENTE | ACEITO | RECUSADO | CANCELADO | EXPIRADO
+  status    String   @default("PENDENTE")
+  expiraEm  DateTime
+
+  projetoId      String
+  projeto        Projeto @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  convidadoId    String
+  convidado      Usuario @relation("ConviteConvidado", fields: [convidadoId], references: [id], onDelete: Cascade)
+  convidadoPorId String
+  convidadoPor   Usuario @relation("ConviteConvidadoPor", fields: [convidadoPorId], references: [id], onDelete: Cascade)
+
+  criadoEm    DateTime @default(now())
+  respondidoEm DateTime?
+
+  @@index([projetoId])
+  @@index([convidadoId])
+  @@index([status])
+  @@map("convites_projeto")
 }

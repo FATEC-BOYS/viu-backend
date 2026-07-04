@@ -3,6 +3,7 @@ import { ProjetoService, ListProjetosParams } from '../services/projetoService.j
 import { evaluateBriefing } from '../services/evalForgeService.js'
 import { AceiteService } from '../services/aceiteService.js'
 import { isMembroEquipe } from '../services/equipeService.js'
+import { criarConvite } from '../services/conviteService.js'
 
 const projetoService = new ProjetoService()
 const aceiteService = new AceiteService()
@@ -109,7 +110,20 @@ export async function createProjeto(request: FastifyRequest, reply: FastifyReply
       return
     }
 
-    const projeto = await projetoService.createProjeto(body)
+    // Non-admins start a project in RASCUNHO; the other party must accept the invite.
+    // Admins can pass any status (or default to whatever the service sets).
+    const isAdmin = usuario?.tipo === 'ADMIN'
+    const projetoData = isAdmin ? body : { ...body, status: 'RASCUNHO' }
+
+    const projeto = await projetoService.createProjeto(projetoData)
+
+    // Send invite to the other party so they confirm participation.
+    if (!isAdmin) {
+      const convidadoId = usuario.tipo === 'DESIGNER' ? projeto.clienteId : projeto.designerId
+      criarConvite(projeto.id, convidadoId, usuario.id).catch(
+        (err) => console.error('[PROJETO] Falha ao criar convite automático:', err),
+      )
+    }
 
     // Record electronic contract acceptance (Lei 14.063/20)
     if (body.aceiteTermos === true && usuario?.id) {
