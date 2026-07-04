@@ -1,5 +1,6 @@
 import prisma from '../database/client.js'
 import { formatCurrency, formatDate } from '../utils/formatters.js'
+import { assertValidTransition, SAQUE_TRANSITIONS } from '../utils/stateMachine.js'
 
 const VALOR_MINIMO_SAQUE = 500 // R$ 5,00 em centavos
 
@@ -90,6 +91,32 @@ export class SaqueService {
     )
   }
 
+  // Admin: avança status do saque através da state machine.
+  // Quando → CONCLUIDO, grava LedgerEntry de DEBITO atomicamente.
+  async processarSaque(id: string, novoStatus: string) {
+    const saque = await prisma.saque.findUnique({ where: { id } })
+    if (!saque) throw new Error('Saque não encontrado')
+    assertValidTransition('Saque', SAQUE_TRANSITIONS, saque.status, novoStatus)
+
+    if (novoStatus === 'CONCLUIDO') {
+      const [saqueAtualizado] = await prisma.$transaction([
+        prisma.saque.update({ where: { id }, data: { status: novoStatus } }),
+        prisma.ledgerEntry.create({
+          data: {
+            tipo: 'DEBITO',
+            valor: saque.valor,
+            descricao: 'Saque concluído',
+            referencia: `saque:${id}`,
+            designerId: saque.designerId,
+          },
+        }),
+      ])
+      return saqueAtualizado
+    }
+
+    return prisma.saque.update({ where: { id }, data: { status: novoStatus } })
+  }
+
   async listarSaques(designerId: string) {
     const saques = await prisma.saque.findMany({
       where: { designerId },
@@ -102,6 +129,37 @@ export class SaqueService {
       criadoEmFormatado: formatDate(s.criadoEm),
     }))
   }
+
+  async listarSaquesAdmin(filtros: { status?: string; designerId?: string }) {
+    const saques = await prisma.saque.findMany({
+      where: {
+        ...(filtros.status ? { status: filtros.status } : {}),
+        ...(filtros.designerId ? { designerId: filtros.designerId } : {}),
+      },
+      include: {
+        chavePix: true,
+        designer: { select: { id: true, nome: true, email: true } },
+      },
+      orderBy: { criadoEm: 'desc' },
+    })
+    return saques.map((s) => ({
+      ...s,
+      valorFormatado: formatCurrency(s.valor),
+      criadoEmFormatado: formatDate(s.criadoEm),
+    }))
+  }
+
+  async listarLedger(designerId: string) {
+    const entries = await prisma.ledgerEntry.findMany({
+      where: { designerId },
+      orderBy: { criadoEm: 'desc' },
+    })
+    return entries.map((e) => ({
+      ...e,
+      valorFormatado: formatCurrency(e.valor),
+      criadoEmFormatado: formatDate(e.criadoEm),
+    }))
+  }
 }
 
 const _svc = new SaqueService()
@@ -110,4 +168,7 @@ export const cadastrarChavePix = (...args: Parameters<SaqueService['cadastrarCha
 export const removerChavePix = (...args: Parameters<SaqueService['removerChavePix']>) => _svc.removerChavePix(...args)
 export const getSaldoDisponivel = (...args: Parameters<SaqueService['getSaldoDisponivel']>) => _svc.getSaldoDisponivel(...args)
 export const solicitarSaque = (...args: Parameters<SaqueService['solicitarSaque']>) => _svc.solicitarSaque(...args)
+export const processarSaque = (...args: Parameters<SaqueService['processarSaque']>) => _svc.processarSaque(...args)
 export const listarSaques = (...args: Parameters<SaqueService['listarSaques']>) => _svc.listarSaques(...args)
+export const listarSaquesAdmin = (...args: Parameters<SaqueService['listarSaquesAdmin']>) => _svc.listarSaquesAdmin(...args)
+export const listarLedger = (...args: Parameters<SaqueService['listarLedger']>) => _svc.listarLedger(...args)

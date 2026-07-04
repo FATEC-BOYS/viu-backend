@@ -5,7 +5,10 @@ import {
   removerChavePix,
   getSaldoDisponivel,
   solicitarSaque,
+  processarSaque,
   listarSaques,
+  listarSaquesAdmin,
+  listarLedger,
 } from '../services/saqueService.js'
 
 export async function listarChavesPixHandler(
@@ -111,5 +114,76 @@ export async function listarSaquesHandler(
     reply.send({ data: saques, success: true })
   } catch {
     reply.status(500).send({ message: 'Erro ao buscar saques', success: false })
+  }
+}
+
+export async function listarSaquesAdminHandler(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  try {
+    const usuario = (request as any).usuario
+    if (usuario.tipo !== 'ADMIN') {
+      reply.status(403).send({ message: 'Acesso restrito a administradores', success: false })
+      return
+    }
+    const { status, designerId } = (request.query || {}) as any
+    const saques = await listarSaquesAdmin({ status, designerId })
+    reply.send({ data: saques, success: true })
+  } catch {
+    reply.status(500).send({ message: 'Erro ao buscar saques', success: false })
+  }
+}
+
+export async function processarSaqueHandler(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  try {
+    const usuario = (request as any).usuario
+    if (usuario.tipo !== 'ADMIN') {
+      reply.status(403).send({ message: 'Acesso restrito a administradores', success: false })
+      return
+    }
+    const { id } = request.params as { id: string }
+    const { status } = request.body as { status: string }
+    if (!status) {
+      reply.status(400).send({ message: 'status é obrigatório', success: false })
+      return
+    }
+    const saque = await processarSaque(id, status)
+    reply.send({ data: saque, success: true })
+  } catch (error: any) {
+    if (error.message.includes('não encontrado')) {
+      reply.status(404).send({ message: error.message, success: false })
+      return
+    }
+    if (error.message.includes('Transição inválida') || error.message.includes('terminal') || error.message.includes('desconhecido')) {
+      reply.status(400).send({ message: error.message, success: false })
+      return
+    }
+    reply.status(500).send({ message: 'Erro ao processar saque', success: false })
+  }
+}
+
+export async function listarLedgerHandler(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  try {
+    const usuario = (request as any).usuario
+    const { designerId } = request.params as { designerId?: string }
+
+    // Non-admins can only see their own ledger
+    const targetId = usuario.tipo === 'ADMIN' && designerId ? designerId : usuario.id
+    if (usuario.tipo !== 'ADMIN' && designerId && designerId !== usuario.id) {
+      reply.status(403).send({ message: 'Acesso negado', success: false })
+      return
+    }
+
+    const entries = await listarLedger(targetId)
+    reply.send({ data: entries, success: true })
+  } catch {
+    reply.status(500).send({ message: 'Erro ao buscar extrato', success: false })
   }
 }
