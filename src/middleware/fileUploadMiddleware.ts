@@ -204,6 +204,64 @@ export async function validateAudioUpload(
   }
 }
 
+// Validates an arte version upload (new file for an existing arte).
+// Simpler than validateArteUpload: no nome/projetoId fields required.
+export async function validateArteVersaoUpload(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  try {
+    const data = await request.file()
+    if (!data) {
+      return reply.status(400).send({ message: 'Nenhum arquivo fornecido', success: false })
+    }
+
+    const mimeType = data.mimetype
+    const extension = path.extname(data.filename)
+
+    if (!validateMimeType(mimeType, extension)) {
+      return reply.status(400).send({
+        message: 'Tipo de arquivo não permitido',
+        success: false,
+        allowedTypes: Object.keys(ALLOWED_MIME_TYPES),
+      })
+    }
+
+    const fields = data.fields as Record<string, any> | undefined
+
+    const buffer = await data.toBuffer()
+    const fileSize = buffer.length
+    const category = getFileCategory(mimeType)
+
+    if (!validateFileSize(fileSize, category)) {
+      return reply.status(400).send({
+        message: `Arquivo muito grande. Máximo para ${category}: ${FILE_SIZE_LIMITS[category] / (1024 * 1024)}MB`,
+        success: false,
+      })
+    }
+
+    if (!checkMagicBytes(buffer, mimeType)) {
+      return reply.status(400).send({
+        message: 'Conteúdo do arquivo não corresponde ao tipo declarado',
+        success: false,
+      })
+    }
+
+    ;(request as any).arteUploadData = {
+      filename: sanitizeFilename(data.filename),
+      mimetype: mimeType,
+      buffer,
+      size: fileSize,
+      category,
+      fields: {
+        descricao: fields?.descricao?.value?.trim() || null,
+      },
+    }
+  } catch {
+    return reply.status(500).send({ message: 'Erro ao validar arquivo da versão', success: false })
+  }
+}
+
 export async function validateArteUpload(
   request: FastifyRequest,
   reply: FastifyReply,

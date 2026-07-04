@@ -16,6 +16,10 @@ function mapRouteToAudit(
   }
 
   if (url.includes('/artes')) {
+    if (url.includes('/versoes')) {
+      if (method === 'POST' && url.includes('/restaurar')) return { action: 'RESTAURAR_VERSAO_ARTE', resource: 'ArteVersao' }
+      if (method === 'POST') return { action: 'CREATE_VERSAO_ARTE', resource: 'ArteVersao' }
+    }
     // GET /artes/:id = download de arte (signed URL)
     if (method === 'GET' && /\/artes\/[^/]+$/.test(url)) return { action: 'DOWNLOAD_ARTE', resource: 'Arte' }
     if (method === 'POST') return { action: 'CREATE_ARTE', resource: 'Arte' }
