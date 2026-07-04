@@ -1,6 +1,7 @@
 import prisma from '../database/client.js'
 import { mpPayment } from './mercadoPagoService.js'
 import { formatCurrency, formatDate } from '../utils/formatters.js'
+import { assertValidTransition, FATURA_TRANSITIONS } from '../utils/stateMachine.js'
 
 const TAXA_PADRAO = 0.10
 
@@ -146,7 +147,7 @@ export class FaturaService {
   async cancelarFatura(id: string, requesterId: string) {
     const fatura = await prisma.fatura.findUnique({ where: { id } })
     if (!fatura) throw new Error('Fatura não encontrada')
-    if (fatura.status !== 'PENDENTE') throw new Error('Apenas faturas pendentes podem ser canceladas')
+    assertValidTransition('Fatura', FATURA_TRANSITIONS, fatura.status, 'CANCELADA')
 
     const requester = await prisma.usuario.findUnique({ where: { id: requesterId } })
     if (fatura.designerId !== requesterId && requester?.tipo !== 'ADMIN') {

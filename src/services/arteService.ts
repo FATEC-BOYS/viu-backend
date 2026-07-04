@@ -8,6 +8,7 @@
  */
 
 import prisma from '../database/client.js'
+import { assertValidTransition, ARTE_TRANSITIONS } from '../utils/stateMachine.js'
 
 export interface ListArtesParams {
   page?: number
@@ -122,6 +123,11 @@ export class ArteService {
     if (!existingArte) {
       throw new Error('Arte não encontrada')
     }
+
+    if (updateData.status && updateData.status !== existingArte.status) {
+      assertValidTransition('Arte', ARTE_TRANSITIONS, existingArte.status, updateData.status)
+    }
+
     const arte = await prisma.arte.update({ where: { id }, data: updateData })
     return arte
   }

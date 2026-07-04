@@ -1,4 +1,5 @@
 import prisma from '../database/client.js'
+import { assertValidTransition, DISPUTA_TRANSITIONS } from '../utils/stateMachine.js'
 
 export type DisputaTipo = 'CALOTE' | 'ENTREGA_INCOMPLETA' | 'FRAUDE' | 'OUTRO'
 export type DisputaStatus = 'ABERTA' | 'EM_ANALISE' | 'RESOLVIDA_DESIGNER' | 'RESOLVIDA_CLIENTE' | 'ESCALADA'
@@ -100,9 +101,7 @@ export class DisputaService {
 
     const disputa = await prisma.disputa.findUnique({ where: { id } })
     if (!disputa) throw new Error('Disputa não encontrada')
-    if (disputa.status !== 'ABERTA' && disputa.status !== 'EM_ANALISE') {
-      throw new Error('Disputa já foi resolvida')
-    }
+    assertValidTransition('Disputa', DISPUTA_TRANSITIONS, disputa.status, data.status)
 
     return prisma.disputa.update({
       where: { id },
@@ -120,6 +119,9 @@ export class DisputaService {
   }
 
   async moverParaAnalise(id: string) {
+    const disputa = await prisma.disputa.findUnique({ where: { id }, select: { status: true } })
+    if (!disputa) throw new Error('Disputa não encontrada')
+    assertValidTransition('Disputa', DISPUTA_TRANSITIONS, disputa.status, 'EM_ANALISE')
     return prisma.disputa.update({
       where: { id },
       data: { status: 'EM_ANALISE' },

@@ -7,6 +7,7 @@
  */
 
 import prisma from '../database/client.js'
+import { assertValidTransition, TAREFA_TRANSITIONS } from '../utils/stateMachine.js'
 
 export interface ListTarefasParams {
   page?: number
@@ -87,6 +88,10 @@ export class TarefaService {
       const isParticipant =
         projeto.designerId === updateData.responsavelId || projeto.clienteId === updateData.responsavelId
       if (!isParticipant) throw new Error('Responsável não é participante do projeto')
+    }
+
+    if (updateData.status && updateData.status !== existing.status) {
+      assertValidTransition('Tarefa', TAREFA_TRANSITIONS, existing.status, updateData.status)
     }
 
     return prisma.tarefa.update({ where: { id }, data: updateData })

@@ -9,6 +9,7 @@
  */
 
 import prisma from '../database/client.js'
+import { assertValidTransition, PROJETO_TRANSITIONS } from '../utils/stateMachine.js'
 import {
   formatCurrency,
   formatDate,
@@ -253,6 +254,10 @@ export class ProjetoService {
     })
     if (!existingProject) {
       throw new Error('Projeto não encontrado')
+    }
+
+    if (updateData.status && updateData.status !== existingProject.status) {
+      assertValidTransition('Projeto', PROJETO_TRANSITIONS, existingProject.status, updateData.status)
     }
 
     const projeto = await prisma.projeto.update({
