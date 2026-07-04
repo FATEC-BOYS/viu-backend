@@ -1,7 +1,25 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { AceiteService } from '../services/aceiteService.js'
+import prisma from '../database/client.js'
 
 const aceiteService = new AceiteService()
+
+async function assertProjetoParticipant(
+  projetoId: string,
+  usuarioId: string,
+  isAdmin: boolean,
+): Promise<{ ok: boolean; status?: number; message?: string }> {
+  if (isAdmin) return { ok: true }
+  const projeto = await prisma.projeto.findUnique({
+    where: { id: projetoId },
+    select: { designerId: true, clienteId: true },
+  })
+  if (!projeto) return { ok: false, status: 404, message: 'Projeto não encontrado' }
+  if (projeto.designerId !== usuarioId && projeto.clienteId !== usuarioId) {
+    return { ok: false, status: 403, message: 'Acesso negado: você não é parte deste projeto' }
+  }
+  return { ok: true }
+}
 
 export async function registrarAceite(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
@@ -10,6 +28,12 @@ export async function registrarAceite(request: FastifyRequest, reply: FastifyRep
 
     if (!projetoId) {
       reply.status(400).send({ message: 'projetoId é obrigatório', success: false })
+      return
+    }
+
+    const check = await assertProjetoParticipant(projetoId, usuario.id, usuario.tipo === 'ADMIN')
+    if (!check.ok) {
+      reply.status(check.status!).send({ message: check.message, success: false })
       return
     }
 
@@ -51,7 +75,15 @@ export async function listarAceitesProjeto(
   reply: FastifyReply,
 ): Promise<void> {
   try {
+    const usuario = (request as any).usuario
     const { projetoId } = request.params as { projetoId: string }
+
+    const check = await assertProjetoParticipant(projetoId, usuario.id, usuario.tipo === 'ADMIN')
+    if (!check.ok) {
+      reply.status(check.status!).send({ message: check.message, success: false })
+      return
+    }
+
     const aceites = await aceiteService.listarAceitesPorProjeto(projetoId)
     reply.send({ data: aceites, success: true })
   } catch {
