@@ -26,7 +26,10 @@ export async function linksRoutes(fastify: FastifyInstance) {
   // Revogação explícita — mantém o registro no banco (diferente de delete)
   fastify.put('/links/:id/revogar', { preHandler: [authenticate] }, revokeLink)
 
-  fastify.get('/preview/:token', getPreviewByToken)
+  fastify.get('/preview/:token', {
+    // Endpoint público sem auth — protege contra enumeração de tokens e scraping
+    config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+  }, getPreviewByToken)
 
   fastify.post('/links/:token/feedbacks', { preHandler: [authenticate] }, createFeedbackViaLink)
   fastify.post('/links/:token/feedbacks/audio', {

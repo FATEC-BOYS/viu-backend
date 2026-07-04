@@ -11,6 +11,7 @@ import {
   vincularProjeto,
   desvincularProjeto,
 } from '../services/equipeService.js'
+import { auditLogService } from '../services/auditLogService.js'
 
 function isAdmin(usuario: any) {
   return usuario.tipo === 'ADMIN'
@@ -152,6 +153,14 @@ export async function atualizarPapelHandler(request: FastifyRequest, reply: Fast
     const { id, usuarioId } = request.params as { id: string; usuarioId: string }
     const { papel } = request.body as { papel: string }
     const membro = await atualizarPapel(id, usuarioId, papel, usuario.id, isAdmin(usuario))
+
+    auditLogService.logSuccess('PAPEL_ALTERADO', 'Equipe', {
+      resourceId: id,
+      usuarioId: usuario.id,
+      ipAddress: request.ip,
+      details: { membroId: usuarioId, novoPapel: papel },
+    }).catch(() => {})
+
     reply.send({ data: membro, success: true })
   } catch (error: any) {
     if (error.message.includes('não encontrad')) {

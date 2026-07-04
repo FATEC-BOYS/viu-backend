@@ -23,11 +23,22 @@ export type AuditAction =
   | 'REVOKE_LINK'
   | 'UPDATE_USER'
   | 'DELETE_USER'
+  | 'LGPD_ANONIMIZAR'
   | 'ENABLE_2FA'
   | 'DISABLE_2FA'
   | 'PASSWORD_CHANGE'
   | 'PASSWORD_RESET'
   | 'VIEW_SENSITIVE_DATA'
+  // Financeiro
+  | 'PAGAMENTO_PROCESSADO'
+  | 'SAQUE_SOLICITADO'
+  | 'SAQUE_PROCESSADO'
+  // Equipe
+  | 'PAPEL_ALTERADO'
+  // Convites
+  | 'CRIAR_CONVITE'
+  | 'ACEITAR_CONVITE'
+  | 'RECUSAR_CONVITE'
 
 export type AuditResource =
   | 'Usuario'
@@ -39,6 +50,11 @@ export type AuditResource =
   | 'Sessao'
   | 'Auth'
   | 'Link'
+  | 'Pagamento'
+  | 'Saque'
+  | 'Fatura'
+  | 'Equipe'
+  | 'Convite'
 
 export interface AuditLogData {
   action: AuditAction
