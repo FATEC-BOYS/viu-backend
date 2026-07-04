@@ -25,6 +25,7 @@ import {
 import { authenticate } from '../middleware/authMiddleware.js'
 import { requireOwnership, requireRole } from '../middleware/authorizationMiddleware.js'
 import { validatePagination, validateCuidParam } from '../middleware/validationMiddleware.js'
+import { requirePlanLimit } from '../middleware/planLimitMiddleware.js'
 
 export async function projetosRoutes(fastify: FastifyInstance) {
   // Listagem com filtros e paginação (requer autenticação e validação)
@@ -35,7 +36,7 @@ export async function projetosRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/projetos',
     {
-      preHandler: [authenticate, validateCreateProjeto],
+      preHandler: [authenticate, requirePlanLimit('projetos'), validateCreateProjeto],
     },
     createProjeto,
   )

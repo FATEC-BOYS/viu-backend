@@ -67,6 +67,13 @@ export const SAQUE_TRANSITIONS: TransitionMap = {
   CANCELADO:   [],
 }
 
+export const ASSINATURA_TRANSITIONS: TransitionMap = {
+  PENDENTE:  ['ATIVA', 'CANCELADA'],
+  ATIVA:     ['PAUSADA', 'CANCELADA'],
+  PAUSADA:   ['ATIVA', 'CANCELADA'],
+  CANCELADA: [],
+}
+
 export const DISPUTA_TRANSITIONS: TransitionMap = {
   ABERTA:            ['EM_ANALISE', 'RESOLVIDA_DESIGNER', 'RESOLVIDA_CLIENTE', 'ESCALADA'],
   EM_ANALISE:        ['RESOLVIDA_DESIGNER', 'RESOLVIDA_CLIENTE', 'ESCALADA'],
