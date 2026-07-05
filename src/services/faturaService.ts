@@ -70,11 +70,26 @@ export class FaturaService {
       include: {
         cliente: { select: { nome: true, email: true } },
         projeto: { select: { nome: true } },
+        pagamento: { select: { id: true, status: true, mpQrCode: true, mpQrCodeText: true } },
       },
     })
     if (!fatura) throw new Error('Fatura não encontrada')
     if (fatura.clienteId !== usuarioId) throw new Error('Acesso negado')
     if (fatura.status !== 'PENDENTE') throw new Error('Fatura não está pendente')
+
+    // Pagamento já existe para esta fatura (idempotência no nível da aplicação)
+    if (fatura.pagamento) {
+      if (fatura.pagamento.status !== 'PENDENTE') {
+        throw new Error('Esta fatura já possui um pagamento em andamento')
+      }
+      // Reexpõe o QR code existente em vez de criar outro
+      return {
+        pagamentoId: fatura.pagamento.id,
+        qrCode: fatura.pagamento.mpQrCode,
+        qrCodeText: fatura.pagamento.mpQrCodeText,
+        expiraEm: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      }
+    }
 
     const payment = await mpPayment.create({
       body: {
