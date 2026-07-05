@@ -4,8 +4,9 @@ import prisma from '../database/client.js'
 type LimitResource = 'projetos' | 'artes'
 
 // Factory that returns a preHandler enforcing plan-level resource limits.
-// Returns 402 if the user has an active paid subscription whose plan cap is exceeded.
-// Skips silently when: no subscription, free plan, or limit is null (unlimited).
+// Returns 402 if the user has an active subscription whose plan cap is exceeded.
+// Skips silently when: no subscription (free tier, no cap) or limit is null (unlimited).
+// Free plans (precoMensal === 0) still enforce their limitesProjetos/limitesArtes if set.
 export function requirePlanLimit(resource: LimitResource) {
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     try {
@@ -14,11 +15,11 @@ export function requirePlanLimit(resource: LimitResource) {
 
       const assinatura = await prisma.assinatura.findFirst({
         where: { usuarioId: usuario.id, status: 'ATIVA' },
-        include: { plano: { select: { nome: true, limitesProjetos: true, limitesArtes: true, precoMensal: true } } },
+        include: { plano: { select: { nome: true, limitesProjetos: true, limitesArtes: true } } },
       })
 
-      // No active subscription or free plan → no limits enforced
-      if (!assinatura || assinatura.plano.precoMensal === 0) return
+      // No active subscription → free tier with no plan limits
+      if (!assinatura) return
 
       const plano = assinatura.plano
       let limite: number | null = null
