@@ -1,5 +1,6 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import prisma from '../database/client.js'
+import { Permissao, TIPO_PERMISSIONS, EQUIPE_PAPEL_PERMISSIONS } from '../utils/permissions.js'
 
 /**
  * Middleware de autorização baseada em papéis (RBAC)
@@ -28,6 +29,75 @@ export function requireRole(...roles: string[]) {
         message: 'Erro ao verificar permissões',
         success: false,
       })
+    }
+  }
+}
+
+/**
+ * RBAC por ação: verifica se o usuário tem a permissão nomeada.
+ *
+ * Ordem de verificação:
+ *   1. Tipo global (ADMIN, DESIGNER, CLIENTE) via TIPO_PERMISSIONS
+ *   2. Papel na equipe via EQUIPE_PAPEL_PERMISSIONS:
+ *      - Se params.id existe, tenta como equipeId (rotas /equipes/:id/*)
+ *      - Senão, resolve via projeto → equipe (quando projetoId disponível)
+ *
+ * O service-level check permanece como autoridade final — este middleware
+ * é uma camada de defesa em profundidade e early-exit.
+ */
+export function requirePermission(action: Permissao) {
+  return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    try {
+      const usuario = (request as any).usuario
+      if (!usuario) {
+        return reply.status(401).send({ message: 'Usuário não autenticado', success: false })
+      }
+
+      // 1. Global tipo check
+      const tipoPerms = TIPO_PERMISSIONS[usuario.tipo] ?? []
+      if (tipoPerms.includes(action)) return
+
+      // 2. Equipe role check
+      const params = request.params as any
+
+      if (params.id) {
+        // params.id may be an equipeId (e.g. /equipes/:id/convites)
+        const membroEquipe = await prisma.equipeMembro.findFirst({
+          where: { equipeId: params.id, usuarioId: usuario.id },
+          select: { papel: true },
+        })
+        if (membroEquipe) {
+          const papelPerms = EQUIPE_PAPEL_PERMISSIONS[membroEquipe.papel] ?? []
+          if (papelPerms.includes(action)) return
+        }
+      }
+
+      // Also check via project → equipe when projetoId is resolved by a prior middleware
+      const projetoId = (request as any).projetoId ?? params.projetoId
+      if (projetoId) {
+        const projeto = await prisma.projeto.findUnique({
+          where: { id: projetoId },
+          select: { equipeId: true },
+        })
+        if (projeto?.equipeId) {
+          const membroProjeto = await prisma.equipeMembro.findFirst({
+            where: { equipeId: projeto.equipeId, usuarioId: usuario.id },
+            select: { papel: true },
+          })
+          if (membroProjeto) {
+            const papelPerms = EQUIPE_PAPEL_PERMISSIONS[membroProjeto.papel] ?? []
+            if (papelPerms.includes(action)) return
+          }
+        }
+      }
+
+      return reply.status(403).send({
+        message: `Acesso negado: permissão "${action}" necessária`,
+        success: false,
+        requiredPermission: action,
+      })
+    } catch {
+      return reply.status(500).send({ message: 'Erro ao verificar permissão', success: false })
     }
   }
 }

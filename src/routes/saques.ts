@@ -11,9 +11,10 @@ import {
   listarLedgerHandler,
 } from '../controllers/saqueController.js'
 import { authenticate } from '../middleware/authMiddleware.js'
-import { requireRole } from '../middleware/authorizationMiddleware.js'
+import { requireRole, requirePermission } from '../middleware/authorizationMiddleware.js'
 import { validateBody } from '../middleware/validationMiddleware.js'
 import { SolicitarSaqueSchema, CadastrarChavePixSchema } from '../schemas/validation.js'
+import { PERMISSOES } from '../utils/permissions.js'
 
 export async function saquesRoutes(fastify: FastifyInstance) {
   fastify.get('/saques/saldo', { preHandler: [authenticate] }, getSaldoHandler)
@@ -21,7 +22,7 @@ export async function saquesRoutes(fastify: FastifyInstance) {
   fastify.post('/saques', {
     // Saques são operações financeiras raras — 5/hora previne automação abusiva
     config: { rateLimit: { max: 5, timeWindow: '1 hour' } },
-    preHandler: [authenticate, validateBody(SolicitarSaqueSchema)],
+    preHandler: [authenticate, requirePermission(PERMISSOES.EDITAR_FINANCEIRO), validateBody(SolicitarSaqueSchema)],
   }, solicitarSaqueHandler)
   fastify.get('/chaves-pix', { preHandler: [authenticate] }, listarChavesPixHandler)
   fastify.post('/chaves-pix', { preHandler: [authenticate, validateBody(CadastrarChavePixSchema)] }, cadastrarChavePixHandler)
