@@ -82,13 +82,13 @@ export class PagamentoService {
             where: { id: pagamento.faturaId },
             data: { status: 'ESTORNADA' },
           }),
-          // Ledger: estorno reverte o crédito anterior
+          // Ledger: estorno reverte o crédito anterior (referência distinguível do crédito)
           prisma.ledgerEntry.create({
             data: {
               tipo: 'DEBITO',
               valor: fatura.valorLiquidoDesigner,
               descricao: 'Estorno de fatura',
-              referencia: `fatura:${pagamento.faturaId}`,
+              referencia: `estorno-fatura:${pagamento.faturaId}`,
               designerId: fatura.designerId,
             },
           }),

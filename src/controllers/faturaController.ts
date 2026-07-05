@@ -53,7 +53,7 @@ export async function pagarFaturaPixHandler(
       reply.status(403).send({ message: error.message, success: false })
       return
     }
-    if (error.message.includes('já foi paga') || error.message.includes('pagamento pendente')) {
+    if (error.message.includes('já foi paga') || error.message.includes('pagamento pendente') || error.message.includes('pagamento em andamento')) {
       reply.status(409).send({ message: error.message, success: false })
       return
     }
