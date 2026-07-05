@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify'
 import { authenticate } from '../middleware/authMiddleware.js'
+import { requireProjectAccess } from '../middleware/authorizationMiddleware.js'
 import {
   createConvite,
   getConvite,
@@ -22,5 +23,7 @@ export async function convitesRoutes(app: FastifyInstance) {
   app.post('/convites/:token/recusar', { preHandler: [authenticate] }, recusarConviteHandler)
 
   // Create a new invite for a project (project participant only)
-  app.post('/projetos/:projetoId/convites', { preHandler: [authenticate] }, createConvite)
+  app.post('/projetos/:projetoId/convites', {
+    preHandler: [authenticate, requireProjectAccess],
+  }, createConvite)
 }

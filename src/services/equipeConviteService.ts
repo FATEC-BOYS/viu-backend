@@ -2,7 +2,6 @@ import { randomBytes, createHash } from 'crypto'
 import prisma from '../database/client.js'
 import { Resend } from 'resend'
 import { env } from '../config/env.js'
-import { adicionarMembro } from './equipeService.js'
 
 const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null
 
@@ -66,7 +65,7 @@ export class EquipeConviteService {
 
     // Somente líderes ou admins podem convidar
     if (!isAdmin) {
-      const membro = await prisma.equipeUsuario.findUnique({
+      const membro = await prisma.equipeMembro.findUnique({
         where: { equipeId_usuarioId: { equipeId, usuarioId: convidadoPorId } },
         select: { papel: true },
       })
@@ -76,7 +75,7 @@ export class EquipeConviteService {
     }
 
     // Verifica se já é membro
-    const membroExistente = await prisma.equipeUsuario.findUnique({
+    const membroExistente = await prisma.equipeMembro.findUnique({
       where: { equipeId_usuarioId: { equipeId, usuarioId: convidadoId } },
     })
     if (membroExistente) throw new Error('Usuário já é membro desta equipe')
@@ -125,7 +124,7 @@ export class EquipeConviteService {
     }
 
     // Verifica novamente se já é membro (pode ter sido adicionado diretamente)
-    const membroExistente = await prisma.equipeUsuario.findUnique({
+    const membroExistente = await prisma.equipeMembro.findUnique({
       where: { equipeId_usuarioId: { equipeId: convite.equipeId, usuarioId } },
     })
     if (membroExistente) {
@@ -141,7 +140,7 @@ export class EquipeConviteService {
         where: { tokenHash },
         data: { status: 'ACEITO', respondidoEm: new Date() },
       }),
-      prisma.equipeUsuario.create({
+      prisma.equipeMembro.create({
         data: { equipeId: convite.equipeId, usuarioId, papel: convite.papel },
       }),
     ])
@@ -197,7 +196,7 @@ export class EquipeConviteService {
 
   async listarConvitesDaEquipe(equipeId: string, solicitanteId: string, isAdmin: boolean) {
     if (!isAdmin) {
-      const membro = await prisma.equipeUsuario.findUnique({
+      const membro = await prisma.equipeMembro.findUnique({
         where: { equipeId_usuarioId: { equipeId, usuarioId: solicitanteId } },
         select: { papel: true },
       })
