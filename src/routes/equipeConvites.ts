@@ -1,5 +1,7 @@
 import { FastifyInstance } from 'fastify'
 import { authenticate } from '../middleware/authMiddleware.js'
+import { requirePermission } from '../middleware/authorizationMiddleware.js'
+import { PERMISSOES } from '../utils/permissions.js'
 import {
   criarEquipeConviteHandler,
   aceitarEquipeConviteHandler,
@@ -26,5 +28,7 @@ export async function equipeConvitesRoutes(app: FastifyInstance) {
   app.get('/equipes/:id/convites', { preHandler: [authenticate] }, listarConvitesDaEquipeHandler)
 
   // Create a new invite for a team (leaders and admins only)
-  app.post('/equipes/:id/convites', { preHandler: [authenticate] }, criarEquipeConviteHandler)
+  app.post('/equipes/:id/convites', {
+    preHandler: [authenticate, requirePermission(PERMISSOES.CONVIDAR_MEMBRO)],
+  }, criarEquipeConviteHandler)
 }
