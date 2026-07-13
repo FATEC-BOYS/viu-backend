@@ -1,7 +1,19 @@
-# Direcionamento do VIU (v2)
+# Direcionamento do VIU — Estratégia v1.0 (congelada)
 
 > Documento de direcionamento de produto. Substitui a visão original de "plataforma de
 > aprovação de artes" como destino. Contexto e justificativa: ver `CRITICA_PRODUTO.md`.
+
+## Regra de mudança deste documento
+
+Este documento está **congelado como Estratégia v1.0**. A partir daqui:
+
+- Nenhuma alteração de estratégia entra porque alguém teve uma ideia melhor.
+- Toda alteração deve citar, no Histórico de decisões, **qual experimento** produziu
+  **qual evidência** que a motivou. Sem experimento citado, a alteração não entra.
+- Correções de texto que não mudam decisões são livres.
+
+O objetivo é evitar o erro clássico de startup: mudar de direção toda semana com base
+em opiniões, em vez de dados.
 
 ## A tese
 
@@ -24,6 +36,32 @@ que viole este princípio não entra no MVP, por definição.
 Uma hipótese claramente morta é abandonada em dias, não em meses. Um sinal positivo
 pequeno não é tratado como prova — seis pessoas gostando pode ser sorte. Decisões de
 matar são rápidas; decisões de investir pesado exigem confirmação.
+
+**Princípio nº 3 — A IA nunca toma decisões jurídicas. Ela apenas reduz trabalho
+humano.**
+A IA resume comentários, transcreve áudios, sugere que houve aprovação, identifica
+provável pedido de alteração. Mas a confirmação final sempre vem de uma pessoa. Este
+princípio resolve de antemão a tensão entre usabilidade (inferir intenção de "tá bom")
+e confiabilidade jurídica (trilha de auditoria que vale numa disputa) — e é também a
+resposta comercial pronta para "e se a IA errar?": a IA nunca decide; ela sugere e a
+pessoa confirma.
+
+## Decisões de produto (não são hipóteses)
+
+Hipóteses podem matar o negócio e são testadas com experimentos. Decisões são escolhas
+de produto derivadas dos princípios — não se testam, cumprem-se:
+
+- O cliente final nunca faz login, cadastro, ou instala app (Princípio 1).
+- Resposta livre (texto solto, áudio) é entrada normal do sistema — nunca erro.
+  Resposta estruturada (botão) é o caminho feliz, não o único caminho.
+- Aprovação inferida de resposta livre exige um toque de confirmação do cliente
+  ("Entendi que você aprovou a Arte X v3 — confirma? ✅ / ✏️"). Inferência para
+  conveniência, confirmação para registro (Princípio 3). Essa é a única fricção que
+  vale a pena adicionar ao cliente final.
+- Não existe free tier permanente: trial de 14 dias ou 10 aprovações (custo marginal
+  por mensagem da API do WhatsApp).
+- Escopo financeiro (PIX, ledger, saques, disputas) permanece congelado até os
+  critérios de continuação serem atingidos.
 
 ---
 
@@ -164,22 +202,13 @@ respondem naturalmente a "✅ 1 = aprovar / ✏️ 2 = pedir alteração", ótim
 *Como validar:* observar as respostas reais durante o concierge (é a mesma rodada da
 Hipótese 2, com olhar diferente: a H2 mede SE o cliente responde no fluxo; a H0 mede
 COMO ele responde).
-*Duas notas de calibração:*
-
-1. **O concierge é um teste mais difícil que o produto real.** No WhatsApp comum,
-   "responda 1" depende de disciplina do cliente; na API oficial existem botões
-   interativos nativos — o cliente toca em "Aprovar", não digita. Se a H0 passar no
-   formato pobre do concierge, o produto real será mais fácil. A implicação de design
-   vale mesmo assim: **resposta estruturada é o caminho feliz; resposta livre é normal,
-   nunca erro.** O sistema trata botão, texto livre e áudio (Whisper) como entradas
-   igualmente válidas.
-2. **Aprovação inferida ≠ aprovação registrada.** "Comprovar quem aprovou e quando" —
-   valor central do produto — enfraquece se a aprovação for inferida por IA de um "tá
-   bom". Regra de design: quando a resposta for livre, o sistema interpreta e devolve
-   um toque de confirmação ("Entendi que você aprovou a Arte X v3 — confirma? ✅").
-   Inferência para conveniência, confirmação para registro. Sem isso, a trilha de
-   auditoria não vale nada numa disputa — e ninguém indica (Hipótese 4) uma ferramenta
-   que "achou" que o cliente aprovou.
+*Nota de calibração:* o concierge é um teste **mais difícil** que o produto real. No
+WhatsApp comum, "responda 1" depende de disciplina do cliente; na API oficial existem
+botões interativos nativos — o cliente toca em "Aprovar", não digita. Se a H0 passar no
+formato pobre do concierge, o produto real será mais fácil. Independentemente do
+resultado, as regras de tratamento de resposta livre e de confirmação de aprovação
+inferida já estão fixadas na seção "Decisões de produto" — a H0 informa o *quanto* de
+resposta livre esperar, não *se* o sistema deve suportá-la.
 
 **Hipótese 1** — As agências aceitariam pagar por uma plataforma que organiza
 aprovações feitas pelo WhatsApp?
@@ -240,6 +269,17 @@ conservadores, opt-in explícito do cliente final no primeiro contato.
 ---
 
 ## Histórico de decisões
+
+**Estratégia v1.0 (congelamento)** — Documento congelado como estratégia oficial:
+
+1. Adicionada a Regra de mudança: alterações de estratégia só entram citando o
+   experimento e a evidência que as motivou.
+2. Princípio nº 3: "A IA nunca toma decisões jurídicas. Ela apenas reduz trabalho
+   humano." A confirmação final sempre vem de uma pessoa.
+3. Separação formal entre Hipóteses (podem matar o negócio; testam-se com
+   experimentos) e Decisões de produto (derivam dos princípios; cumprem-se). Regras de
+   design que estavam embutidas na Hipótese 0 movidas para a nova seção "Decisões de
+   produto".
 
 **v2.2** — Consolidação do discovery:
 
