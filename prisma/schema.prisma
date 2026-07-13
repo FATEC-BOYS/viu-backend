@@ -83,6 +83,8 @@ model Usuario {
 
   ledgerEntries LedgerEntry[] @relation("LedgerDesigner")
 
+  enviosWhatsApp WhatsAppEnvio[] @relation("EnviosWhatsAppCliente")
+
   @@index([email])
   @@index([tipo])
   @@index([ativo])
@@ -145,6 +147,7 @@ model Arte {
   aprovacoes          Aprovacao[]         @relation("AprovacoesArte")
   linksCompartilhados LinkCompartilhado[] @relation("LinksArte")
   versoes             ArteVersao[]        @relation("ArteVersoes")
+  enviosWhatsApp      WhatsAppEnvio[]     @relation("EnviosWhatsAppArte")
 
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
@@ -718,4 +721,41 @@ model ConviteProjeto {
   @@index([convidadoId])
   @@index([status])
   @@map("convites_projeto")
+}
+
+// 📲 WhatsApp — solicitações de aprovação enviadas ao cliente final
+// Correlaciona cada card enviado (wamid) com a arte e o cliente, permitindo
+// atribuir respostas de botão/texto/áudio ao ciclo de aprovação correto.
+model WhatsAppEnvio {
+  id String @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+
+  // Telefone do cliente final no formato da Meta (E.164 sem "+", ex.: 5511999999999)
+  telefone String
+  // wamid da mensagem enviada — respostas trazem esse id em context.id e statuses
+  waMessageId String? @unique
+  // SOLICITACAO_APROVACAO | CONFIRMACAO | LEMBRETE
+  tipo String @default("SOLICITACAO_APROVACAO")
+  // AGUARDANDO_RESPOSTA | AGUARDANDO_CONFIRMACAO | AGUARDANDO_DETALHES |
+  // APROVADA | ALTERACAO_REGISTRADA | FALHOU
+  status String @default("AGUARDANDO_RESPOSTA")
+
+  // Resposta do cliente (quando houver)
+  respostaTipo     String? // BOTAO | TEXTO | AUDIO
+  respostaConteudo String? // texto livre ou transcrição do áudio
+  respostaEm       DateTime?
+  erro             String?
+
+  arteId    String
+  arte      Arte    @relation("EnviosWhatsAppArte", fields: [arteId], references: [id], onDelete: Cascade)
+  clienteId String
+  cliente   Usuario @relation("EnviosWhatsAppCliente", fields: [clienteId], references: [id], onDelete: Restrict)
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@index([telefone, status])
+  @@index([arteId])
+  @@index([clienteId])
+  @@index([status])
+  @@map("whatsapp_envios")
 }

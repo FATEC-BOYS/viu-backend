@@ -22,6 +22,13 @@ const envSchema = z.object({
   // MercadoPago — empty allowed in dev/test; required in production (see superRefine below)
   MP_ACCESS_TOKEN: z.string().default(''),
   MP_WEBHOOK_SECRET: z.string().default(''),
+  // WhatsApp Business (Meta Cloud API) — opcionais enquanto a integração não está
+  // ativa; o webhook responde 403/401 e os envios falham com erro claro se ausentes
+  WHATSAPP_ACCESS_TOKEN: z.string().default(''),
+  WHATSAPP_PHONE_NUMBER_ID: z.string().default(''),
+  WHATSAPP_APP_SECRET: z.string().default(''),
+  WHATSAPP_VERIFY_TOKEN: z.string().default(''),
+  WHATSAPP_API_VERSION: z.string().default('v21.0'),
 }).superRefine((data, ctx) => {
   if (data.NODE_ENV === 'production') {
     if (!data.MP_ACCESS_TOKEN) {
