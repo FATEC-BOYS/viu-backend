@@ -3,6 +3,30 @@
 > Documento de direcionamento de produto. Substitui a visão original de "plataforma de
 > aprovação de artes" como destino. Contexto e justificativa: ver `CRITICA_PRODUTO.md`.
 
+## A tese
+
+> **O VIU não é uma plataforma de aprovação. É uma camada de inteligência que organiza
+> um processo que já acontece no WhatsApp.**
+
+Essa frase define o posicionamento, o MVP e até quem são os concorrentes: saímos da
+prateleira das ferramentas de proofing (Filestage, Ziflow) e entramos num campo onde
+as plataformas de atendimento sobre WhatsApp não entendem de aprovação criativa — e as
+ferramentas de aprovação criativa não entendem de WhatsApp.
+
+## Princípios
+
+**Princípio nº 1 — O cliente final nunca deve aprender a usar o VIU.**
+Se ele percebe que está usando uma plataforma nova, falhamos. Consequências práticas:
+login → não; cadastro → não; aplicativo → não; tutorial → não. Qualquer funcionalidade
+que viole este princípio não entra no MVP, por definição.
+
+**Princípio nº 2 — Kill rápido, confirmação paciente.**
+Uma hipótese claramente morta é abandonada em dias, não em meses. Um sinal positivo
+pequeno não é tratado como prova — seis pessoas gostando pode ser sorte. Decisões de
+matar são rápidas; decisões de investir pesado exigem confirmação.
+
+---
+
 Após analisar os riscos do produto, decidimos mudar o foco do VIU.
 
 ## O problema não mudou
@@ -128,8 +152,34 @@ Ficam congelados:
 
 ## Próxima validação
 
-Antes de desenvolver novas funcionalidades precisamos responder quatro perguntas.
-As Hipóteses 1 e 2 vêm **antes** do MVP — nenhuma das duas precisa de código.
+Antes de desenvolver novas funcionalidades precisamos responder cinco perguntas.
+As Hipóteses 0, 1 e 2 vêm **antes** do MVP — nenhuma delas precisa de código.
+
+**Hipótese 0** — A agência consegue fazer o cliente responder no formato proposto —
+e o que acontece quando ele não responde?
+*Por que vem antes de tudo:* determina o desenho do sistema inteiro. Se os clientes
+respondem naturalmente a "✅ 1 = aprovar / ✏️ 2 = pedir alteração", ótimo. Se respondem
+"tá bom", "pode mudar aquele azul" ou mandam áudio, o produto não pode obrigar formato
+— tem que entender qualquer resposta.
+*Como validar:* observar as respostas reais durante o concierge (é a mesma rodada da
+Hipótese 2, com olhar diferente: a H2 mede SE o cliente responde no fluxo; a H0 mede
+COMO ele responde).
+*Duas notas de calibração:*
+
+1. **O concierge é um teste mais difícil que o produto real.** No WhatsApp comum,
+   "responda 1" depende de disciplina do cliente; na API oficial existem botões
+   interativos nativos — o cliente toca em "Aprovar", não digita. Se a H0 passar no
+   formato pobre do concierge, o produto real será mais fácil. A implicação de design
+   vale mesmo assim: **resposta estruturada é o caminho feliz; resposta livre é normal,
+   nunca erro.** O sistema trata botão, texto livre e áudio (Whisper) como entradas
+   igualmente válidas.
+2. **Aprovação inferida ≠ aprovação registrada.** "Comprovar quem aprovou e quando" —
+   valor central do produto — enfraquece se a aprovação for inferida por IA de um "tá
+   bom". Regra de design: quando a resposta for livre, o sistema interpreta e devolve
+   um toque de confirmação ("Entendi que você aprovou a Arte X v3 — confirma? ✅").
+   Inferência para conveniência, confirmação para registro. Sem isso, a trilha de
+   auditoria não vale nada numa disputa — e ninguém indica (Hipótese 4) uma ferramenta
+   que "achou" que o cliente aprovou.
 
 **Hipótese 1** — As agências aceitariam pagar por uma plataforma que organiza
 aprovações feitas pelo WhatsApp?
@@ -190,6 +240,17 @@ conservadores, opt-in explícito do cliente final no primeiro contato.
 ---
 
 ## Histórico de decisões
+
+**v2.2** — Consolidação do discovery:
+
+1. Tese reformulada como abertura do documento: "não é uma plataforma de aprovação, é
+   uma camada de inteligência sobre um processo que já acontece no WhatsApp".
+2. Seção de Princípios criada: nº 1 "o cliente final nunca deve aprender a usar o VIU"
+   (sem login, cadastro, app ou tutorial — por definição); nº 2 "kill rápido,
+   confirmação paciente".
+3. Adicionada Hipótese 0 (formato de resposta do cliente final), com duas regras de
+   design derivadas: resposta livre é normal e nunca erro; aprovação inferida de texto
+   livre exige toque de confirmação para preservar a trilha de auditoria.
 
 **v2.1** — Refinamentos após revisão crítica, todos incorporados ao corpo do documento:
 
