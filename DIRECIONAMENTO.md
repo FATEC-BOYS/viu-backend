@@ -29,6 +29,19 @@ Queremos trabalhar em cima dele.
 - Para o cliente final, praticamente nada muda: ele continua respondendo no WhatsApp.
 - Para a agência, tudo fica organizado automaticamente.
 
+### Posicionamento
+
+Não vendemos "plataforma de aprovação". As duas frases oficiais, com papéis distintos:
+
+- **Frase de produto (site, pitch):** "Aprovação de artes sem tirar seu cliente do WhatsApp."
+- **Frase de dor (anúncio, headline):** "Nunca mais perca uma aprovação no WhatsApp."
+
+Descartado: "O CRM das aprovações" — jargão que exige tradução do comprador.
+
+O posicionamento definitivo virá do piloto: a frase literal que as agências usarem ao
+responder "o que você diria ao indicar o VIU?" (ver Hipótese 4) substitui as frases
+acima se for mais forte.
+
 ---
 
 ## MVP
@@ -93,13 +106,14 @@ Ficam congelados:
 
 ## Modelo de negócio
 
-### Plano gratuito
+> Nota: não existe plano gratuito permanente. Cada aprovação via WhatsApp tem custo
+> marginal real (Meta cobra por conversa iniciada por template), então o free tier é
+> porta de entrada, não modo de operação.
 
-- 1 agência
-- até 3 clientes
-- 100 aprovações
-- WhatsApp
-- Histórico básico
+### Entrada gratuita (escolher um dos dois formatos no piloto)
+
+- **Trial de 14 dias** com tudo liberado; ou
+- **10 aprovações grátis** — o suficiente para provar o valor uma vez.
 
 ### Plano pago
 
@@ -114,75 +128,81 @@ Ficam congelados:
 
 ## Próxima validação
 
-Antes de desenvolver novas funcionalidades precisamos responder apenas três perguntas.
+Antes de desenvolver novas funcionalidades precisamos responder quatro perguntas.
+As Hipóteses 1 e 2 vêm **antes** do MVP — nenhuma das duas precisa de código.
 
 **Hipótese 1** — As agências aceitariam pagar por uma plataforma que organiza
 aprovações feitas pelo WhatsApp?
+*Como validar:* pré-venda com preço real em 20–50 conversas; contar pagamentos
+antecipados e compromissos concretos, não "assinaria sim".
 
-**Hipótese 2** — Os clientes realmente aprovam usando o WhatsApp sem necessidade de
-abrir outro sistema?
+**Hipótese 2** — Os clientes realmente aprovam usando o WhatsApp sem abrir outro
+sistema?
+*Como validar:* concierge por WhatsApp comum ("responda 1 para aprovar") com agências
+parceiras, registrando tudo em planilha. **Regra assimétrica de duração: 1 semana para
+matar** — se ninguém responder no fluxo ou todos continuarem respondendo do jeito
+antigo, acabou, sem segunda semana. **Se o sinal for positivo, estender +1 semana**
+antes de escrever código, porque ciclos reais de aprovação atravessam semanas e poucos
+dados positivos podem ser sorte. Kill rápido, confirmação paciente. Se esta hipótese
+falhar, o MVP não deve ser construído.
 
-**Hipótese 3** — Quanto tempo a agência economiza por mês usando o VIU?
+**Hipótese 3** — O VIU reduz mensuravelmente o ciclo de aprovação?
+*Métricas objetivas (registradas pelo próprio sistema, não por percepção):*
 
-## Critério de sucesso
+- tempo médio entre envio da arte e aprovação (antes/depois);
+- quantidade de follow-ups manuais por aprovação;
+- taxa de aprovação concluída dentro do fluxo;
+- % das aprovações que deixaram de se perder fora do fluxo.
 
-O objetivo do MVP não é lançar um SaaS completo. É conseguir:
+**Hipótese 4** — Por que uma agência indicaria o VIU para outra?
+*Por que importa:* a resposta define o CAC. "Porque organiza" = fraca (crescimento só
+por anúncio pago). "Porque reduziu meu retrabalho em 40%" = interessante. "Porque meu
+cliente finalmente aprova sem eu cobrar cinco vezes" = proposta de valor forte e
+crescimento por indicação.
+*Como validar:* ao fim de cada trial do piloto, perguntar "você indicaria? para quem?
+o que você diria?" e **anotar a frase literal** — a frase espontânea da agência é o
+posicionamento real do produto.
 
-- 10 agências utilizando semanalmente.
-- Pelo menos 5 pagando.
-- Churn baixo.
-- Uso recorrente.
+## Critérios para continuar
 
-Só depois disso começaremos a investir em funcionalidades maiores.
+O objetivo do MVP não é lançar um SaaS completo. Após o piloto, investimos pesado
+somente se **todos** os critérios abaixo forem atingidos:
+
+- ≥ 70% das aprovações acontecem pelo fluxo do VIU.
+- ≥ 5 agências aceitam pagar após o trial (de ~10 no piloto).
+- Churn < 5% ao mês no piloto.
+- Cada agência usa em pelo menos 3 das últimas 4 semanas.
+- O tempo médio até aprovação reduz em pelo menos 30%.
+
+Se os critérios não forem atingidos, voltamos às hipóteses — não às funcionalidades.
 
 ---
 
-## Riscos e decisões em aberto
+## Riscos em aberto
 
-Pontos levantados na revisão crítica deste direcionamento. Não alteram as decisões
-acima, mas precisam de resposta antes ou durante o MVP.
-
-### 1. O plano gratuito tem custo marginal real
-
-Cada aprovação enviada pela API oficial do WhatsApp Business custa dinheiro (a Meta
-cobra por conversa iniciada por template). "100 aprovações grátis" significa pagar a
-conta de WhatsApp de quem talvez nunca pague o VIU. Alternativas a decidir: trial de
-14–30 dias com tudo liberado, ou free tier de ~10 aprovações — o suficiente para provar
-o valor uma vez, não para operar de graça indefinidamente.
-
-### 2. A Hipótese 3 não é mensurável como está escrita
-
-"Quanto tempo economiza" vira chute educado em entrevista. Substituir por proxies que o
-próprio sistema registra:
-
-- tempo médio entre envio da arte e aprovação (antes/depois do VIU);
-- número de follow-ups manuais evitados (lembretes automáticos disparados);
-- % de ciclos de aprovação concluídos sem a agência precisar cobrar fora do fluxo.
-
-### 3. Sequência: as Hipóteses 1 e 2 vêm ANTES do MVP, não depois
-
-O MVP inteiro depende das hipóteses 1 e 2, mas nenhuma das duas precisa de código para
-ser testada. Antes de encarar API da Meta, aprovação de templates e custo por mensagem:
-
-- **Hipótese 2 (concierge, R$ 0, 2 semanas):** enviar artes de agências parceiras pelo
-  WhatsApp comum com "responda 1 para aprovar", registrar resultado em planilha. Medir
-  taxa e tempo de resposta.
-- **Hipótese 1 (pré-venda, R$ 0):** oferecer o serviço com preço real em 20–50 conversas
-  com agências; contar pagamentos antecipados/compromissos concretos, não "assinaria sim".
-
-Se a Hipótese 2 falhar no concierge, o MVP não deve ser construído.
-
-### 4. Critérios de sucesso precisam de número
-
-"Churn baixo" e "uso recorrente" aceitam qualquer resultado. Proposta:
-
-- churn < 5%/mês durante o piloto;
-- uso recorrente = agência envia artes para aprovação em pelo menos 3 de cada 4 semanas;
-- > 70% das aprovações dos clientes finais concluídas dentro do fluxo WhatsApp.
-
-### 5. Risco de plataforma (Meta)
+### Risco de plataforma (Meta)
 
 O produto passa a depender da API oficial do WhatsApp Business: templates sujeitos a
 aprovação da Meta, preços por conversa que mudam, risco de bloqueio de número por
 denúncia de spam. Mitigações mínimas no MVP: usar BSP estabelecido, templates
 conservadores, opt-in explícito do cliente final no primeiro contato.
+
+---
+
+## Histórico de decisões
+
+**v2.1** — Refinamentos após revisão crítica, todos incorporados ao corpo do documento:
+
+1. Plano gratuito permanente substituído por trial de 14 dias ou 10 aprovações (custo
+   marginal por mensagem do WhatsApp inviabiliza free tier operacional).
+2. Hipótese 3 reescrita com métricas objetivas registradas pelo sistema, em vez de
+   "tempo economizado" autodeclarado.
+3. Concierge das Hipóteses 1 e 2 posicionado ANTES do MVP, com regra assimétrica de
+   duração: 1 semana para matar, +1 semana para confirmar sinal positivo.
+4. Critérios de sucesso quantificados (seção "Critérios para continuar").
+5. Adicionada Hipótese 4 (motivo de indicação → define CAC) e seção de posicionamento
+   com as duas frases oficiais; "CRM das aprovações" descartado por ser jargão.
+
+**v2** — Pivô de plataforma-destino para camada de aprovação sobre o WhatsApp, vendida
+a agências. Congelamento do escopo financeiro/marketplace. Justificativa completa em
+`CRITICA_PRODUTO.md`.
