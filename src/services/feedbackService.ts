@@ -21,7 +21,12 @@ export class FeedbackService {
     if (arteId) and.push({ arteId })
     if (autorId) and.push({ autorId })
     if (tipo) and.push({ tipo })
-    if (status) and.push({ status })
+    // Feedback não tem coluna `status` — o estado da thread vive em `resolvidoEm`.
+    // Repassar `status` direto para o Prisma lançava "Unknown argument status" (500).
+    // TODO: EM_ANALISE e ARQUIVADO não têm representação no schema; a UI oferece
+    // os quatro estados, mas só aberto/resolvido são consultáveis hoje.
+    if (status === 'ABERTO') and.push({ resolvidoEm: null })
+    else if (status === 'RESOLVIDO' || status === 'ARQUIVADO') and.push({ resolvidoEm: { not: null } })
     if (projetoIds) and.push({ arte: { projetoId: { in: projetoIds } } })
     if (search) {
       and.push({

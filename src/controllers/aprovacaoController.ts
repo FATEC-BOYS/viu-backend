@@ -8,13 +8,14 @@ const aprovacaoService = new AprovacaoService()
 export async function listAprovacoes(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
     const usuario = (request as any).usuario
-    const { page = 1, limit = 10, arteId, aprovadorId, status } = (request.query || {}) as any
+    const { page = 1, limit = 10, arteId, aprovadorId, status, projetoId } = (request.query || {}) as any
     const params: ListAprovacoesParams = {
       page: Number(page) || 1,
       limit: Number(limit) || 10,
       arteId: arteId as string | undefined,
       aprovadorId: aprovadorId as string | undefined,
       status: status as string | undefined,
+      projetoId: projetoId as string | undefined,
     }
 
     if (usuario.tipo !== 'ADMIN') {

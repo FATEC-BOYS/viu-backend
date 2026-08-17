@@ -79,6 +79,11 @@ export class ProjetoService {
               nome: true,
               email: true,
               avatar: true,
+              // Campos usados pela tela /clientes, que monta a carteira do designer
+              // a partir dos próprios projetos (GET /usuarios é restrito a ADMIN).
+              telefone: true,
+              ativo: true,
+              criadoEm: true,
             },
           },
           equipe: EQUIPE_SELECT,

@@ -8,6 +8,8 @@ export interface ListAprovacoesParams {
   arteId?: string
   aprovadorId?: string
   status?: string
+  // filtro pedido pelo cliente da API
+  projetoId?: string
   // access-control scope (set by controller for non-admins)
   projetoIds?: string[]
 }
@@ -19,15 +21,26 @@ export class AprovacaoService {
     arteId,
     aprovadorId,
     status,
+    projetoId,
     projetoIds,
   }: ListAprovacoesParams) {
     const skip = (page - 1) * limit
+
+    // projetoId (filtro do chamador) e projetoIds (escopo de acesso) são
+    // acumulativos: pedir um projeto específico nunca amplia o que o não-admin
+    // pode ver.
+    const arteConditions: any[] = []
+    if (projetoId) arteConditions.push({ projetoId })
+    if (projetoIds) arteConditions.push({ projetoId: { in: projetoIds } })
+
     const where: any = {
       deletedAt: null,
       ...(arteId && { arteId }),
       ...(aprovadorId && { aprovadorId }),
       ...(status && { status }),
-      ...(projetoIds && { arte: { projetoId: { in: projetoIds } } }),
+      ...(arteConditions.length > 0 && {
+        arte: arteConditions.length === 1 ? arteConditions[0] : { AND: arteConditions },
+      }),
     }
     const [aprovacoes, total] = await Promise.all([
       prisma.aprovacao.findMany({
@@ -35,7 +48,7 @@ export class AprovacaoService {
         skip,
         take: Number(limit),
         include: {
-          arte: { select: { id: true, nome: true } },
+          arte: { select: { id: true, nome: true, versao: true, projetoId: true } },
           aprovador: { select: { id: true, nome: true, avatar: true } },
         },
         orderBy: { criadoEm: 'desc' },
