@@ -18,10 +18,14 @@ describe('TarefaService', () => {
     expect(result).toEqual({ tarefas: [], total: 0 })
   })
 
-  it('createTarefa deve lançar erro se responsável não existe', async () => {
-    vi.mocked(prisma.usuario.findUnique).mockResolvedValue(null)
-    await expect(service.createTarefa({ responsavelId: 'x' }))
-      .rejects.toThrow('Responsável não encontrado')
+  it('createTarefa deve lançar erro se responsável não participa do projeto', async () => {
+    // A regra deixou de ser "o usuário existe" e passou a ser "é designer ou
+    // cliente deste projeto".
+    vi.mocked(prisma.projeto.findUnique).mockResolvedValue({
+      id: 'p1', designerId: 'd1', clienteId: 'c1',
+    } as any)
+    await expect(service.createTarefa({ projetoId: 'p1', responsavelId: 'estranho' }))
+      .rejects.toThrow('Responsável não é participante do projeto')
   })
 
   it('createTarefa deve lançar erro se projeto não existe', async () => {

@@ -30,7 +30,10 @@ describe('ProjetoService.listProjetos', () => {
 
     await service.listProjetos({ search: 'logo' })
     const call = vi.mocked(prisma.projeto.findMany).mock.calls[0][0] as any
-    expect(call.where.OR).toBeDefined()
+    // as condições passaram a ser acumuladas em AND, com o OR do search dentro
+    expect(call.where.AND).toEqual(
+      expect.arrayContaining([expect.objectContaining({ OR: expect.any(Array) })]),
+    )
   })
 })
 

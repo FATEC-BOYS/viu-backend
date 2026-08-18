@@ -25,11 +25,14 @@ describe('AprovacaoService', () => {
       .rejects.toThrow('Arte não encontrada')
   })
 
-  it('createAprovacao deve lançar erro se aprovador não existe', async () => {
-    vi.mocked(prisma.arte.findUnique).mockResolvedValue({ id: '1' } as any)
-    vi.mocked(prisma.usuario.findUnique).mockResolvedValue(null)
-    await expect(service.createAprovacao({ arteId: '1', aprovadorId: 'x' }))
-      .rejects.toThrow('Aprovador não encontrado')
+  it('createAprovacao deve recusar quem não é o cliente do projeto', async () => {
+    // A regra deixou de ser "o aprovador existe": só o cliente do projeto pode
+    // aprovar, e o autor nunca aprova a própria arte.
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue({
+      id: '1', autorId: 'd1', projeto: { clienteId: 'c1', designerId: 'd1' },
+    } as any)
+    await expect(service.createAprovacao({ arteId: '1', aprovadorId: 'estranho' }))
+      .rejects.toThrow('Apenas o cliente do projeto pode aprovar ou rejeitar artes')
   })
 
   it('updateAprovacao deve lançar erro se não existe', async () => {

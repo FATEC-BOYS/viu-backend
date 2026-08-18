@@ -18,6 +18,13 @@ const METODOS = [
   'delete', 'deleteMany', 'count', 'aggregate', 'groupBy',
 ] as const
 
+function padrao(metodo: string): unknown {
+  if (metodo === 'findMany' || metodo === 'groupBy') return []
+  if (metodo === 'count') return 0
+  if (metodo.startsWith('find')) return metodo.endsWith('OrThrow') ? undefined : null
+  return undefined
+}
+
 export function criarPrismaMock(): any {
   const models: Record<string, any> = {}
 
@@ -41,12 +48,12 @@ export function criarPrismaMock(): any {
       // evita que await/thenable trate o proxy como promise
       if (prop === 'then' || prop.startsWith('$')) return undefined
       if (!models[prop]) {
-        // Métodos do Prisma devolvem Promise. Um vi.fn() cru devolve undefined,
-        // e código fire-and-forget como .create(...).catch() estoura com
-        // "Cannot read properties of undefined". O teste sobrescreve quando
-        // precisa de um valor específico.
+        // Cada método devolve o mesmo formato que o Prisma devolveria quando
+        // não há nada: findUnique/findFirst dão null (não undefined, senão um
+        // `result !== null` passa a dar true), listas dão [] e count dá 0.
+        // Tudo Promise, porque código fire-and-forget encadeia .catch().
         models[prop] = Object.fromEntries(
-          METODOS.map((m) => [m, vi.fn(async () => undefined)]),
+          METODOS.map((m) => [m, vi.fn(async () => padrao(m))]),
         )
       }
       return models[prop]
