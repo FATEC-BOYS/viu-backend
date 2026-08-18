@@ -89,13 +89,24 @@ export const TwoFactorLoginSchema = z.object({
 
 // ===== SCHEMAS DE PROJETO =====
 
+// Aceita tanto data pura vinda de <input type="date"> ("2026-08-20") quanto ISO
+// completo. O .datetime() do zod rejeitava a primeira, que é o que a UI envia.
+const dataFlexivel = z
+  .string()
+  .refine((v) => !Number.isNaN(Date.parse(v)), 'Data de prazo inválida')
+  // o Prisma exige ISO-8601 completo, então normaliza aqui — o middleware
+  // sobrescreve o body com a saída do parse
+  .transform((v) => new Date(v))
+
 export const CreateProjetoRequestSchema = z.object({
   nome: z.string().min(2, 'Nome do projeto deve ter pelo menos 2 caracteres'),
-  descricao: z.string().optional(),
+  // colunas nullable no schema Prisma — a UI envia null quando o campo fica vazio
+  descricao: z.string().nullable().optional(),
   clienteId: z.string().cuid('ID do cliente inválido'),
   designerId: z.string().cuid('ID do designer inválido').optional(),
-  orcamento: z.number().int().positive('Orçamento deve ser um valor positivo em centavos').optional(),
-  prazo: z.string().datetime('Data de prazo inválida').optional(),
+  // 0 é válido: projeto sem orçamento definido ainda
+  orcamento: z.number().int().nonnegative('Orçamento não pode ser negativo').optional(),
+  prazo: dataFlexivel.nullable().optional(),
   // status omitted — always starts as EM_ANDAMENTO; callers cannot pre-set it
   // equipeId is organizational only and does not grant project access
   equipeId: z.string().cuid('ID da equipe inválido').optional(),
@@ -103,10 +114,10 @@ export const CreateProjetoRequestSchema = z.object({
 
 export const UpdateProjetoRequestSchema = z.object({
   nome: z.string().min(2, 'Nome do projeto deve ter pelo menos 2 caracteres').optional(),
-  descricao: z.string().optional(),
+  descricao: z.string().nullable().optional(),
   status: z.enum(['EM_ANDAMENTO', 'CONCLUIDO', 'PAUSADO', 'CANCELADO']).optional(),
-  orcamento: z.number().int().positive('Orçamento deve ser um valor positivo em centavos').optional(),
-  prazo: z.string().datetime('Data de prazo inválida').optional(),
+  orcamento: z.number().int().nonnegative('Orçamento não pode ser negativo').optional(),
+  prazo: dataFlexivel.nullable().optional(),
   // equipeId is organizational only and does not grant project access; null removes the link
   equipeId: z.string().cuid('ID da equipe inválido').nullable().optional(),
 }).refine(data => Object.keys(data).length > 0, {

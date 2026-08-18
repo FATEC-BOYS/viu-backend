@@ -1,13 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { SessaoService } from '../../src/services/sessaoService.js'
 
-vi.mock('../../src/database/client.js', () => ({
-  default: {
-    sessao: {
-      findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn(),
-    },
-  },
-}))
+vi.mock('../../src/database/client.js', async () => {
+  const { criarPrismaMock } = await import('../helpers/prismaMock.js')
+  return { default: criarPrismaMock() }
+})
 
 import prisma from '../../src/database/client.js'
 const service = new SessaoService()

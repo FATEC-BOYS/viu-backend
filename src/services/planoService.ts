@@ -39,3 +39,12 @@ export class PlanoService {
     return prisma.plano.update({ where: { id }, data })
   }
 }
+
+const planoService = new PlanoService()
+
+export const listPlanos = (tipo?: string) => planoService.listPlanos(tipo)
+export const getPlanoById = (id: string) => planoService.getPlanoById(id)
+export const createPlano = (data: Parameters<PlanoService['createPlano']>[0]) =>
+  planoService.createPlano(data)
+export const updatePlano = (id: string, data: Parameters<PlanoService['updatePlano']>[1]) =>
+  planoService.updatePlano(id, data)

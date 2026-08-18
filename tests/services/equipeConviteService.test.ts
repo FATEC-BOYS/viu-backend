@@ -1,28 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { EquipeConviteService } from '../../src/services/equipeConviteService.js'
 
-vi.mock('../../src/database/client.js', () => ({
-  default: {
-    equipe: {
-      findUnique: vi.fn(),
-    },
-    usuario: {
-      findUnique: vi.fn(),
-    },
-    equipeUsuario: {
-      findUnique: vi.fn(),
-      create: vi.fn(),
-    },
-    equipeConvite: {
-      findUnique: vi.fn(),
-      findMany: vi.fn(),
-      create: vi.fn(),
-      update: vi.fn(),
-      updateMany: vi.fn(),
-    },
-    $transaction: vi.fn(),
-  },
-}))
+vi.mock('../../src/database/client.js', async () => {
+  const { criarPrismaMock } = await import('../helpers/prismaMock.js')
+  return { default: criarPrismaMock() }
+})
 
 vi.mock('resend', () => ({
   Resend: vi.fn().mockImplementation(() => ({
@@ -61,7 +43,7 @@ describe('EquipeConviteService.criarConvite', () => {
     ;(prisma.usuario.findUnique as any)
       .mockResolvedValueOnce({ id: convidadoId, email: 'u2@test.com', ativo: true })
       .mockResolvedValueOnce({ id: convidadoPorId, nome: 'Líder' })
-    ;(prisma.equipeUsuario.findUnique as any)
+    ;(prisma.equipeMembro.findUnique as any)
       .mockResolvedValueOnce({ papel: 'LIDER' }) // solicitante é líder
       .mockResolvedValueOnce(null) // convidado não é membro
     ;(prisma.equipeConvite.updateMany as any).mockResolvedValue({ count: 0 })
@@ -79,7 +61,7 @@ describe('EquipeConviteService.criarConvite', () => {
     ;(prisma.usuario.findUnique as any)
       .mockResolvedValueOnce({ id: convidadoId, email: 'u2@test.com', ativo: true })
       .mockResolvedValueOnce({ id: convidadoPorId, nome: 'Admin' })
-    ;(prisma.equipeUsuario.findUnique as any).mockResolvedValue(null) // não é membro
+    ;(prisma.equipeMembro.findUnique as any).mockResolvedValue(null) // não é membro
     ;(prisma.equipeConvite.updateMany as any).mockResolvedValue({ count: 0 })
     ;(prisma.equipeConvite.create as any).mockResolvedValue({})
 
@@ -92,7 +74,7 @@ describe('EquipeConviteService.criarConvite', () => {
     ;(prisma.usuario.findUnique as any)
       .mockResolvedValueOnce({ id: convidadoId, email: 'u2@test.com', ativo: true })
       .mockResolvedValueOnce({ id: convidadoPorId, nome: 'Membro' })
-    ;(prisma.equipeUsuario.findUnique as any).mockResolvedValue({ papel: 'DESIGNER' }) // não é líder
+    ;(prisma.equipeMembro.findUnique as any).mockResolvedValue({ papel: 'DESIGNER' }) // não é líder
 
     await expect(service.criarConvite(equipeId, convidadoId, papel, convidadoPorId, false)).rejects.toThrow(
       'Apenas líderes',
@@ -121,7 +103,7 @@ describe('EquipeConviteService.criarConvite', () => {
     ;(prisma.usuario.findUnique as any)
       .mockResolvedValueOnce({ id: convidadoId, email: 'u2@test.com', ativo: true })
       .mockResolvedValueOnce({ id: convidadoPorId, nome: 'Admin' })
-    ;(prisma.equipeUsuario.findUnique as any).mockResolvedValue({ papel: 'DESIGNER' }) // já é membro
+    ;(prisma.equipeMembro.findUnique as any).mockResolvedValue({ papel: 'DESIGNER' }) // já é membro
 
     await expect(service.criarConvite(equipeId, convidadoId, papel, convidadoPorId, true)).rejects.toThrow(
       'já é membro',
@@ -146,7 +128,7 @@ describe('EquipeConviteService.aceitarConvite', () => {
 
   it('aceita convite válido e adiciona membro', async () => {
     ;(prisma.equipeConvite.findUnique as any).mockResolvedValue(conviteMock)
-    ;(prisma.equipeUsuario.findUnique as any).mockResolvedValue(null)
+    ;(prisma.equipeMembro.findUnique as any).mockResolvedValue(null)
     ;(prisma.$transaction as any).mockResolvedValue([{}, {}])
     ;(prisma.equipe.findUnique as any).mockResolvedValue({ id: equipeId, nome: 'Equipe Alpha', slug: 'alpha' })
 

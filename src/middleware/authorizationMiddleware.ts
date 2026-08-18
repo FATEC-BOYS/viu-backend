@@ -198,7 +198,9 @@ export async function requireProjectAccess(
     const audioData = (request as any).audioData
 
     let projeto: { designerId: string; clienteId: string } | null = null
-    let projetoId: string | null = null
+    // undefined em vez de null: o Prisma aceita string | undefined em where,
+    // e o uso aqui é só teste de falsy + repasse em request.projetoId.
+    let projetoId: string | undefined = undefined
 
     if (params.projetoId) {
       projetoId = params.projetoId
@@ -212,6 +214,18 @@ export async function requireProjectAccess(
         where: { id: projetoId },
         select: PROJETO_ACCESS_SELECT,
       })
+    } else if (body?.arteId) {
+      // POST /feedbacks manda arteId no corpo — é o que CreateFeedbackRequestSchema
+      // declara. Sem esta resolução, criar feedback exigia um projetoId que o
+      // schema não documenta e a requisição morria em 400.
+      const arte = await prisma.arte.findUnique({
+        where: { id: body.arteId },
+        select: { projetoId: true, projeto: { select: PROJETO_ACCESS_SELECT } },
+      })
+      if (arte) {
+        projetoId = arte.projetoId
+        projeto = arte.projeto
+      }
     } else if (params.id) {
       // Busca arte + projeto em 1 query (evita N+1)
       const arte = await prisma.arte.findUnique({
@@ -228,7 +242,8 @@ export async function requireProjectAccess(
           select: { projetoId: true, projeto: { select: PROJETO_ACCESS_SELECT } },
         })
         if (tarefa) {
-          projetoId = tarefa.projetoId
+          // Tarefa.projetoId é opcional no schema — tarefa solta não tem projeto
+          projetoId = tarefa.projetoId ?? undefined
           projeto = tarefa.projeto
         } else {
           // Tenta feedback (arte → projeto em dois níveis)

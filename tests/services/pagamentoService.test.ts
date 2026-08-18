@@ -1,26 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { PagamentoService } from '../../src/services/pagamentoService.js'
 
-vi.mock('../../src/database/client.js', () => ({
-  default: {
-    pagamento: {
-      findUnique: vi.fn(),
-      update: vi.fn(),
-    },
-    fatura: {
-      findUnique: vi.fn(),
-      update: vi.fn(),
-    },
-    ledgerEntry: {
-      create: vi.fn(),
-    },
-    webhookLog: {
-      create: vi.fn(),
-      update: vi.fn(),
-    },
-    $transaction: vi.fn(),
-  },
-}))
+vi.mock('../../src/database/client.js', async () => {
+  const { criarPrismaMock } = await import('../helpers/prismaMock.js')
+  return { default: criarPrismaMock() }
+})
 
 vi.mock('../../src/services/mercadoPagoService.js', () => ({
   mpPayment: { get: vi.fn() },

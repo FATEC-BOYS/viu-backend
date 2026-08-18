@@ -3,30 +3,15 @@ import type { FastifyInstance } from 'fastify'
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
-vi.mock('../../src/database/client.js', () => {
-  const db: any = {
-    sessao: { findFirst: vi.fn() },
-    usuario: { findUnique: vi.fn() },
-    projeto: { findUnique: vi.fn() },
-    fatura: { create: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(), update: vi.fn(), aggregate: vi.fn() },
-    pagamento: { create: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(), update: vi.fn() },
-    ledgerEntry: { create: vi.fn(), findMany: vi.fn() },
-    webhookLog: { create: vi.fn(), update: vi.fn() },
-    assinatura: { findFirst: vi.fn() },
-    auditLog: { create: vi.fn() },
-    notificacao: { create: vi.fn() },
-    equipeMembro: { findFirst: vi.fn() },
-    saque: { aggregate: vi.fn() },
-    $transaction: vi.fn(async (ops: any) =>
-      Array.isArray(ops) ? Promise.all(ops) : ops(db)
-    ),
-  }
-  return { default: db }
+vi.mock('../../src/database/client.js', async () => {
+  const { criarPrismaMock } = await import('../helpers/prismaMock.js')
+  return { default: criarPrismaMock() }
 })
 
-vi.mock('../../src/services/notificacaoService.js', () => ({
-  notificacaoService: { dispatch: vi.fn() },
-}))
+vi.mock('../../src/services/notificacaoService.js', async () => {
+  const { criarNotificacaoMock } = await import('../helpers/notificacaoMock.js')
+  return criarNotificacaoMock()
+})
 
 // Mock Mercado Pago — never call real gateway in tests
 vi.mock('../../src/services/mercadoPagoService.js', () => ({
@@ -175,7 +160,7 @@ describe('POST /faturas/:id/pagar/pix — gerar PIX', () => {
       method: 'POST',
       url: `/faturas/${FATURA_ID}/pagar/pix`,
       headers: { authorization: `Bearer ${token}`, ...ORIGIN },
-      payload: { cpf: '123.456.789-09' },
+      payload: { cpf: '12345678909' } // a API pede 11 dígitos; a UI já limpa a máscara,
     })
 
     expect(res.statusCode).toBe(201)
@@ -203,7 +188,7 @@ describe('POST /faturas/:id/pagar/pix — gerar PIX', () => {
       method: 'POST',
       url: `/faturas/${FATURA_ID}/pagar/pix`,
       headers: { authorization: `Bearer ${token}`, ...ORIGIN },
-      payload: { cpf: '123.456.789-09' },
+      payload: { cpf: '12345678909' } // a API pede 11 dígitos; a UI já limpa a máscara,
     })
 
     expect(res.statusCode).toBe(201)

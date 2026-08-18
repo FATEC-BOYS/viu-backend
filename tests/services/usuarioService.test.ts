@@ -2,20 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { UsuarioService } from '../../src/services/usuarioService.js'
 
 // Mock prisma
-vi.mock('../../src/database/client.js', () => ({
-  default: {
-    usuario: {
-      findMany: vi.fn(),
-      findUnique: vi.fn(),
-      count: vi.fn(),
-      create: vi.fn(),
-      update: vi.fn(),
-    },
-    sessao: {
-      create: vi.fn(),
-    },
-  },
-}))
+vi.mock('../../src/database/client.js', async () => {
+  const { criarPrismaMock } = await import('../helpers/prismaMock.js')
+  return { default: criarPrismaMock() }
+})
 
 // Mock bcrypt
 vi.mock('bcryptjs', () => ({
@@ -137,10 +127,20 @@ describe('UsuarioService.deactivateUsuario', () => {
     vi.mocked(prisma.usuario.update).mockResolvedValue({} as any)
 
     await service.deactivateUsuario('1')
-    expect(prisma.usuario.update).toHaveBeenCalledWith({
-      where: { id: '1' },
-      data: { ativo: false },
-    })
+    // LGPD Art. 18 IV: desativar anonimiza o PII em vez de só baixar a flag
+    expect(prisma.usuario.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: '1' },
+        data: expect.objectContaining({
+          ativo: false,
+          nome: 'Usuário Removido',
+          email: 'deleted+1@removed.viu.app',
+          telefone: null,
+          senha: null,
+          twoFactorEnabled: false,
+        }),
+      }),
+    )
   })
 
   it('deve lançar erro se não existe', async () => {

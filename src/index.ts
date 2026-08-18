@@ -28,6 +28,7 @@ import { convitesRoutes } from './routes/convites.js'
 import { equipeConvitesRoutes } from './routes/equipeConvites.js'
 import { arteVersoesRoutes } from './routes/arteVersoes.js'
 import { buscaRoutes } from './routes/busca.js'
+import { vinculosRoutes } from "./routes/vinculos.js"
 import { setupErrorHandler } from './middleware/errorHandlerMiddleware.js'
 import { auditLogMiddleware } from './middleware/auditLogMiddleware.js'
 import { auditLogService } from './services/auditLogService.js'
@@ -92,8 +93,8 @@ export async function buildServer() {
 
   await app.register(import('@fastify/rate-limit'), {
     global: true,
-    max: 100,
-    timeWindow: '15 minutes',
+    max: env.RATE_LIMIT_MAX,
+    timeWindow: env.RATE_LIMIT_WINDOW,
     errorResponseBuilder: (_request, context) => ({
       statusCode: 429,
       error: 'Too Many Requests',
@@ -166,6 +167,7 @@ export async function buildServer() {
   await app.register(equipeConvitesRoutes)
   await app.register(arteVersoesRoutes)
   await app.register(buscaRoutes)
+  await app.register(vinculosRoutes)
 
   return app
 }

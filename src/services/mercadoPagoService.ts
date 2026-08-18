@@ -24,7 +24,7 @@ export function validateMpWebhookSignature(
   const parts = Object.fromEntries(
     xSignature.split(',').map((part) => {
       const [k, v] = part.split('=')
-      return [k.trim(), v?.trim() ?? '']
+      return [k?.trim() ?? '', v?.trim() ?? '']
     }),
   ) as Record<string, string>
 

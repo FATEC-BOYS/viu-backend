@@ -8,13 +8,14 @@ const aprovacaoService = new AprovacaoService()
 export async function listAprovacoes(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
     const usuario = (request as any).usuario
-    const { page = 1, limit = 10, arteId, aprovadorId, status } = (request.query || {}) as any
+    const { page = 1, limit = 10, arteId, aprovadorId, status, projetoId } = (request.query || {}) as any
     const params: ListAprovacoesParams = {
       page: Number(page) || 1,
       limit: Number(limit) || 10,
       arteId: arteId as string | undefined,
       aprovadorId: aprovadorId as string | undefined,
       status: status as string | undefined,
+      projetoId: projetoId as string | undefined,
     }
 
     if (usuario.tipo !== 'ADMIN') {
@@ -88,6 +89,12 @@ export async function updateAprovacao(request: FastifyRequest, reply: FastifyRep
     const aprovacao = await aprovacaoService.updateAprovacao(id, body, usuario.id)
     reply.send({ message: 'Aprovação atualizada com sucesso', data: aprovacao, success: true })
   } catch (error: any) {
+    // Transição barrada pela máquina de estados é erro de quem chamou, não do
+    // servidor — devolvia 500 e mascarava a causa.
+    if (error.message.includes('é terminal') || error.message.includes('Transição inválida')) {
+      reply.status(409).send({ message: error.message, success: false })
+      return
+    }
     if (error.message.includes('Aprovação não encontrada')) {
       reply.status(404).send({ message: error.message, success: false })
       return
@@ -116,5 +123,32 @@ export async function deleteAprovacao(request: FastifyRequest, reply: FastifyRep
       return
     }
     reply.status(500).send({ message: 'Erro ao remover aprovação', success: false })
+  }
+}
+
+export async function lembrarAprovadorHandler(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  try {
+    const usuario = (request as any).usuario
+    const { id } = request.params as { id: string }
+    const data = await aprovacaoService.lembrarAprovador(id, usuario.id)
+    reply.send({ message: 'Lembrete enviado', data, success: true })
+  } catch (error: any) {
+    if (error.message === 'Aprovação não encontrada') {
+      reply.status(404).send({ message: error.message, success: false })
+      return
+    }
+    if (error.message === 'Acesso negado') {
+      reply.status(403).send({ message: error.message, success: false })
+      return
+    }
+    if (error.message === 'Aprovação já respondida') {
+      reply.status(409).send({ message: error.message, success: false })
+      return
+    }
+    request.log.error(error)
+    reply.status(500).send({ message: 'Erro ao enviar lembrete', success: false })
   }
 }

@@ -39,6 +39,9 @@ export type AuditAction =
   | 'CRIAR_CONVITE'
   | 'ACEITAR_CONVITE'
   | 'RECUSAR_CONVITE'
+  // Versões de arte
+  | 'CREATE_VERSAO_ARTE'
+  | 'RESTAURAR_VERSAO_ARTE'
 
 export type AuditResource =
   | 'Usuario'
@@ -55,6 +58,7 @@ export type AuditResource =
   | 'Fatura'
   | 'Equipe'
   | 'Convite'
+  | 'ArteVersao'
 
 export interface AuditLogData {
   action: AuditAction

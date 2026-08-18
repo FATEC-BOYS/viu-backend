@@ -8,15 +8,10 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('../../src/database/client.js', () => ({
-  default: {
-    projeto: { findUnique: vi.fn() },
-    arte: { findUnique: vi.fn() },
-    tarefa: { findUnique: vi.fn() },
-    feedback: { findUnique: vi.fn() },
-    aceiteContratual: { findMany: vi.fn(), upsert: vi.fn() },
-  },
-}))
+vi.mock('../../src/database/client.js', async () => {
+  const { criarPrismaMock } = await import('../helpers/prismaMock.js')
+  return { default: criarPrismaMock() }
+})
 
 import prisma from '../../src/database/client.js'
 import { requireProjectAccess } from '../../src/middleware/authorizationMiddleware.js'

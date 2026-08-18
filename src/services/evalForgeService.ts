@@ -59,7 +59,9 @@ export async function evaluateBriefing(descricao: string): Promise<BriefingEvalR
       return { passed: true, verdict: 'PASS', scores: {} }
     }
 
-    const body = await res.json()
+    // res.json() devolve unknown; a resposta é de serviço externo, então só
+    // lemos o que interessa em vez de confiar no formato inteiro.
+    const body = (await res.json()) as { result?: { verdict?: string; scores?: Record<string, DimensionScore> } }
     const verdict: 'PASS' | 'FAIL' = body.result?.verdict === 'FAIL' ? 'FAIL' : 'PASS'
     return {
       passed: verdict === 'PASS',

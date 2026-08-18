@@ -3,33 +3,15 @@ import type { FastifyInstance } from 'fastify'
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
-vi.mock('../../src/database/client.js', () => {
-  const db: any = {
-    sessao: { findFirst: vi.fn() },
-    usuario: { findUnique: vi.fn() },
-    projeto: { findUnique: vi.fn(), findMany: vi.fn() },
-    arte: { findUnique: vi.fn(), findMany: vi.fn(), update: vi.fn() },
-    aprovacao: {
-      create: vi.fn(),
-      findUnique: vi.fn(),
-      findMany: vi.fn(),
-      count: vi.fn(),
-      update: vi.fn(),
-    },
-    auditLog: { create: vi.fn() },
-    notificacao: { create: vi.fn() },
-    feedback: { findUnique: vi.fn() },
-    equipeMembro: { findFirst: vi.fn() },
-    $transaction: vi.fn(async (ops: any) =>
-      Array.isArray(ops) ? Promise.all(ops) : ops(db)
-    ),
-  }
-  return { default: db }
+vi.mock('../../src/database/client.js', async () => {
+  const { criarPrismaMock } = await import('../helpers/prismaMock.js')
+  return { default: criarPrismaMock() }
 })
 
-vi.mock('../../src/services/notificacaoService.js', () => ({
-  notificacaoService: { dispatch: vi.fn() },
-}))
+vi.mock('../../src/services/notificacaoService.js', async () => {
+  const { criarNotificacaoMock } = await import('../helpers/notificacaoMock.js')
+  return criarNotificacaoMock()
+})
 
 // ── Imports ───────────────────────────────────────────────────────────────────
 
@@ -43,7 +25,7 @@ const db = prisma as any
 
 const SESSION = { id: 'csession000000001' }
 const ARTE_ID = 'carte00000000001'
-const APROVACAO_ID = 'caprovacao000001'
+const APROVACAO_ID = 'caprovacao000000000000001'
 const PROJETO_ID = 'cprojeto000000001'
 
 const ARTE = {
@@ -142,7 +124,7 @@ describe('PUT /aprovacoes/:id — máquina de estados', () => {
     db.aprovacao.findUnique.mockResolvedValue({ aprovadorId: CLIENTE.id })
   })
 
-  it('atualizar aprovação em estado terminal é rejeitado → 500', async () => {
+  it('atualizar aprovação em estado terminal é rejeitado → 409', async () => {
     // APROVADO is terminal — APROVACAO_TRANSITIONS['APROVADO'] = []
     db.aprovacao.findUnique.mockResolvedValue({
       id: APROVACAO_ID,
@@ -164,8 +146,8 @@ describe('PUT /aprovacoes/:id — máquina de estados', () => {
       payload: { status: 'REJEITADO' },
     })
 
-    // assertValidTransition throws → controller returns 500
-    expect(res.statusCode).toBe(500)
+    // estado terminal: erro do cliente, não do servidor
+    expect(res.statusCode).toBe(409)
     expect(db.aprovacao.update).not.toHaveBeenCalled()
   })
 })

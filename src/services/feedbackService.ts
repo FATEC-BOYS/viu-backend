@@ -18,10 +18,16 @@ export class FeedbackService {
   async listFeedbacks({ page = 1, limit = 10, arteId, autorId, tipo, status, search, projetoIds }: ListFeedbacksParams) {
     const skip = (page - 1) * limit
     const and: any[] = []
+    // Só as raízes: resposta de thread aparece dentro do feedback pai, não
+    // como item solto na listagem (nem no contador).
+    and.push({ parentId: null })
     if (arteId) and.push({ arteId })
     if (autorId) and.push({ autorId })
     if (tipo) and.push({ tipo })
-    if (status) and.push({ status })
+    // Feedback não tem coluna `status` — o estado da thread vive em `resolvidoEm`.
+    // Repassar `status` direto para o Prisma lançava "Unknown argument status" (500).
+    if (status === 'ABERTO') and.push({ resolvidoEm: null })
+    else if (status === 'RESOLVIDO') and.push({ resolvidoEm: { not: null } })
     if (projetoIds) and.push({ arte: { projetoId: { in: projetoIds } } })
     if (search) {
       and.push({
@@ -68,6 +74,12 @@ export class FeedbackService {
       include: {
         autor: { select: { id: true, nome: true, avatar: true } },
         arte: { select: { id: true, nome: true } },
+        // A tela abre um feedback para ler a conversa; sem isto a thread
+        // criada via parentId ficava invisível.
+        respostas: {
+          include: { autor: { select: { id: true, nome: true, avatar: true } } },
+          orderBy: { criadoEm: "asc" },
+        },
       },
     })
   }
@@ -91,7 +103,12 @@ export class FeedbackService {
       }
     }
 
-    const feedback = await prisma.feedback.create({ data })
+    // Com autor incluído: quem cria (inclusive resposta em thread) recebe o
+    // mesmo formato que a listagem devolve, e a UI pode inserir direto.
+    const feedback = await prisma.feedback.create({
+      data,
+      include: { autor: { select: { id: true, nome: true, avatar: true } } },
+    })
 
     // Notify the other party: if autor is the designer, notify the client (and vice-versa)
     const proj = arte.projeto

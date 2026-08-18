@@ -16,7 +16,8 @@ describe('CreateUsuarioRequestSchema', () => {
   it('deve validar dados corretos', () => {
     const data = {
       email: 'test@example.com',
-      senha: '123456',
+      // a política exige 12+ com maiúscula, minúscula, número e símbolo
+      senha: 'Viu#Teste2026x',
       nome: 'Test User',
       tipo: 'DESIGNER' as const,
     }
@@ -50,7 +51,7 @@ describe('CreateUsuarioRequestSchema', () => {
 
   it('deve aceitar campo telefone opcional', () => {
     const data = {
-      email: 'test@example.com', senha: '123456', nome: 'Test',
+      email: 'test@example.com', senha: 'Viu#Teste2026x', nome: 'Test',
       tipo: 'CLIENTE' as const, telefone: '11999999999',
     }
     const result = CreateUsuarioRequestSchema.safeParse(data)

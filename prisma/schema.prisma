@@ -22,7 +22,7 @@ datasource db {
 
 // 👤 Usuários
 model Usuario {
-  id       String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  id       String  @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
   email    String  @unique
   senha    String?
   nome     String
@@ -46,7 +46,7 @@ model Usuario {
   passwordResetExpiresAt DateTime?
 
   criadoEm     DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  atualizadoEm DateTime @default(now()) @updatedAt
 
   projetosDesigner Projeto[]       @relation("ProjetoDesigner")
   projetosCliente  Projeto[]       @relation("ProjetoCliente")
@@ -83,6 +83,9 @@ model Usuario {
 
   ledgerEntries LedgerEntry[] @relation("LedgerDesigner")
 
+  vinculosComoDesigner VinculoCliente[] @relation("VinculosComoDesigner")
+  vinculosComoCliente  VinculoCliente[] @relation("VinculosComoCliente")
+
   @@index([email])
   @@index([tipo])
   @@index([ativo])
@@ -92,7 +95,7 @@ model Usuario {
 
 // 📁 Projetos
 model Projeto {
-  id        String    @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  id        String    @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
   nome      String
   descricao String?
   status    String    @default("EM_ANDAMENTO")
@@ -115,7 +118,7 @@ model Projeto {
   convites ConviteProjeto[]
 
   criadoEm     DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  atualizadoEm DateTime @default(now()) @updatedAt
 
   @@index([designerId])
   @@index([clienteId])
@@ -127,7 +130,7 @@ model Projeto {
 
 // 🎨 Artes/Arquivos
 model Arte {
-  id        String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  id        String  @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
   nome      String
   descricao String?
   arquivo   String
@@ -147,7 +150,7 @@ model Arte {
   versoes             ArteVersao[]        @relation("ArteVersoes")
 
   criadoEm     DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  atualizadoEm DateTime @default(now()) @updatedAt
 
   @@index([projetoId])
   @@index([autorId])
@@ -159,7 +162,7 @@ model Arte {
 
 // 📷 Versões de Arte
 model ArteVersao {
-  id        String   @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  id        String   @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
   numero    Int
   arquivo   String
   tipo      String
@@ -178,7 +181,7 @@ model ArteVersao {
 
 // 💬 Feedbacks
 model Feedback {
-  id       String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  id       String  @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
   conteudo String
   tipo     String  @default("TEXTO")
   arquivo  String?
@@ -216,7 +219,7 @@ model Feedback {
 
 // ✅ Aprovações
 model Aprovacao {
-  id         String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  id         String  @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
   status     String  @default("PENDENTE")
   comentario String?
   // Soft delete: registros de aprovação são evidência contratual — nunca deletados fisicamente
@@ -239,7 +242,7 @@ model Aprovacao {
 
 // 📋 Tarefas
 model Tarefa {
-  id         String    @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  id         String    @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
   titulo     String
   descricao  String?
   status     String    @default("PENDENTE")
@@ -252,7 +255,7 @@ model Tarefa {
   responsavel   Usuario  @relation("TarefaResponsavel", fields: [responsavelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   criadoEm     DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  atualizadoEm DateTime @default(now()) @updatedAt
 
   @@index([projetoId])
   @@index([responsavelId])
@@ -264,7 +267,7 @@ model Tarefa {
 
 // 🔔 Notificações
 model Notificacao {
-  id       String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  id       String  @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
   titulo   String
   conteudo String
   tipo     String
@@ -285,7 +288,7 @@ model Notificacao {
 
 // 🔐 Sessões
 model Sessao {
-  id               String    @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  id               String    @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
   token            String    @unique
   expiresAt        DateTime
   refreshToken     String?   @unique
@@ -307,7 +310,7 @@ model Sessao {
 
 // 📝 Audit Logs
 model AuditLog {
-  id String @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  id String @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
 
   action     String  @db.Text
   resource   String  @db.Text
@@ -335,7 +338,7 @@ model AuditLog {
 
 // 🔒 Security Events
 model SecurityEvent {
-  id String @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  id String @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
 
   eventType String @db.Text
   severity  String @db.Text
@@ -366,7 +369,7 @@ model SecurityEvent {
 
 // 🔗 Links Compartilhados
 model LinkCompartilhado {
-  id String @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  id String @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
 
   token String @unique
   tipo  String @db.Text
@@ -398,7 +401,7 @@ model LinkCompartilhado {
 // ====== SISTEMA DE PAGAMENTOS ======
 
 model Plano {
-  id               String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  id               String  @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
   nome             String
   tipo             String
   precoMensal      Int
@@ -413,7 +416,7 @@ model Plano {
   assinaturas Assinatura[]
 
   criadoEm     DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  atualizadoEm DateTime @default(now()) @updatedAt
 
   @@index([tipo])
   @@index([ativo])
@@ -421,7 +424,7 @@ model Plano {
 }
 
 model Assinatura {
-  id                  String    @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  id                  String    @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
   status              String    @default("PENDENTE")
   periodoInicio       DateTime?
   periodoFim          DateTime?
@@ -437,7 +440,7 @@ model Assinatura {
   pagamentos Pagamento[] @relation("PagamentosAssinatura")
 
   criadoEm     DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  atualizadoEm DateTime @default(now()) @updatedAt
 
   @@index([usuarioId])
   @@index([status])
@@ -445,7 +448,7 @@ model Assinatura {
 }
 
 model Fatura {
-  id                   String    @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  id                   String    @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
   valor                Int
   taxaPlataforma       Int
   valorLiquidoDesigner Int
@@ -465,7 +468,7 @@ model Fatura {
   disputas  Disputa[]  @relation("DisputasFatura")
 
   criadoEm     DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  atualizadoEm DateTime @default(now()) @updatedAt
 
   @@index([projetoId])
   @@index([clienteId])
@@ -475,7 +478,7 @@ model Fatura {
 }
 
 model Pagamento {
-  id              String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  id              String  @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
   tipo            String
   status          String  @default("PENDENTE")
   valor           Int
@@ -494,7 +497,7 @@ model Pagamento {
   fatura       Fatura?     @relation("PagamentoFatura", fields: [faturaId], references: [id])
 
   criadoEm     DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  atualizadoEm DateTime @default(now()) @updatedAt
 
   @@index([usuarioId])
   @@index([status])
@@ -504,7 +507,7 @@ model Pagamento {
 }
 
 model ChavePix {
-  id      String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  id      String  @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
   tipo    String
   chave   String
   titular String
@@ -516,7 +519,7 @@ model ChavePix {
   saques Saque[]
 
   criadoEm     DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  atualizadoEm DateTime @default(now()) @updatedAt
 
   @@unique([usuarioId, chave])
   @@index([usuarioId])
@@ -524,7 +527,7 @@ model ChavePix {
 }
 
 model Saque {
-  id         String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  id         String  @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
   valor      Int
   status     String  @default("SOLICITADO")
   mpPayoutId String? @unique
@@ -535,7 +538,7 @@ model Saque {
   chavePix   ChavePix @relation(fields: [chavePixId], references: [id])
 
   criadoEm     DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  atualizadoEm DateTime @default(now()) @updatedAt
 
   @@index([designerId])
   @@index([status])
@@ -545,7 +548,7 @@ model Saque {
 // ====== PROTEÇÃO LEGAL ======
 
 model AceiteContratual {
-  id          String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  id          String  @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
   termoVersao String  @default("1.0")
   ip          String?
   userAgent   String?
@@ -564,7 +567,7 @@ model AceiteContratual {
 }
 
 model Disputa {
-  id             String    @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  id             String    @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
   tipo           String
   status         String    @default("ABERTA")
   descricao      String
@@ -580,7 +583,7 @@ model Disputa {
   fatura      Fatura? @relation("DisputasFatura", fields: [faturaId], references: [id])
 
   criadoEm    DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  atualizadoEm DateTime @default(now()) @updatedAt
 
   @@index([projetoId])
   @@index([abertaPorId])
@@ -591,7 +594,7 @@ model Disputa {
 // ====== EQUIPES ======
 
 model Equipe {
-  id   String @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  id   String @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
   nome String
   slug String @unique
 
@@ -603,7 +606,7 @@ model Equipe {
   convites EquipeConvite[]
 
   criadoEm     DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  atualizadoEm DateTime @default(now()) @updatedAt
 
   @@index([donoPrincipalId])
   @@index([slug])
@@ -628,7 +631,7 @@ model EquipeMembro {
 // ====== LEDGER FINANCEIRO ======
 
 model LedgerEntry {
-  id         String  @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  id         String  @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
   // CREDITO (fatura paga) ou DEBITO (saque concluído)
   tipo       String
   valor      Int
@@ -650,7 +653,7 @@ model LedgerEntry {
 // ====== WEBHOOKS ======
 
 model WebhookLog {
-  id         String    @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  id         String    @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
   // MP x-request-id — chave de idempotência: impede reprocessar o mesmo evento
   externalId String    @unique
   tipo       String
@@ -670,7 +673,7 @@ model WebhookLog {
 // ====== CONVITES DE EQUIPE ======
 
 model EquipeConvite {
-  id        String   @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  id        String   @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
   tokenHash String   @unique
   // PENDENTE | ACEITO | RECUSADO | CANCELADO | EXPIRADO
   status    String   @default("PENDENTE")
@@ -697,7 +700,7 @@ model EquipeConvite {
 // ====== CONVITES DE PROJETO ======
 
 model ConviteProjeto {
-  id        String   @id @default(dbgenerated("'c' || encode(gen_random_bytes(12), 'hex')"))
+  id        String   @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
   // SHA-256 do token raw — token raw nunca é persistido
   tokenHash String   @unique
   // PENDENTE | ACEITO | RECUSADO | CANCELADO | EXPIRADO
@@ -718,4 +721,32 @@ model ConviteProjeto {
   @@index([convidadoId])
   @@index([status])
   @@map("convites_projeto")
+}
+
+// 🤝 Vínculo designer ↔ cliente
+//
+// O laço entre designer e cliente é implícito: nasce do primeiro projeto em
+// comum. Este model existe para registrar a exceção — quando o designer decide
+// romper. Romper é só isso: o cliente sai da carteira dele. Projetos, artes,
+// feedbacks e faturas já trocados continuam intactos e acessíveis, e a conta
+// do cliente não é tocada.
+model VinculoCliente {
+  id String @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
+
+  designerId String
+  designer   Usuario @relation("VinculosComoDesigner", fields: [designerId], references: [id], onDelete: Cascade)
+  clienteId  String
+  cliente    Usuario @relation("VinculosComoCliente", fields: [clienteId], references: [id], onDelete: Cascade)
+
+  // null = laço ativo. Preenchido = rompido, com a data em que aconteceu.
+  rompidoEm DateTime?
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @default(now()) @updatedAt
+
+  @@unique([designerId, clienteId])
+  @@index([designerId])
+  @@index([clienteId])
+  @@index([rompidoEm])
+  @@map("vinculos_cliente")
 }

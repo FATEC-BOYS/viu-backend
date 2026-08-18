@@ -52,9 +52,11 @@
     "incremental": true,
     "tsBuildInfoFile": "./dist/.tsbuildinfo"
   },
+  // Só src: com tests/** aqui, tests/setup.ts e tests/helpers/ ficavam fora de
+  // rootDir e o tsc abortava com TS6059 — quebrando `npm run build`. Os testes
+  // rodam pelo vitest, que tem config própria.
   "include": [
-    "src/**/*",
-    "tests/**/*"
+    "src/**/*"
   ],
   "exclude": [
     "node_modules",

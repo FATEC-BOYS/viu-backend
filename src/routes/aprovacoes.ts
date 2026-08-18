@@ -5,6 +5,7 @@ import {
   createAprovacao,
   updateAprovacao,
   deleteAprovacao,
+  lembrarAprovadorHandler,
 } from '../controllers/aprovacaoController.js'
 import { authenticate } from '../middleware/authMiddleware.js'
 import { requirePermission } from '../middleware/authorizationMiddleware.js'
@@ -22,4 +23,7 @@ export async function aprovacoesRoutes(fastify: FastifyInstance) {
     preHandler: [authenticate, validateCuidParam],
   }, updateAprovacao)
   fastify.delete('/aprovacoes/:id', { preHandler: [authenticate, validateCuidParam] }, deleteAprovacao)
+
+  // Lembrete ao aprovador — só notifica, não altera a aprovação
+  fastify.put('/aprovacoes/:id/lembrar', { preHandler: [authenticate, validateCuidParam] }, lembrarAprovadorHandler)
 }

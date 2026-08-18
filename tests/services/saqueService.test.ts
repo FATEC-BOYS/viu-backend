@@ -1,31 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { SaqueService } from '../../src/services/saqueService.js'
 
-vi.mock('../../src/database/client.js', () => ({
-  default: {
-    chavePix: {
-      findUnique: vi.fn(),
-      create: vi.fn(),
-      update: vi.fn(),
-      findMany: vi.fn(),
-    },
-    fatura: {
-      aggregate: vi.fn(),
-    },
-    saque: {
-      create: vi.fn(),
-      findUnique: vi.fn(),
-      update: vi.fn(),
-      findMany: vi.fn(),
-      aggregate: vi.fn(),
-    },
-    ledgerEntry: {
-      create: vi.fn(),
-      findMany: vi.fn(),
-    },
-    $transaction: vi.fn(),
-  },
-}))
+vi.mock('../../src/database/client.js', async () => {
+  const { criarPrismaMock } = await import('../helpers/prismaMock.js')
+  return { default: criarPrismaMock() }
+})
 
 import prisma from '../../src/database/client.js'
 
@@ -67,7 +46,7 @@ describe('SaqueService.processarSaque', () => {
 
   it('lança erro em transição inválida', async () => {
     vi.mocked(prisma.saque.findUnique).mockResolvedValue({ id: 's1', status: 'CONCLUIDO', valor: 1000, designerId: 'd1' } as any)
-    await expect(service.processarSaque('s1', 'SOLICITADO')).rejects.toThrow('Transição inválida')
+    await expect(service.processarSaque('s1', 'SOLICITADO')).rejects.toThrow('é terminal')
   })
 
   it('atualiza saque sem ledger para transição não-terminal', async () => {

@@ -1,20 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { AprovacaoService } from '../../src/services/aprovacaoService.js'
 
-vi.mock('../../src/database/client.js', () => ({
-  default: {
-    aprovacao: {
-      findUnique: vi.fn(),
-      findMany: vi.fn(),
-      create: vi.fn(),
-      update: vi.fn(),
-      count: vi.fn(),
-    },
-    arte: {
-      findUnique: vi.fn(),
-    },
-  },
-}))
+vi.mock('../../src/database/client.js', async () => {
+  const { criarPrismaMock } = await import('../helpers/prismaMock.js')
+  return { default: criarPrismaMock() }
+})
 
 import prisma from '../../src/database/client.js'
 
@@ -50,7 +40,7 @@ describe('AprovacaoService soft delete', () => {
 
     await service.deleteAprovacao('a1', 'u1', false)
 
-    expect((prisma.aprovacao as any).delete).toBeUndefined()
+    expect((prisma.aprovacao as any).delete).not.toHaveBeenCalled()
   })
 
   it('rejeita se aprovação não encontrada (já soft-deletada ou inexistente)', async () => {
