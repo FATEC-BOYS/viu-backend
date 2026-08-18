@@ -10,6 +10,10 @@ const envSchema = z.object({
     .min(32, 'JWT_SECRET deve ter no mínimo 32 caracteres'),
   JWT_EXPIRES_IN: z.string().default('7d'),
   ALLOWED_ORIGINS: z.string().default('http://localhost:3000,http://localhost:5173'),
+  // Rate limit global. Default preserva o comportamento anterior (hardcoded);
+  // existe para dar folga em dev/testes e para ajustar em produção sem deploy.
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
+  RATE_LIMIT_WINDOW: z.string().default('15 minutes'),
   FRONTEND_URL: z.string().default('http://localhost:3000'),
   OPENAI_API_KEY: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),

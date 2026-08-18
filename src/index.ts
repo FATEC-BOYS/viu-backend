@@ -92,8 +92,8 @@ export async function buildServer() {
 
   await app.register(import('@fastify/rate-limit'), {
     global: true,
-    max: 100,
-    timeWindow: '15 minutes',
+    max: env.RATE_LIMIT_MAX,
+    timeWindow: env.RATE_LIMIT_WINDOW,
     errorResponseBuilder: (_request, context) => ({
       statusCode: 429,
       error: 'Too Many Requests',
