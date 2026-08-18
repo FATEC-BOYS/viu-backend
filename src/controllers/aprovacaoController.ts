@@ -119,3 +119,30 @@ export async function deleteAprovacao(request: FastifyRequest, reply: FastifyRep
     reply.status(500).send({ message: 'Erro ao remover aprovação', success: false })
   }
 }
+
+export async function lembrarAprovadorHandler(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  try {
+    const usuario = (request as any).usuario
+    const { id } = request.params as { id: string }
+    const data = await aprovacaoService.lembrarAprovador(id, usuario.id)
+    reply.send({ message: 'Lembrete enviado', data, success: true })
+  } catch (error: any) {
+    if (error.message === 'Aprovação não encontrada') {
+      reply.status(404).send({ message: error.message, success: false })
+      return
+    }
+    if (error.message === 'Acesso negado') {
+      reply.status(403).send({ message: error.message, success: false })
+      return
+    }
+    if (error.message === 'Aprovação já respondida') {
+      reply.status(409).send({ message: error.message, success: false })
+      return
+    }
+    request.log.error(error)
+    reply.status(500).send({ message: 'Erro ao enviar lembrete', success: false })
+  }
+}

@@ -6,6 +6,7 @@ import {
   getConvite,
   listarConvites,
   aceitarConviteHandler,
+  listarConvitesDoProjetoHandler,
   recusarConviteHandler,
 } from '../controllers/conviteController.js'
 
@@ -23,6 +24,11 @@ export async function convitesRoutes(app: FastifyInstance) {
   app.post('/convites/:token/recusar', { preHandler: [authenticate] }, recusarConviteHandler)
 
   // Create a new invite for a project (project participant only)
+  // Convites de um projeto (aba de pessoas)
+  app.get('/projetos/:projetoId/convites', {
+    preHandler: [authenticate, requireProjectAccess],
+  }, listarConvitesDoProjetoHandler)
+
   app.post('/projetos/:projetoId/convites', {
     preHandler: [authenticate, requireProjectAccess],
   }, createConvite)

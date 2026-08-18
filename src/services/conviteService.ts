@@ -177,3 +177,26 @@ export const aceitarConvite = (...args: Parameters<ConviteService['aceitarConvit
 export const recusarConvite = (...args: Parameters<ConviteService['recusarConvite']>) => _svc.recusarConvite(...args)
 export const listarConvitesPendentes = (...args: Parameters<ConviteService['listarConvitesPendentes']>) => _svc.listarConvitesPendentes(...args)
 export const getConviteByToken = (...args: Parameters<ConviteService['getConviteByToken']>) => _svc.getConviteByToken(...args)
+
+/**
+ * Convites de um projeto, para a aba de pessoas.
+ *
+ * O acesso já é checado por requireProjectAccess na rota; aqui só listamos.
+ * O tokenHash nunca sai — o token cru não é persistido e o hash não serve
+ * para nada do lado do cliente.
+ */
+export async function listarConvitesDoProjeto(projetoId: string) {
+  return prisma.conviteProjeto.findMany({
+    where: { projetoId },
+    select: {
+      id: true,
+      status: true,
+      expiraEm: true,
+      criadoEm: true,
+      respondidoEm: true,
+      convidado: { select: { id: true, nome: true, email: true, avatar: true } },
+      convidadoPor: { select: { id: true, nome: true } },
+    },
+    orderBy: { criadoEm: 'desc' },
+  })
+}

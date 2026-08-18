@@ -154,4 +154,41 @@ export class AprovacaoService {
 
     await prisma.aprovacao.update({ where: { id }, data: { deletedAt: new Date() } })
   }
+
+  /**
+   * Cutuca o aprovador de uma aprovação ainda pendente.
+   *
+   * Só notifica — nada de alterar o estado da aprovação. Quem lembra precisa
+   * ser designer ou cliente do projeto, e aprovação já respondida não gera
+   * lembrete.
+   */
+  async lembrarAprovador(id: string, solicitanteId: string) {
+    const aprovacao = await prisma.aprovacao.findUnique({
+      where: { id, deletedAt: null },
+      include: {
+        arte: {
+          select: {
+            nome: true,
+            projeto: { select: { designerId: true, clienteId: true } },
+          },
+        },
+      },
+    })
+    if (!aprovacao) throw new Error('Aprovação não encontrada')
+
+    const proj = aprovacao.arte.projeto
+    if (solicitanteId !== proj.designerId && solicitanteId !== proj.clienteId) {
+      throw new Error('Acesso negado')
+    }
+    if (aprovacao.status !== 'PENDENTE') throw new Error('Aprovação já respondida')
+
+    notificacaoService.dispatch(
+      aprovacao.aprovadorId,
+      'LEMBRETE_APROVACAO',
+      `Lembrete: "${aprovacao.arte.nome}" aguarda sua aprovação`,
+      `A arte "${aprovacao.arte.nome}" continua pendente de aprovação.`,
+    )
+
+    return { aprovacaoId: aprovacao.id, aprovadorId: aprovacao.aprovadorId }
+  }
 }

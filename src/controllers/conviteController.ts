@@ -5,6 +5,7 @@ import {
   recusarConvite,
   listarConvitesPendentes,
   getConviteByToken,
+  listarConvitesDoProjeto,
 } from '../services/conviteService.js'
 
 export async function createConvite(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -98,5 +99,19 @@ export async function recusarConviteHandler(request: FastifyRequest, reply: Fast
       return
     }
     reply.status(500).send({ message: 'Erro ao recusar convite', success: false })
+  }
+}
+
+export async function listarConvitesDoProjetoHandler(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  try {
+    const { projetoId } = request.params as { projetoId: string }
+    const convites = await listarConvitesDoProjeto(projetoId)
+    reply.send({ data: convites, success: true })
+  } catch (error) {
+    request.log.error(error)
+    reply.status(500).send({ message: 'Erro ao listar convites do projeto', success: false })
   }
 }
