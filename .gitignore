@@ -189,3 +189,7 @@ docker-compose.override.yml
 
 
 
+
+# artefatos de compilação que o tsc emitia dentro de tests/
+tests/**/*.js
+tests/**/*.js.map
