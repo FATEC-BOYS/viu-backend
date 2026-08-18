@@ -127,7 +127,7 @@ export async function createProjeto(request: FastifyRequest, reply: FastifyReply
 
     // Record electronic contract acceptance (Lei 14.063/20)
     if (body.aceiteTermos === true && usuario?.id) {
-      const ip = request.ip ?? request.headers['x-forwarded-for']?.toString().split(',')[0].trim()
+      const ip = request.ip ?? request.headers['x-forwarded-for']?.toString().split(',')[0]?.trim()
       const userAgent = request.headers['user-agent']
       aceiteService.registrarAceite({
         usuarioId: usuario.id,

@@ -37,7 +37,7 @@ export async function registrarAceite(request: FastifyRequest, reply: FastifyRep
       return
     }
 
-    const ip = request.ip ?? request.headers['x-forwarded-for']?.toString().split(',')[0].trim()
+    const ip = request.ip ?? request.headers['x-forwarded-for']?.toString().split(',')[0]?.trim()
     const userAgent = request.headers['user-agent']
 
     const aceite = await aceiteService.registrarAceite({
