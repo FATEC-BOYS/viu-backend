@@ -83,6 +83,9 @@ model Usuario {
 
   ledgerEntries LedgerEntry[] @relation("LedgerDesigner")
 
+  vinculosComoDesigner VinculoCliente[] @relation("VinculosComoDesigner")
+  vinculosComoCliente  VinculoCliente[] @relation("VinculosComoCliente")
+
   @@index([email])
   @@index([tipo])
   @@index([ativo])
@@ -718,4 +721,32 @@ model ConviteProjeto {
   @@index([convidadoId])
   @@index([status])
   @@map("convites_projeto")
+}
+
+// 🤝 Vínculo designer ↔ cliente
+//
+// O laço entre designer e cliente é implícito: nasce do primeiro projeto em
+// comum. Este model existe para registrar a exceção — quando o designer decide
+// romper. Romper é só isso: o cliente sai da carteira dele. Projetos, artes,
+// feedbacks e faturas já trocados continuam intactos e acessíveis, e a conta
+// do cliente não é tocada.
+model VinculoCliente {
+  id String @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
+
+  designerId String
+  designer   Usuario @relation("VinculosComoDesigner", fields: [designerId], references: [id], onDelete: Cascade)
+  clienteId  String
+  cliente    Usuario @relation("VinculosComoCliente", fields: [clienteId], references: [id], onDelete: Cascade)
+
+  // null = laço ativo. Preenchido = rompido, com a data em que aconteceu.
+  rompidoEm DateTime?
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @default(now()) @updatedAt
+
+  @@unique([designerId, clienteId])
+  @@index([designerId])
+  @@index([clienteId])
+  @@index([rompidoEm])
+  @@map("vinculos_cliente")
 }
