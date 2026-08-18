@@ -89,6 +89,12 @@ export async function updateAprovacao(request: FastifyRequest, reply: FastifyRep
     const aprovacao = await aprovacaoService.updateAprovacao(id, body, usuario.id)
     reply.send({ message: 'Aprovação atualizada com sucesso', data: aprovacao, success: true })
   } catch (error: any) {
+    // Transição barrada pela máquina de estados é erro de quem chamou, não do
+    // servidor — devolvia 500 e mascarava a causa.
+    if (error.message.includes('é terminal') || error.message.includes('Transição inválida')) {
+      reply.status(409).send({ message: error.message, success: false })
+      return
+    }
     if (error.message.includes('Aprovação não encontrada')) {
       reply.status(404).send({ message: error.message, success: false })
       return

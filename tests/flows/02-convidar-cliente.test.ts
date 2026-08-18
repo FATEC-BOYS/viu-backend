@@ -3,25 +3,15 @@ import type { FastifyInstance } from 'fastify'
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
-vi.mock('../../src/database/client.js', () => {
-  const db: any = {
-    sessao: { findFirst: vi.fn() },
-    usuario: { findUnique: vi.fn() },
-    projeto: { findUnique: vi.fn(), findMany: vi.fn() },
-    conviteProjeto: { updateMany: vi.fn(), create: vi.fn(), findMany: vi.fn() },
-    equipeMembro: { findFirst: vi.fn() },
-    auditLog: { create: vi.fn() },
-    notificacao: { create: vi.fn() },
-    $transaction: vi.fn(async (ops: any) =>
-      Array.isArray(ops) ? Promise.all(ops) : ops(db)
-    ),
-  }
-  return { default: db }
+vi.mock('../../src/database/client.js', async () => {
+  const { criarPrismaMock } = await import('../helpers/prismaMock.js')
+  return { default: criarPrismaMock() }
 })
 
-vi.mock('../../src/services/notificacaoService.js', () => ({
-  notificacaoService: { dispatch: vi.fn() },
-}))
+vi.mock('../../src/services/notificacaoService.js', async () => {
+  const { criarNotificacaoMock } = await import('../helpers/notificacaoMock.js')
+  return criarNotificacaoMock()
+})
 
 // ── Imports ───────────────────────────────────────────────────────────────────
 

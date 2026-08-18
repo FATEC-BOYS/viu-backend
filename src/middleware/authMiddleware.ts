@@ -16,9 +16,18 @@ export async function authenticate(
   const token = authHeader.slice(7)
   const secret = new TextEncoder().encode(getJWTSecret())
 
+  // Só a verificação do JWT vira 401. Antes um catch único cobria tudo, então
+  // uma falha de banco era reportada como "token inválido" — enganoso para
+  // quem chama e sem rastro nenhum no log.
+  let payload
   try {
-    const { payload } = await jwtVerify(token, secret)
+    ;({ payload } = await jwtVerify(token, secret))
+  } catch {
+    reply.status(401).send({ message: 'Token inválido ou expirado', success: false })
+    return
+  }
 
+  try {
     // Verify session is still active (enables token revocation via DELETE /sessoes/:id)
     const sessao = await prisma.sessao.findFirst({
       where: { token, ativo: true, expiresAt: { gt: new Date() } },
@@ -35,7 +44,8 @@ export async function authenticate(
       nome: payload['nome'] as string,
       tipo: payload['tipo'] as string,
     }
-  } catch {
-    reply.status(401).send({ message: 'Token inválido ou expirado', success: false })
+  } catch (error) {
+    request.log?.error(error)
+    reply.status(500).send({ message: 'Erro na autenticação', success: false })
   }
 }

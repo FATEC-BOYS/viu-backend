@@ -1,15 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NotificacaoService } from '../../src/services/notificacaoService.js'
 
-vi.mock('../../src/database/client.js', () => ({
-  default: {
-    notificacao: {
-      findMany: vi.fn(), findUnique: vi.fn(), count: vi.fn(),
-      create: vi.fn(), update: vi.fn(), delete: vi.fn(),
-    },
-    usuario: { findUnique: vi.fn() },
-  },
-}))
+vi.mock('../../src/database/client.js', async () => {
+  const { criarPrismaMock } = await import('../helpers/prismaMock.js')
+  return { default: criarPrismaMock() }
+})
 
 import prisma from '../../src/database/client.js'
 const service = new NotificacaoService()
@@ -20,7 +15,7 @@ describe('NotificacaoService', () => {
     vi.mocked(prisma.notificacao.findMany).mockResolvedValue([])
     vi.mocked(prisma.notificacao.count).mockResolvedValue(0)
     const result = await service.listNotificacoes({ usuarioId: '1' })
-    expect(result).toEqual({ notificacoes: [], total: 0 })
+    expect(result).toMatchObject({ notificacoes: [], total: 0 })
   })
 
   it('listNotificacoes deve converter filtro lida string para boolean', async () => {

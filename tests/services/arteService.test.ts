@@ -1,20 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ArteService } from '../../src/services/arteService.js'
 
-vi.mock('../../src/database/client.js', () => ({
-  default: {
-    arte: {
-      findMany: vi.fn(),
-      findUnique: vi.fn(),
-      count: vi.fn(),
-      create: vi.fn(),
-      update: vi.fn(),
-      delete: vi.fn(),
-    },
-    projeto: { findUnique: vi.fn() },
-    usuario: { findUnique: vi.fn() },
-  },
-}))
+vi.mock('../../src/database/client.js', async () => {
+  const { criarPrismaMock } = await import('../helpers/prismaMock.js')
+  return { default: criarPrismaMock() }
+})
 
 import prisma from '../../src/database/client.js'
 

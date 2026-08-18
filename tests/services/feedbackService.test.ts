@@ -1,26 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { FeedbackService } from '../../src/services/feedbackService.js'
 
-vi.mock('../../src/database/client.js', () => ({
-  default: {
-    feedback: {
-      findMany: vi.fn(), findUnique: vi.fn(), count: vi.fn(),
-      create: vi.fn(), update: vi.fn(), delete: vi.fn(),
-    },
-    arte: { findUnique: vi.fn() },
-    usuario: { findUnique: vi.fn() },
-  },
-}))
+vi.mock('../../src/database/client.js', async () => {
+  const { criarPrismaMock } = await import('../helpers/prismaMock.js')
+  return { default: criarPrismaMock() }
+})
 
-vi.mock('../../src/supabaseAdmin.js', () => ({
-  supa: {
-    storage: {
-      from: vi.fn().mockReturnValue({
-        upload: vi.fn().mockResolvedValue({ error: null }),
-        getPublicUrl: vi.fn().mockReturnValue({ data: { publicUrl: 'https://storage.test/audio.webm' } }),
-      }),
-    },
-  },
+// O serviço saiu do Supabase e usa utils/storage (R2). Sem este mock o teste
+// tentava rede de verdade e morria com ENOTFOUND viu.r2.example.com.
+vi.mock('../../src/utils/storage.js', () => ({
+  uploadFile: vi.fn().mockResolvedValue(undefined),
+  signPath: vi.fn().mockResolvedValue('https://storage.test/audio.webm'),
+  signPaths: vi.fn().mockResolvedValue([]),
+  deleteFile: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('../../src/services/transcricaoService.js', () => ({
@@ -103,7 +95,8 @@ describe('FeedbackService - createFeedbackComAudio', () => {
         transcricao: 'texto transcrito do áudio',
         posicaoX: 150,
         posicaoY: 200,
-        arquivo: 'https://storage.test/audio.webm',
+        // guarda o caminho no bucket; a URL assinada é gerada na leitura
+        arquivo: expect.stringMatching(/^feedbacks\/art1\/\d+_audio\.webm$/),
       }),
     }))
     expect(result.tipo).toBe('POSICIONAL')

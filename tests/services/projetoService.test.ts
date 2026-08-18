@@ -1,22 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ProjetoService } from '../../src/services/projetoService.js'
 
-vi.mock('../../src/database/client.js', () => ({
-  default: {
-    projeto: {
-      findMany: vi.fn(),
-      findUnique: vi.fn(),
-      count: vi.fn(),
-      create: vi.fn(),
-      update: vi.fn(),
-      delete: vi.fn(),
-      aggregate: vi.fn(),
-    },
-    usuario: {
-      findUnique: vi.fn(),
-    },
-  },
-}))
+vi.mock('../../src/database/client.js', async () => {
+  const { criarPrismaMock } = await import('../helpers/prismaMock.js')
+  return { default: criarPrismaMock() }
+})
 
 import prisma from '../../src/database/client.js'
 

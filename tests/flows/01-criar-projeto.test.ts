@@ -3,26 +3,15 @@ import type { FastifyInstance } from 'fastify'
 
 // ── Mocks (hoisted before any import) ───────────────────────────────────────
 
-vi.mock('../../src/database/client.js', () => {
-  const db: any = {
-    sessao: { findFirst: vi.fn(), create: vi.fn() },
-    usuario: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
-    projeto: { create: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(), count: vi.fn(), update: vi.fn(), delete: vi.fn(), aggregate: vi.fn() },
-    arte: { count: vi.fn() },
-    assinatura: { findFirst: vi.fn() },
-    plano: { findMany: vi.fn() },
-    auditLog: { create: vi.fn() },
-    notificacao: { create: vi.fn(), findMany: vi.fn(), count: vi.fn() },
-    $transaction: vi.fn(async (ops: any) =>
-      Array.isArray(ops) ? Promise.all(ops) : ops(db)
-    ),
-  }
-  return { default: db }
+vi.mock('../../src/database/client.js', async () => {
+  const { criarPrismaMock } = await import('../helpers/prismaMock.js')
+  return { default: criarPrismaMock() }
 })
 
-vi.mock('../../src/services/notificacaoService.js', () => ({
-  notificacaoService: { dispatch: vi.fn() },
-}))
+vi.mock('../../src/services/notificacaoService.js', async () => {
+  const { criarNotificacaoMock } = await import('../helpers/notificacaoMock.js')
+  return criarNotificacaoMock()
+})
 
 vi.mock('../../src/services/storageService.js', () => ({
   storageService: { upload: vi.fn(), delete: vi.fn() },
@@ -74,7 +63,13 @@ describe('POST /projetos — criar projeto', () => {
     db.assinatura.findFirst.mockResolvedValue(null) // free tier — no limits
     db.projeto.create.mockResolvedValue(PROJETO)
     db.projeto.findMany.mockResolvedValue([])
-    db.usuario.findUnique.mockResolvedValue({ ...CLIENTE, ativo: true })
+    // createProjeto busca designer e cliente em paralelo pelo mesmo método —
+    // devolver sempre o cliente fazia o designer "não existir" e virar 403.
+    db.usuario.findUnique.mockImplementation(async ({ where }: any) =>
+      where?.id === DESIGNER.id
+        ? { ...DESIGNER, ativo: true }
+        : { ...CLIENTE, ativo: true },
+    )
   })
 
   it('cria projeto para designer autenticado → 201', async () => {
