@@ -37,7 +37,8 @@ export async function listarEquipesHandler(request: FastifyRequest, reply: Fasti
     const usuario = (request as any).usuario
     const equipes = await listarEquipes(usuario.id)
     reply.send({ data: equipes, success: true })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao listar equipes')
     reply.status(500).send({ message: 'Erro ao listar equipes', success: false })
   }
 }

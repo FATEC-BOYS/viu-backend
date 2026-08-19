@@ -32,7 +32,8 @@ export async function listAprovacoes(request: FastifyRequest, reply: FastifyRepl
       pagination: { page: params.page, limit: params.limit, total, pages: Math.ceil(total / params.limit!) },
       success: true,
     })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao listar aprovações')
     reply.status(500).send({ message: 'Erro ao listar aprovações', success: false })
   }
 }

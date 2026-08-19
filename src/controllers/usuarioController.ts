@@ -21,7 +21,8 @@ export async function listUsuarios(request: FastifyRequest, reply: FastifyReply)
       pagination: { page: params.page, limit: params.limit, total, pages: Math.ceil(total / params.limit!) },
       success: true,
     })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao buscar usuários')
     reply.status(500).send({ message: 'Erro ao buscar usuários', success: false })
   }
 }
@@ -35,7 +36,8 @@ export async function getUsuarioById(request: FastifyRequest, reply: FastifyRepl
       return
     }
     reply.send({ data: usuario, success: true })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao buscar usuário')
     reply.status(500).send({ message: 'Erro ao buscar usuário', success: false })
   }
 }
@@ -127,7 +129,8 @@ export async function getCurrentUser(request: FastifyRequest, reply: FastifyRepl
       return
     }
     reply.send({ data: usuario, success: true })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao obter dados do usuário')
     reply.status(500).send({ message: 'Erro ao obter dados do usuário', success: false })
   }
 }
@@ -164,7 +167,8 @@ export async function uploadAvatar(request: FastifyRequest, reply: FastifyReply)
       data: { ...updated, avatar: avatarUrl },
       success: true,
     })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao fazer upload do avatar')
     reply.status(500).send({ message: 'Erro ao fazer upload do avatar', success: false })
   }
 }
@@ -177,7 +181,8 @@ export async function buscarUsuarios(request: FastifyRequest, reply: FastifyRepl
     }
     const data = await usuarioService.buscarUsuarios(q, Number(limit))
     reply.send({ data, success: true })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao buscar usuários')
     reply.status(500).send({ message: 'Erro ao buscar usuários', success: false })
   }
 }
@@ -186,7 +191,8 @@ export async function statsOverview(request: FastifyRequest, reply: FastifyReply
   try {
     const data = await usuarioService.statsOverview()
     reply.send({ data, success: true })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao buscar estatísticas')
     reply.status(500).send({ message: 'Erro ao buscar estatísticas', success: false })
   }
 }

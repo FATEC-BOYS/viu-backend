@@ -177,7 +177,8 @@ export async function listLinks(
     const usuario = (request as any).usuario
     const links = await linkService.listLinks(usuario.id, usuario.tipo === 'ADMIN')
     reply.send({ data: links, success: true })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao listar links')
     reply.status(500).send({ message: 'Erro ao listar links', success: false })
   }
 }

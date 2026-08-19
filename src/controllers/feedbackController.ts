@@ -40,7 +40,8 @@ export async function listFeedbacks(request: FastifyRequest, reply: FastifyReply
       pagination: { page: params.page, limit: params.limit, total, pages: Math.ceil(total / params.limit!) },
       success: true,
     })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao listar feedbacks')
     reply.status(500).send({ message: 'Erro ao listar feedbacks', success: false })
   }
 }
@@ -56,7 +57,8 @@ export async function getFeedbackById(request: FastifyRequest, reply: FastifyRep
     const arquivo_url =
       feedback.tipo === 'AUDIO' && feedback.arquivo ? await signPath(feedback.arquivo) : null
     reply.send({ data: { ...feedback, arquivo_url }, success: true })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao buscar feedback')
     reply.status(500).send({ message: 'Erro ao buscar feedback', success: false })
   }
 }

@@ -49,7 +49,8 @@ export async function listarDisputas(request: FastifyRequest, reply: FastifyRepl
 
     const disputas = await disputaService.listarDisputas(filtros)
     reply.send({ data: disputas, success: true })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao listar disputas')
     reply.status(500).send({ message: 'Erro ao listar disputas', success: false })
   }
 }
@@ -72,7 +73,8 @@ export async function getDisputaById(request: FastifyRequest, reply: FastifyRepl
     }
 
     reply.send({ data: disputa, success: true })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao buscar disputa')
     reply.status(500).send({ message: 'Erro ao buscar disputa', success: false })
   }
 }
@@ -114,7 +116,8 @@ export async function moverParaAnalise(request: FastifyRequest, reply: FastifyRe
     const { id } = request.params as { id: string }
     const disputa = await disputaService.moverParaAnalise(id)
     reply.send({ data: disputa, success: true })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao atualizar disputa')
     reply.status(500).send({ message: 'Erro ao atualizar disputa', success: false })
   }
 }

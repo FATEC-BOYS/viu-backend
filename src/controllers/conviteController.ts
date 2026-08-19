@@ -39,7 +39,8 @@ export async function getConvite(request: FastifyRequest, reply: FastifyReply): 
       return
     }
     reply.send({ data: convite, success: true })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao buscar convite')
     reply.status(500).send({ message: 'Erro ao buscar convite', success: false })
   }
 }
@@ -49,7 +50,8 @@ export async function listarConvites(request: FastifyRequest, reply: FastifyRepl
     const usuario = (request as any).usuario
     const convites = await listarConvitesPendentes(usuario.id)
     reply.send({ data: convites, success: true })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao listar convites')
     reply.status(500).send({ message: 'Erro ao listar convites', success: false })
   }
 }

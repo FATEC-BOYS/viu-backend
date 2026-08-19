@@ -70,7 +70,8 @@ export async function listarFaturasHandler(
     const { tipo = 'cliente' } = (request.query || {}) as any
     const faturas = await listarFaturas(usuario.id, tipo)
     reply.send({ data: faturas, success: true })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao buscar faturas')
     reply.status(500).send({ message: 'Erro ao buscar faturas', success: false })
   }
 }
