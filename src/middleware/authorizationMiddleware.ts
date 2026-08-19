@@ -284,7 +284,7 @@ export async function requireProjectAccess(
     }
 
     // Disponibiliza projetoId para controllers evitarem nova query
-    ;(request as any).projetoId = projetoId
+    (request as any).projetoId = projetoId
   } catch {
     return reply.status(500).send({ message: 'Erro ao verificar acesso ao projeto', success: false })
   }
