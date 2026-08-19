@@ -19,7 +19,8 @@ export async function listarChavesPixHandler(
     const usuario = (request as any).usuario
     const chaves = await listarChavesPix(usuario.id)
     reply.send({ data: chaves, success: true })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao buscar chaves PIX')
     reply.status(500).send({ message: 'Erro ao buscar chaves PIX', success: false })
   }
 }
@@ -68,7 +69,8 @@ export async function getSaldoHandler(
     const usuario = (request as any).usuario
     const saldo = await getSaldoDisponivel(usuario.id)
     reply.send({ data: saldo, success: true })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao buscar saldo')
     reply.status(500).send({ message: 'Erro ao buscar saldo', success: false })
   }
 }
@@ -112,7 +114,8 @@ export async function listarSaquesHandler(
     const usuario = (request as any).usuario
     const saques = await listarSaques(usuario.id)
     reply.send({ data: saques, success: true })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao buscar saques')
     reply.status(500).send({ message: 'Erro ao buscar saques', success: false })
   }
 }
@@ -130,7 +133,8 @@ export async function listarSaquesAdminHandler(
     const { status, designerId } = (request.query || {}) as any
     const saques = await listarSaquesAdmin({ status, designerId })
     reply.send({ data: saques, success: true })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao buscar saques')
     reply.status(500).send({ message: 'Erro ao buscar saques', success: false })
   }
 }
@@ -183,7 +187,8 @@ export async function listarLedgerHandler(
 
     const entries = await listarLedger(targetId)
     reply.send({ data: entries, success: true })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao buscar extrato')
     reply.status(500).send({ message: 'Erro ao buscar extrato', success: false })
   }
 }

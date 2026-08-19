@@ -20,7 +20,8 @@ export async function listNotificacoes(request: FastifyRequest, reply: FastifyRe
       naoLidas,
       success: true,
     })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao listar notificações')
     reply.status(500).send({ message: 'Erro ao listar notificações', success: false })
   }
 }
@@ -82,7 +83,8 @@ export async function markAllNotificacoesAsRead(request: FastifyRequest, reply: 
     const usuario = (request as any).usuario
     const result = await notificacaoService.markAllAsRead(usuario.id)
     reply.send({ message: `${result.count} notificações marcadas como lidas`, success: true })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao marcar notificações como lidas')
     reply.status(500).send({ message: 'Erro ao marcar notificações como lidas', success: false })
   }
 }

@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Uma execução por branch: push novo cancela a anterior em vez de enfileirar.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    name: Lint, testes e build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # O client do Prisma é gerado, não versionado: sem isso o tsc não acha os tipos.
+      - run: npx prisma generate
+
+      - run: npm run lint
+
+      - run: npm run test:ci
+
+      - run: npm run build
+
+  migracoes:
+    name: Migrações aplicam do zero
+    runs-on: ubuntu-latest
+    # As migrações já quebraram duas vezes por escreverem colunas em snake_case
+    # enquanto o schema esperava camelCase. Só rodar `migrate deploy` num banco
+    # vazio pega isso; o banco de dev, já migrado, não pega.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: viu_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/viu_ci
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx prisma migrate deploy
+
+      # `migrate diff` compara o schema.prisma com o banco recém-migrado.
+      # Saída não vazia significa que as migrações não reproduzem o schema.
+      - name: Verificar drift entre schema e migrações
+        run: |
+          npx prisma migrate diff \
+            --from-url "$DATABASE_URL" \
+            --to-schema-datamodel prisma/schema.prisma \
+            --exit-code && echo "sem drift"

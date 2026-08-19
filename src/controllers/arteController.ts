@@ -42,7 +42,8 @@ export async function listArtes(request: FastifyRequest, reply: FastifyReply): P
       pagination: { page: params.page, limit: params.limit, total, pages: Math.ceil(total / params.limit!) },
       success: true,
     })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao listar artes')
     reply.status(500).send({ message: 'Erro ao listar artes', success: false })
   }
 }
@@ -79,7 +80,8 @@ export async function getArteById(request: FastifyRequest, reply: FastifyReply):
       })),
     )
     reply.send({ data: { ...arte, arquivo_url, feedbacks: feedbacksComUrl }, success: true })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao buscar arte')
     reply.status(500).send({ message: 'Erro ao buscar arte', success: false })
   }
 }

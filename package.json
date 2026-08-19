@@ -10,14 +10,26 @@
     "start": "prisma migrate deploy && node dist/index.js",
     "start:no-migrate": "node dist/index.js",
     "test": "vitest",
-    "lint": "eslint src --ext .ts --fix",
+    "lint": "eslint src --ext .ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
-    "db:seed": "tsx src/database/seed.ts"
+    "db:seed": "tsx src/database/seed.ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "typecheck": "tsc --noEmit",
+    "test:ci": "vitest run"
   },
-  "keywords": ["viu", "backend", "api", "fastify", "typescript", "prisma", "design", "saas"],
+  "keywords": [
+    "viu",
+    "backend",
+    "api",
+    "fastify",
+    "typescript",
+    "prisma",
+    "design",
+    "saas"
+  ],
   "author": "VIU Team",
   "license": "MIT",
   "dependencies": {

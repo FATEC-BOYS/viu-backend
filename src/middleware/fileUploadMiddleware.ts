@@ -247,7 +247,7 @@ export async function validateArteVersaoUpload(
       })
     }
 
-    ;(request as any).arteUploadData = {
+    (request as any).arteUploadData = {
       filename: sanitizeFilename(data.filename),
       mimetype: mimeType,
       buffer,
@@ -310,7 +310,7 @@ export async function validateArteUpload(
       return reply.status(400).send({ message: 'nome e projetoId são obrigatórios', success: false })
     }
 
-    ;(request as any).arteUploadData = {
+    (request as any).arteUploadData = {
       filename: sanitizeFilename(data.filename),
       mimetype: mimeType,
       buffer,

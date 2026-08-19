@@ -21,7 +21,7 @@ export async function authenticate(
   // quem chama e sem rastro nenhum no log.
   let payload
   try {
-    ;({ payload } = await jwtVerify(token, secret))
+    ({ payload } = await jwtVerify(token, secret))
   } catch {
     reply.status(401).send({ message: 'Token inválido ou expirado', success: false })
     return
@@ -38,7 +38,7 @@ export async function authenticate(
       return
     }
 
-    ;(request as any).usuario = {
+    (request as any).usuario = {
       id: payload.sub as string,
       email: payload['email'] as string,
       nome: payload['nome'] as string,

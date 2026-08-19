@@ -51,7 +51,8 @@ export async function buscar(request: FastifyRequest, reply: FastifyReply): Prom
       },
       success: true,
     })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao executar busca')
     reply.status(500).send({ message: 'Erro ao executar busca', success: false })
   }
 }

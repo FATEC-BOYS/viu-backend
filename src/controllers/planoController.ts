@@ -6,7 +6,8 @@ export async function listPlanosHandler(request: FastifyRequest, reply: FastifyR
     const { tipo } = (request.query || {}) as any
     const planos = await listPlanos(tipo)
     reply.send({ data: planos, success: true })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao buscar planos')
     reply.status(500).send({ message: 'Erro ao buscar planos', success: false })
   }
 }
@@ -29,7 +30,8 @@ export async function createPlanoHandler(request: FastifyRequest, reply: Fastify
   try {
     const plano = await createPlano(request.body as any)
     reply.status(201).send({ message: 'Plano criado com sucesso', data: plano, success: true })
-  } catch {
+  } catch (erro) {
+    request.log.error({ erro }, 'Erro ao criar plano')
     reply.status(500).send({ message: 'Erro ao criar plano', success: false })
   }
 }

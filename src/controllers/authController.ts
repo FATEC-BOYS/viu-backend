@@ -13,16 +13,18 @@ export async function forgotPassword(request: FastifyRequest, reply: FastifyRepl
     const { email } = request.body as { email: string }
 
     // Fire-and-forget: never reveal whether the email is registered
-    passwordResetService.requestReset(email).catch(() => {
-      // Swallow errors silently — same response regardless
+    passwordResetService.requestReset(email).catch((erro) => {
+      request.log.error({ erro }, 'Falha ao enviar email de recuperação de senha')
     })
 
     reply.send({
       message: 'Se o email estiver cadastrado, você receberá um link em breve.',
       success: true,
     })
-  } catch {
-    // Same message on error to prevent timing attacks
+  } catch (erro) {
+    // A resposta é sempre a mesma para não revelar se o email existe; o log
+    // fica só no servidor.
+    request.log.error({ erro }, 'Falha ao processar pedido de recuperação de senha')
     reply.send({
       message: 'Se o email estiver cadastrado, você receberá um link em breve.',
       success: true,
@@ -93,8 +95,11 @@ export async function logoutHandler(request: FastifyRequest, reply: FastifyReply
     if (authHeader?.startsWith('Bearer ')) {
       await usuarioService.logout(authHeader.slice(7))
     }
-  } catch {
-    // always return success — client-side cleanup happens regardless
+  } catch (erro) {
+    // Sempre responde sucesso — a limpeza do lado do cliente acontece de todo
+    // jeito. Mas uma sessão que não morre no servidor é problema, e sem log
+    // isso passava batido.
+    request.log.error({ erro }, 'Falha ao revogar sessão no logout')
   }
   reply.send({ message: 'Logout realizado com sucesso', success: true })
 }

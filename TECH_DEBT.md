@@ -84,6 +84,41 @@ ou fila serializada de operações financeiras.
 
 ## 🟠 Alto
 
+### Monitoramento de erro (Sentry ou equivalente)
+**Status:** avaliado, adiado de propósito. O pré-requisito foi resolvido.
+
+Não há nenhuma ferramenta de APM/error tracking. O único sinal é o log do pino no stdout do
+processo, o que significa: sem alerta, sem agrupamento, sem histórico depois que o container
+recicla, e sem stack trace do lado do navegador.
+
+A avaliação encontrou um problema anterior a isso. 46 dos 53 blocos `catch` dos controllers
+descartavam o erro e devolviam um 500 genérico sem registrar nada; eles nunca chegavam ao
+`setErrorHandler` global, que é exatamente onde o SDK do Sentry se plugaria. Instalar Sentry
+naquele estado teria capturado quase nada e dado uma falsa sensação de cobertura. Isso foi
+corrigido — todos os catch agora logam com o `requestId` — então o caminho está aberto.
+
+Por que ainda assim adiar:
+- O DSN exige conta. Um SDK instalado e nunca exercitado é um SDK que você descobre mal
+  configurado no dia do lançamento.
+- No frontend o `@sentry/nextjs` é invasivo: envolve o `next.config`, adiciona arquivos de
+  instrumentação e sobe sourcemap no build (precisa de auth token). Não é uma dependência para
+  entrar sem alguém validando o build.
+- Sem tráfego real, não há o que observar. O valor aparece junto com os primeiros usuários.
+
+Quando ligar (ordem sugerida):
+1. Backend primeiro: `@sentry/node` com `Sentry.setupFastifyErrorHandler`. É inerte sem DSN,
+   não afeta o build, e agora recebe os erros dos controllers.
+2. Frontend depois, junto com um `app/error.tsx` e um `app/global-error.tsx` — hoje não existe
+   nenhum error boundary, então uma exceção de render mostra a tela branca do Next.
+3. Só então considerar performance/tracing, que é o que encarece o plano.
+
+Alternativa se o custo pesar: os logs estruturados que já existem (pino em JSON, com
+`requestId` em cada linha) alimentam qualquer coletor — Better Stack, Axiom, ou o log nativo do
+Railway com retenção paga. Resolve alerta e busca; não resolve agrupamento por stack nem erro
+de navegador.
+
+---
+
 ### Upload de arquivos
 **Risco:** ausência de validação de conteúdo real (só MIME type declarado pelo client), sem
 limite de armazenamento por usuário, sem limpeza de arquivos órfãos.
@@ -265,4 +300,4 @@ Não priorizar antes do core estar estável e com boa cobertura de testes.
 
 ---
 
-*Última atualização: 2026-07-04*
+*Última atualização: 2026-08-19*
