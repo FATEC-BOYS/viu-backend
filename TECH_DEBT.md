@@ -4,271 +4,138 @@ Decisões arquiteturais pendentes, riscos conhecidos e trabalho intencionalmente
 Atualizar este arquivo ao abrir ou fechar um item. Cada entrada deve ter contexto suficiente
 para que alguém novo entenda o problema sem ler o histórico de PRs.
 
+> Dívidas de frontend em `/home/user/viu-frontend/TECH_DEBT.md`.
+
 ---
 
 ## 🔴 Crítico
 
-### Convite entre designer e cliente
-**Risco:** qualquer usuário ativo do tipo correto pode ser adicionado a um projeto sem um fluxo
-formal de aceite — um designer pode criar um projeto atribuindo qualquer cliente existente.
+### Revisão de autorização (IDOR) — cobertura parcial
+**Risco:** troca de IDs em rotas que recebem `:id` pode expor recursos de outro tenant.
 
-Contexto: há um `TODO(ux)` em `src/controllers/projetoController.ts:93` desde o MVP.
-O campo `designerId`/`clienteId` é gravado diretamente sem que a outra parte confirme.
+Já coberto por teste (`tests/middleware/idor.test.ts`): `requireProjectAccess` resolvendo
+`projetoId` a partir de feedback, e os aceites contratuais (`listarAceitesProjeto`,
+`registrarAceite`), incluindo o bypass de ADMIN.
 
-Solução esperada: tabela `Convite` com token de aceite, expiração e status. Ao criar projeto,
-a parte ausente recebe e-mail; enquanto não aceita, o projeto fica em status `RASCUNHO` sem
-acesso total.
-
----
-
-### Revisão completa de autorização (IDOR)
-**Risco:** troca de IDs em qualquer rota que receba `:id` pode expor recursos de outro cliente.
-
-Rotas que precisam de auditoria explícita (testar com IDs de outro tenant):
-- `GET/PUT/DELETE /artes/:id` — `src/middleware/authorizationMiddleware.ts`
-- `GET/POST /feedbacks` filtrado por arteId
+Falta auditar, com dois tenants de teste e tentativa cruzada:
+- `GET/PUT/DELETE /artes/:id`
 - `POST /aprovacoes` — verifica se `arteId` pertence ao projeto do caller?
-- `GET /faturas/:id`, `POST /pagamentos/:id/pagar`
-- `GET /saques/:id`
-- `GET /links/:slug` — acesso público, mas o `projetoId` retornado pode vazar info
-- `GET /equipes/:id` — atualmente protegido por `isMembro`, revisar casos de borda
+- `GET /faturas/:id`, `POST /faturas/:id/pagar/pix`
+- `GET /saques/:id`, `GET /ledger/:designerId`
+- `GET /preview/:token` — público, mas o que o payload devolve pode vazar info do projeto
+- `GET /equipes/:id` — protegido por `isMembro`, revisar casos de borda
 
-Metodologia: criar dois tenants de teste, tentar cross-tenant em todas as rotas acima e
-documentar o resultado. Usar `requireProjectAccess` como referência de padrão correto.
-
----
-
-### Máquina de estados
-**Risco:** um projeto em `CONCLUIDO` pode voltar para `EM_ANDAMENTO` por `PATCH /projetos/:id`;
-uma arte em `APROVADO` pode ir para `RASCUNHO` sem log; uma fatura em `PAGO` pode ser marcada
-como `CANCELADA`.
-
-Locais afetados:
-- `ProjetoStatus`: `RASCUNHO | EM_ANDAMENTO | REVISAO | CONCLUIDO | CANCELADO`
-- `ArteStatus`: `RASCUNHO | EM_REVISAO | APROVADO | REJEITADO`
-- `FaturaStatus`: `PENDENTE | PAGO | CANCELADO | VENCIDO`
-
-Solução esperada: tabela de transições válidas (ex: `CONCLUIDO → EM_ANDAMENTO` = proibido) e
-validação no service antes de qualquer `update`. Pode ser um `Map<Status, Status[]>` simples.
-
----
-
-### Webhooks do Mercado Pago
-**Risco:** replay attacks, processamento duplicado e callbacks falsos podem marcar faturas como
-pagas sem recebimento real.
-
-Itens pendentes:
-1. Verificar assinatura HMAC-SHA256 do header `x-signature` antes de qualquer processamento
-2. Guardar `externalId` (MP notification_id) e rejeitar com 200 se já processado (idempotência)
-3. Responder 200 imediatamente e processar em background (MP retry em falha de resposta)
-4. Log de cada webhook recebido: payload, status de processamento, timestamp
-
-Localização atual: `src/controllers/pagamentoController.ts` (handler de webhook).
-
----
-
-### Ledger financeiro
-**Risco:** há pagamentos, faturas e saques como entidades separadas sem uma fonte única da
-verdade para saldo disponível. É possível solicitar saque de um valor que ainda não foi
-liquidado pelo gateway.
-
-Verificar:
-- Saldo disponível = soma de `Pagamento.valor` (status `PAGO`) − `Saque.valor` (status `PROCESSADO`)
-- Essa conta é feita na hora do saque ou existe um campo materializado?
-- O que acontece se dois saques simultâneos passam pela mesma janela de saldo?
-
-Solução esperada: campo `saldoDisponivel` atualizado atomicamente via `$transaction` Prisma,
-ou fila serializada de operações financeiras.
+Usar `requireProjectAccess` como referência de padrão correto.
 
 ---
 
 ## 🟠 Alto
 
-### Monitoramento de erro (Sentry ou equivalente)
-**Status:** avaliado, adiado de propósito. O pré-requisito foi resolvido.
+### Upload de arquivos — falta o que vem depois da validação
+**Feito:** magic bytes conferidos além do `Content-Type` declarado
+(`src/middleware/fileUploadMiddleware.ts`), limite de corpo via `bodyLimit` do Fastify.
 
-Não há nenhuma ferramenta de APM/error tracking. O único sinal é o log do pino no stdout do
-processo, o que significa: sem alerta, sem agrupamento, sem histórico depois que o container
-recicla, e sem stack trace do lado do navegador.
-
-A avaliação encontrou um problema anterior a isso. 46 dos 53 blocos `catch` dos controllers
-descartavam o erro e devolviam um 500 genérico sem registrar nada; eles nunca chegavam ao
-`setErrorHandler` global, que é exatamente onde o SDK do Sentry se plugaria. Instalar Sentry
-naquele estado teria capturado quase nada e dado uma falsa sensação de cobertura. Isso foi
-corrigido — todos os catch agora logam com o `requestId` — então o caminho está aberto.
-
-Por que ainda assim adiar:
-- O DSN exige conta. Um SDK instalado e nunca exercitado é um SDK que você descobre mal
-  configurado no dia do lançamento.
-- No frontend o `@sentry/nextjs` é invasivo: envolve o `next.config`, adiciona arquivos de
-  instrumentação e sobe sourcemap no build (precisa de auth token). Não é uma dependência para
-  entrar sem alguém validando o build.
-- Sem tráfego real, não há o que observar. O valor aparece junto com os primeiros usuários.
-
-Quando ligar (ordem sugerida):
-1. Backend primeiro: `@sentry/node` com `Sentry.setupFastifyErrorHandler`. É inerte sem DSN,
-   não afeta o build, e agora recebe os erros dos controllers.
-2. Frontend depois, junto com um `app/error.tsx` e um `app/global-error.tsx` — hoje não existe
-   nenhum error boundary, então uma exceção de render mostra a tela branca do Next.
-3. Só então considerar performance/tracing, que é o que encarece o plano.
-
-Alternativa se o custo pesar: os logs estruturados que já existem (pino em JSON, com
-`requestId` em cada linha) alimentam qualquer coletor — Better Stack, Axiom, ou o log nativo do
-Railway com retenção paga. Resolve alerta e busca; não resolve agrupamento por stack nem erro
-de navegador.
-
----
-
-### Upload de arquivos
-**Risco:** ausência de validação de conteúdo real (só MIME type declarado pelo client), sem
-limite de armazenamento por usuário, sem limpeza de arquivos órfãos.
-
-Itens:
-- Validar magic bytes além do `Content-Type` (ex: `file-type` npm)
-- Limite de tamanho por arquivo (atual: controlado pelo Fastify `bodyLimit`) e por usuário/projeto
+**Falta:**
+- Limite de armazenamento por usuário/projeto (hoje só existe o limite por arquivo)
 - Scan antivírus (ClamAV via clamdscan ou serviço externo)
-- Cron job para deletar `Arte` sem `projetoId` ativo ou arquivos no storage sem registro no DB
+- Job de limpeza: `Arte` sem projeto ativo, e arquivos no storage sem registro no banco
 - ZIP bomb: se aceitar ZIP/RAR, descomprimir com limite de tamanho de saída
 
-Localização: `src/controllers/arteController.ts`, `src/services/storageService.ts`.
+Localização: `src/controllers/arteController.ts`, `src/utils/storage.ts`.
 
 ---
 
-### Rate limiting granular
-**Risco:** endpoints sensíveis sem proteção específica permitem força bruta ou flood.
+### Autenticação social (Google) não existe no backend
+**Risco:** funcionalidade prometida pela interface e ausente no servidor.
 
-Endpoints que precisam de limites dedicados (além do global):
-- `POST /auth/login` — 5 req/min por IP (atual: ausente)
-- `POST /auth/forgot-password` — 3 req/hora por IP
-- `GET /links/:slug` — 30 req/min (público, sem auth)
-- `POST /artes` (upload) — 10 req/min por usuário
-- `POST /feedbacks` — 20 req/min por usuário
+O frontend tem `components/auth/SocialAuthButtons.tsx` pronto e um `TODO` nas telas de login
+e cadastro esperando `GET /auth/google` + `/auth/google/callback`. Não há nenhuma rota OAuth
+aqui — nem provider, nem callback, nem vínculo de conta social a `Usuario`.
 
-Referência: `GET /usuarios/buscar` tem 60 req/min — usar como modelo.
-
----
-
-### Auditoria
-**Risco:** ações críticas (aprovação, pagamento, saque, alteração de papel, exclusão de projeto)
-não geram log imutável. Em caso de disputa contratual ou compliance, não há evidência.
-
-Proposta de tabela:
-```
-AuditLog { id, usuarioId, acao, entidade, entidadeId, payload Json, ip, userAgent, criadoEm }
-```
-
-Ações prioritárias para logar: `APROVACAO_CRIADA`, `PAGAMENTO_PROCESSADO`, `SAQUE_SOLICITADO`,
-`PAPEL_ALTERADO`, `PROJETO_EXCLUIDO`, `ACEITE_CONTRATO`.
-
-Nota: `AceiteTermos` já existe — usar como referência de estrutura.
+Decidir entre implementar (Google OAuth 2.0, vincular por e-mail verificado, tratar conflito
+com conta que já existe por senha) ou remover o componente do frontend. Manter o botão pronto
+e o backend ausente é o pior dos dois mundos.
 
 ---
 
-### Convites para equipe
-**Risco:** `POST /equipes/:id/membros` adiciona usuário por ID direto, sem consentimento.
-Qualquer líder de equipe pode forçar qualquer usuário a fazer parte da equipe.
+### Convite enviado não pode ser cancelado
+`criarConvite` cancela o convite pendente anterior do mesmo par projeto/usuário, mas não há
+`DELETE`/`PUT .../cancelar` para revogar um convite em aberto. Quem convidou por engano só
+consegue esperar os 7 dias de expiração.
 
-Solução esperada: fluxo de convite por e-mail/token similar ao convite designer↔cliente.
-Tabela `EquipeConvite` com token, expiração e papel proposto.
+O painel de pessoas do projeto (frontend) já lista os convites e o botão de cancelar depende
+só disso.
 
-Localização: `src/services/equipeService.ts:adicionarMembro`.
-
----
-
-### Exclusão de dados (LGPD)
-**Risco:** `DELETE /usuarios/:id` não está implementado (ou não tem efeito em cascata definido).
-Obrigatório pela Lei 14.510/2022 (Marco Legal da IA) e LGPD (Art. 18, IV).
-
-Verificar:
-- O que acontece com projetos do usuário excluído? (designer/cliente)
-- Artes, feedbacks, aprovações, pagamentos ficam órfãos?
-- Links públicos criados por ele continuam ativos?
-- Saques pendentes?
-
-Solução mínima: `usuário.ativo = false` + anonimização de PII (nome, email, telefone) via job
-assíncrono, mantendo os registros financeiros por obrigação legal (5 anos).
+Localização: `src/services/conviteService.ts`, `src/routes/convites.ts`.
 
 ---
 
-### Soft delete
-**Registros que nunca devem ser fisicamente deletados:**
-- `Pagamento`, `Fatura`, `Saque` — obrigação fiscal
-- `Aprovacao`, `AceiteTermos` — evidência contratual (Lei 14.063/20)
-- `AuditLog` (quando implementado)
+### Soft delete parcial
+Hoje só `Aprovacao` tem `deletedAt` (evidência contratual — ver `tests/services/aprovacaoSoftDelete.test.ts`).
 
-Prisma não tem soft delete nativo; usar `deletedAt DateTime?` + extension de middleware global
-ou biblioteca `prisma-soft-delete-middleware`.
+`Pagamento`, `Fatura`, `Saque` e `AceiteContratual` não têm. O risco está mitigado por
+acidente e não por desenho: `DELETE /faturas/:id` chama `cancelarFatura` (muda status, não
+apaga) e não existe rota de exclusão para pagamento nem para saque. Se alguém adicionar uma,
+o registro fiscal some de vez.
+
+Prisma não tem soft delete nativo; usar `deletedAt DateTime?` + extension global ou
+`prisma-soft-delete-middleware`.
+
+---
+
+### Monitoramento de segurança com lógica pendente
+`src/services/securityMonitoringService.ts` tem três `TODO` que deixam o serviço menos capaz
+do que a interface sugere:
+- geolocalização real (hoje o evento registra o IP sem resolver origem)
+- rate limiting inteligente (o limite por rota existe; o adaptativo, não)
+- sistema de alertas (e-mail, Slack, PagerDuty) para eventos críticos
+
+Há também um `TODO` em `src/controllers/securityController.ts:237`: falta `getUserEvents` no
+serviço para a rota de eventos por usuário.
 
 ---
 
 ## 🟡 Médio
 
-### Busca avançada
-Hoje: filtro básico por `status`, `designerId`, `clienteId` e `search` (nome).
-Falta: busca por equipe, por tags (quando existirem), por intervalo de datas, full-text search
-em descrição/briefing.
+### Busca cobre só projetos e artes
+`GET /buscar` faz full-text em português (`to_tsvector` + `ts_rank`) sobre nome e descrição de
+`projetos` e `artes`, e filtra pelos projetos do usuário. A paleta Ctrl/Cmd+K do frontend
+consome exatamente isso.
 
-Para full-text: habilitar `@@index([descricao], type: Brin)` no Prisma ou usar Postgres
-`tsvector` com GIN index.
-
----
-
-### Notificações
-Ações que deveriam gerar notificação (ainda não implementadas):
-- Novo feedback em arte
-- Arte enviada para revisão
-- Aprovação/rejeição de arte
-- Fatura gerada
-- Pagamento confirmado
-- Convite para equipe
-
-Canal mínimo: e-mail via `nodemailer` + tabela `Notificacao` para centro de notificações in-app.
-Push e WebSocket são fase posterior.
+Falta: equipes, clientes e feedbacks; filtro por tags (quando existirem); e um índice GIN
+materializado — hoje o `to_tsvector` é calculado a cada consulta.
 
 ---
 
-### Versionamento de arte
-Hoje: `Arte` tem um único `arquivoUrl`. Novas versões sobrescrevem ou criam nova `Arte`.
-Proposta: tabela `ArteVersao` com histórico de uploads, possibilidade de restauração e diff
-visual lado a lado.
+### Entidade de contato não existe
+O `ClienteWizard` do frontend espera `POST /contatos` para registrar alguém que ainda não é
+usuário da plataforma. Não há modelo `Contato` no schema — só `Usuario`.
+
+Hoje o typeahead resolve por `GET /usuarios/buscar`, que só encontra quem já tem conta.
+Decidir: criar a entidade (contato vira usuário quando aceita um convite) ou assumir que todo
+participante precisa de conta e ajustar o wizard.
 
 ---
 
-### Comentários em threads
-Hoje: `Feedback` é plano (sem resposta a outro feedback).
-Proposta: campo `parentId` em `Feedback` para threads, `@menções` resolvidas via `usuarioId`,
-flag `resolvidoEm` para fechar thread e `tipo: INTERNO | EXTERNO` para comentários visíveis
-apenas para a equipe.
+### `status` é ignorado silenciosamente ao criar projeto
+`CreateProjetoRequestSchema` não declara `status` — por desenho, todo projeto começa em
+`EM_ANDAMENTO` (ou `RASCUNHO`, quando há convite). Como o Zod remove chaves desconhecidas em
+vez de recusar, o `status` que o formulário envia some sem erro nenhum.
+
+Ou aceitar e validar a transição, ou recusar explicitamente com 400. Ignorar em silêncio é o
+comportamento que engana quem integra.
 
 ---
 
-### Permissões finas
-Hoje: três papéis globais (ADMIN, DESIGNER, CLIENTE). Papéis de equipe (LIDER, DESIGNER, etc.)
-são organizacionais — `TODO(fase-b)` em `authorizationMiddleware.ts`.
+### Permissões finas por equipe
+Os papéis de equipe (`LIDER`, `DESIGNER`, `REVISOR`, `CLIENTE`) são organizacionais.
+`equipeId` em projeto é agrupamento visual e **não** concede acesso — está documentado em
+`src/controllers/projetoController.ts:114` e no `TODO(fase-b)` de
+`src/middleware/authorizationMiddleware.ts:175`.
 
-Próxima fase: RBAC por ação — `aprovar_arte`, `editar_financeiro`, `convidar_membro` — com
-tabela `Permissao` e herança por papel.
-
----
-
-### Assinaturas (SaaS billing)
-Não implementado. Estrutura mínima necessária:
-- `Plano { id, nome, preco, limitesProjetos, limitesArtes, limitesMembros }`
-- `Assinatura { usuarioId, planoId, status, periodoFim, stripeSubscriptionId? }`
-- Webhook Stripe/MP para eventos de pagamento/cancelamento
-- Middleware que bloqueia criação além do limite do plano
-
----
-
-### Observabilidade
-Hoje: `console.log` disperso, sem correlação entre requisições.
-
-Itens:
-- Logger estruturado (pino já é dependência indireta do Fastify — habilitar serializers)
-- Request ID propagado em todos os logs da requisição
-- Métricas: latência por rota, taxa de erro, fila de jobs
-- Error tracking: Sentry ou similar (uma linha de setup no Fastify)
-- Tracing: OpenTelemetry para rastrear chamadas ao Prisma e ao Mercado Pago
+`src/utils/permissions.ts` já dá permissões por ação (`requirePermission`). A fase seguinte é
+fazer o papel de equipe conceder acesso a projeto — o que depende da decisão de workspace
+abaixo.
 
 ---
 
@@ -278,7 +145,8 @@ Itens:
 Preparação para migrar de "usuário dono de projetos" para "workspace dono de projetos".
 Necessário antes de lançar planos empresariais. Não implementar antes de validar demanda.
 
-`TODO(fase-b)` em `src/middleware/authorizationMiddleware.ts` e `src/services/equipeService.ts`.
+`TODO(architecture)` em `prisma/schema.prisma:10` e `TODO(fase-b)` em
+`src/middleware/authorizationMiddleware.ts`.
 
 ---
 
@@ -292,12 +160,41 @@ Necessário antes de lançar planos empresariais. Não implementar antes de vali
 
 ### IA e automação
 - EvalForge já integrado para avaliação de briefing (`src/services/evalForgeService.ts`)
+- Transcrição de áudio já integrada (`src/services/transcricaoService.ts`)
 - OCR em artes (extrair texto de imagens para busca)
 - Resumo automático de threads de feedback
 - Sugestão de revisão baseada em histórico de feedbacks recorrentes
 
-Não priorizar antes do core estar estável e com boa cobertura de testes.
+---
+
+## ✅ Resolvido
+
+Mantido aqui porque estas entradas ficaram abertas por muito tempo depois de prontas — e
+alguém voltou a implementar o que já existia.
+
+- **Convite designer ↔ cliente**: `ConviteProjeto` com token hasheado, expiração de 7 dias,
+  e-mail via Resend e aceite que move o projeto de `RASCUNHO` para `EM_ANDAMENTO`. Responder
+  também funciona pelo id do convite, para quem perdeu o e-mail.
+- **Convites de equipe**: `EquipeConvite`, mesmo desenho, com papel proposto.
+- **Máquina de estados**: `src/utils/stateMachine.ts` com as transições válidas de projeto,
+  arte e fatura, validadas no service antes de qualquer `update`.
+- **Webhooks do Mercado Pago**: assinatura HMAC-SHA256 conferida
+  (`src/services/mercadoPagoService.ts`) e `WebhookLog` garantindo idempotência.
+- **Ledger financeiro**: `LedgerEntry` como fonte da verdade do saldo, com estorno
+  referenciado e idempotência no pagamento por Pix.
+- **Auditoria**: `AuditLog` + `src/middleware/auditLogMiddleware.ts`.
+- **Rate limiting granular**: limites dedicados por rota — login e reset (5/15min), links
+  públicos, uploads, feedbacks, transcrição de áudio.
+- **Exclusão de dados (LGPD)**: `DELETE /usuarios/:id` desativa e anonimiza PII, mantendo o
+  registro financeiro, e grava a anonimização no log de auditoria.
+- **Threads de feedback**: `parentId`, `resolvidoEm` e rotas de resolver/reabrir.
+- **Versionamento de arte**: `ArteVersao` com upload, listagem e restauração.
+- **Assinaturas**: `Plano`, `Assinatura`, webhook e middleware de limite de plano.
+- **Observabilidade**: pino estruturado com `requestId` propagado, e todos os `catch` de
+  controller registrando o erro em vez de descartá-lo.
+- **Error tracking**: `@sentry/node` opt-in por `SENTRY_DSN` (`src/observability/sentry.ts`).
+  Sem DSN nada é enviado. Falta o lado do frontend.
 
 ---
 
-*Última atualização: 2026-08-19*
+*Última atualização: 2026-08-21*
