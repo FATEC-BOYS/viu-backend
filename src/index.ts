@@ -1,5 +1,8 @@
 import 'dotenv/config'
 import './config/env.js'
+// Antes das rotas: o SDK precisa estar de pé quando o primeiro erro acontecer.
+// Sem SENTRY_DSN este import não faz nada.
+import { Sentry, sentryHabilitado } from './observability/sentry.js'
 
 import fastify from 'fastify'
 import { fileURLToPath } from 'url'
@@ -66,6 +69,13 @@ export async function buildServer() {
   })
 
   setupErrorHandler(app)
+
+  // Depois do setErrorHandler global: é dele que o Sentry recebe os erros que
+  // os controllers deixam subir.
+  if (sentryHabilitado) {
+    Sentry.setupFastifyErrorHandler(app)
+    app.log.info('Sentry habilitado')
+  }
 
   const allowedOrigins = env.ALLOWED_ORIGINS.split(',')
 

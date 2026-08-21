@@ -17,6 +17,8 @@ const envSchema = z.object({
   FRONTEND_URL: z.string().default('http://localhost:3000'),
   OPENAI_API_KEY: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),
+  // Sem DSN o SDK não sobe — error tracking é opt-in por ambiente.
+  SENTRY_DSN: z.string().optional(),
   EMAIL_FROM: z.string().default('VIU <noreply@viu.app>'),
   // Cloudflare R2
   R2_ENDPOINT: z.string().min(1, 'R2_ENDPOINT é obrigatório'),
