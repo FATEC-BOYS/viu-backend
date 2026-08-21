@@ -9,6 +9,8 @@ import {
   listarEquipeConvitesPendentesHandler,
   getEquipeConviteByTokenHandler,
   listarConvitesDaEquipeHandler,
+  aceitarEquipeConvitePorIdHandler,
+  recusarEquipeConvitePorIdHandler,
 } from '../controllers/equipeConviteController.js'
 
 export async function equipeConvitesRoutes(app: FastifyInstance) {
@@ -23,6 +25,11 @@ export async function equipeConvitesRoutes(app: FastifyInstance) {
 
   // Decline invite
   app.post('/equipes/convites/:token/recusar', { preHandler: [authenticate] }, recusarEquipeConviteHandler)
+
+  // Responder pelo id do convite — a lista de pendentes não tem o token cru,
+  // que só existe no e-mail. O segmento fixo 'id' evita colidir com :token.
+  app.post('/equipes/convites/id/:conviteId/aceitar', { preHandler: [authenticate] }, aceitarEquipeConvitePorIdHandler)
+  app.post('/equipes/convites/id/:conviteId/recusar', { preHandler: [authenticate] }, recusarEquipeConvitePorIdHandler)
 
   // List all invites for a specific team (leaders and admins only)
   app.get('/equipes/:id/convites', { preHandler: [authenticate] }, listarConvitesDaEquipeHandler)

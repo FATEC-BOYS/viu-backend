@@ -35,7 +35,9 @@ export async function createSharedLink(
       usuario.tipo === 'ADMIN',
     )
 
-    const url = `${env.FRONTEND_URL}/viewer/${link.token}`
+    // /l/:token é o resolvedor público no front — ele consulta /preview/:token
+    // e redireciona para o viewer da arte. /viewer/:token não existe.
+    const url = `${env.FRONTEND_URL}/l/${link.token}`
 
     reply.status(201).send({
       message: 'Link compartilhado criado com sucesso',

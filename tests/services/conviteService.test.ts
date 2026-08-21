@@ -222,3 +222,61 @@ describe('ConviteService.listarConvitesPendentes', () => {
     expect(prisma.conviteProjeto.findMany).toHaveBeenCalled()
   })
 })
+
+// ─── responder pelo id ────────────────────────────────────────────────────────
+
+describe('ConviteService.aceitarConvitePorId / recusarConvitePorId', () => {
+  const conviteId = 'cvt1'
+  const usuarioId = 'u2'
+
+  function mockConvite(overrides: Record<string, any> = {}) {
+    vi.mocked(prisma.conviteProjeto.findUnique).mockResolvedValue({
+      id: conviteId,
+      convidadoId: usuarioId,
+      projetoId: 'p1',
+      status: 'PENDENTE',
+      expiraEm: new Date(Date.now() + 1000 * 60 * 60),
+      projeto: { id: 'p1', nome: 'X', status: 'RASCUNHO' },
+      ...overrides,
+    } as any)
+  }
+
+  it('aceita pelo id sem precisar do token do e-mail', async () => {
+    mockConvite()
+    vi.mocked(prisma.$transaction).mockResolvedValue([{}, {}] as any)
+    vi.mocked(prisma.projeto.findUnique).mockResolvedValue({
+      id: 'p1', nome: 'X', status: 'EM_ANDAMENTO',
+    } as any)
+
+    const resultado = await service.aceitarConvitePorId(conviteId, usuarioId)
+    expect(prisma.conviteProjeto.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: conviteId } }),
+    )
+    expect(resultado).toMatchObject({ status: 'EM_ANDAMENTO' })
+  })
+
+  it('recusa pelo id e cancela o projeto', async () => {
+    mockConvite()
+    vi.mocked(prisma.$transaction).mockResolvedValue([{}, {}] as any)
+
+    await service.recusarConvitePorId(conviteId, usuarioId)
+    expect(prisma.$transaction).toHaveBeenCalled()
+  })
+
+  it('não deixa responder convite de outra pessoa', async () => {
+    mockConvite({ convidadoId: 'outro' })
+
+    await expect(service.aceitarConvitePorId(conviteId, usuarioId)).rejects.toThrow('não pertence a você')
+    await expect(service.recusarConvitePorId(conviteId, usuarioId)).rejects.toThrow('não pertence a você')
+  })
+
+  it('marca como EXPIRADO quando o prazo passou', async () => {
+    mockConvite({ expiraEm: new Date(Date.now() - 1000) })
+    vi.mocked(prisma.conviteProjeto.update).mockResolvedValue({} as any)
+
+    await expect(service.aceitarConvitePorId(conviteId, usuarioId)).rejects.toThrow('expirou')
+    expect(prisma.conviteProjeto.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: conviteId } }),
+    )
+  })
+})

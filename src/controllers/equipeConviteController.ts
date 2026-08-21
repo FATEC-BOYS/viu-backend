@@ -3,6 +3,8 @@ import {
   criarEquipeConvite,
   aceitarEquipeConvite,
   recusarEquipeConvite,
+  aceitarEquipeConvitePorId,
+  recusarEquipeConvitePorId,
   listarEquipeConvitesPendentes,
   getEquipeConviteByToken,
   listarConvitesDaEquipe,
@@ -61,6 +63,57 @@ export async function aceitarEquipeConviteHandler(request: FastifyRequest, reply
     }
     reply.status(500).send({ message: 'Erro ao aceitar convite', success: false })
   }
+}
+
+/**
+ * Aceite pelo id do convite — usado pela lista de convites pendentes, onde o
+ * token cru do e-mail não está disponível.
+ */
+export async function aceitarEquipeConvitePorIdHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  try {
+    const usuario = (request as any).usuario
+    const { conviteId } = request.params as { conviteId: string }
+    const equipe = await aceitarEquipeConvitePorId(conviteId, usuario.id)
+    reply.send({ data: equipe, message: 'Convite aceito. Você agora é membro da equipe.', success: true })
+  } catch (error: any) {
+    request.log.error({ erro: error, requestId: request.id }, 'Erro ao aceitar convite de equipe por id')
+    responderErroDeConvite(error, reply, 'Erro ao aceitar convite')
+  }
+}
+
+/** Recusa pelo id do convite — contraparte de aceitarEquipeConvitePorIdHandler. */
+export async function recusarEquipeConvitePorIdHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  try {
+    const usuario = (request as any).usuario
+    const { conviteId } = request.params as { conviteId: string }
+    await recusarEquipeConvitePorId(conviteId, usuario.id)
+    reply.send({ message: 'Convite recusado.', success: true })
+  } catch (error: any) {
+    request.log.error({ erro: error, requestId: request.id }, 'Erro ao recusar convite de equipe por id')
+    responderErroDeConvite(error, reply, 'Erro ao recusar convite')
+  }
+}
+
+/** Mesmo mapeamento de status HTTP dos handlers por token. */
+function responderErroDeConvite(error: any, reply: FastifyReply, fallback: string): void {
+  const mensagem = String(error?.message ?? '')
+  if (mensagem.includes('não encontrado') || mensagem.includes('inválido')) {
+    reply.status(404).send({ message: mensagem, success: false })
+    return
+  }
+  if (mensagem.includes('não pertence') || mensagem.includes('não é para você')) {
+    reply.status(403).send({ message: mensagem, success: false })
+    return
+  }
+  if (
+    mensagem.includes('já foi respondido') ||
+    mensagem.includes('expirou') ||
+    mensagem.includes('já é membro')
+  ) {
+    reply.status(409).send({ message: mensagem, success: false })
+    return
+  }
+  reply.status(500).send({ message: fallback, success: false })
 }
 
 export async function recusarEquipeConviteHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {

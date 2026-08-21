@@ -3,6 +3,8 @@ import {
   criarConvite,
   aceitarConvite,
   recusarConvite,
+  aceitarConvitePorId,
+  recusarConvitePorId,
   listarConvitesPendentes,
   getConviteByToken,
   listarConvitesDoProjeto,
@@ -102,6 +104,59 @@ export async function recusarConviteHandler(request: FastifyRequest, reply: Fast
     }
     reply.status(500).send({ message: 'Erro ao recusar convite', success: false })
   }
+}
+
+/**
+ * Aceite pelo id do convite — usado pela tela de convites pendentes, onde o
+ * token cru do e-mail não está disponível.
+ */
+export async function aceitarConvitePorIdHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  try {
+    const usuario = (request as any).usuario
+    const { conviteId } = request.params as { conviteId: string }
+    const projeto = await aceitarConvitePorId(conviteId, usuario.id)
+    reply.send({ data: projeto, success: true, message: 'Convite aceito com sucesso' })
+  } catch (error: any) {
+    request.log.error({ erro: error, requestId: request.id }, 'Erro ao aceitar convite por id')
+    responderErroDeConvite(error, reply, 'Erro ao aceitar convite')
+  }
+}
+
+/** Recusa pelo id do convite — contraparte de aceitarConvitePorIdHandler. */
+export async function recusarConvitePorIdHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  try {
+    const usuario = (request as any).usuario
+    const { conviteId } = request.params as { conviteId: string }
+    await recusarConvitePorId(conviteId, usuario.id)
+    reply.send({ success: true, message: 'Convite recusado' })
+  } catch (error: any) {
+    request.log.error({ erro: error, requestId: request.id }, 'Erro ao recusar convite por id')
+    responderErroDeConvite(error, reply, 'Erro ao recusar convite')
+  }
+}
+
+/**
+ * Mapeia as mensagens do service para status HTTP. Mesmas regras dos handlers
+ * por token: 403 quando o convite é de outra pessoa, 400 para convite inválido,
+ * já respondido ou expirado.
+ */
+function responderErroDeConvite(error: any, reply: FastifyReply, fallback: string): void {
+  const mensagem = String(error?.message ?? '')
+  if (mensagem.includes('não pertence a você') || mensagem.includes('Acesso negado')) {
+    reply.status(403).send({ message: mensagem, success: false })
+    return
+  }
+  if (
+    mensagem.includes('não encontrado') ||
+    mensagem.includes('inválido') ||
+    mensagem.includes('já foi respondido') ||
+    mensagem.includes('expirou') ||
+    mensagem.includes('não está mais aguardando')
+  ) {
+    reply.status(400).send({ message: mensagem, success: false })
+    return
+  }
+  reply.status(500).send({ message: fallback, success: false })
 }
 
 export async function listarConvitesDoProjetoHandler(

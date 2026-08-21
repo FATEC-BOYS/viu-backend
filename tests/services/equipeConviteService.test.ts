@@ -185,3 +185,50 @@ describe('EquipeConviteService.recusarConvite', () => {
     await expect(service.recusarConvite('rawtoken', usuarioId)).rejects.toThrow('já foi respondido')
   })
 })
+
+// ─── responder pelo id ────────────────────────────────────────────────────────
+
+describe('EquipeConviteService.aceitarConvitePorId / recusarConvitePorId', () => {
+  const usuarioId = 'u2'
+  const equipeId = 'e1'
+  const conviteId = 'cvt1'
+  const conviteMock = {
+    id: conviteId,
+    status: 'PENDENTE',
+    convidadoId: usuarioId,
+    equipeId,
+    papel: 'DESIGNER',
+    expiraEm: new Date(Date.now() + 86400000),
+    equipe: { id: equipeId, nome: 'Equipe Alpha' },
+  }
+
+  it('aceita pelo id sem precisar do token do e-mail', async () => {
+    ;(prisma.equipeConvite.findUnique as any).mockResolvedValue(conviteMock)
+    ;(prisma.equipeMembro.findUnique as any).mockResolvedValue(null)
+    ;(prisma.$transaction as any).mockResolvedValue([{}, {}])
+    ;(prisma.equipe.findUnique as any).mockResolvedValue({ id: equipeId, nome: 'Equipe Alpha', slug: 'alpha' })
+
+    const result = await service.aceitarConvitePorId(conviteId, usuarioId)
+    expect(prisma.equipeConvite.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: conviteId } }),
+    )
+    expect(result).toMatchObject({ id: equipeId })
+  })
+
+  it('recusa pelo id', async () => {
+    ;(prisma.equipeConvite.findUnique as any).mockResolvedValue(conviteMock)
+    ;(prisma.equipeConvite.update as any).mockResolvedValue({})
+
+    await service.recusarConvitePorId(conviteId, usuarioId)
+    expect(prisma.equipeConvite.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: conviteId }, data: expect.objectContaining({ status: 'RECUSADO' }) }),
+    )
+  })
+
+  it('não deixa responder convite de outra pessoa', async () => {
+    ;(prisma.equipeConvite.findUnique as any).mockResolvedValue({ ...conviteMock, convidadoId: 'outro' })
+
+    await expect(service.aceitarConvitePorId(conviteId, usuarioId)).rejects.toThrow('não pertence')
+    await expect(service.recusarConvitePorId(conviteId, usuarioId)).rejects.toThrow('não pertence')
+  })
+})

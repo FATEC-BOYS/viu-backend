@@ -106,9 +106,23 @@ export class EquipeConviteService {
   }
 
   async aceitarConvite(rawToken: string, usuarioId: string) {
-    const tokenHash = hashToken(rawToken)
     const convite = await prisma.equipeConvite.findUnique({
-      where: { tokenHash },
+      where: { tokenHash: hashToken(rawToken) },
+      select: { id: true },
+    })
+    if (!convite) throw new Error('Convite não encontrado ou inválido')
+    return this.aceitarConvitePorId(convite.id, usuarioId)
+  }
+
+  /**
+   * Aceite a partir do id do convite, para a lista de convites da interface.
+   *
+   * O token cru só existe no e-mail — o banco guarda o hash. As checagens são
+   * as mesmas do fluxo por token: só o próprio convidado responde.
+   */
+  async aceitarConvitePorId(conviteId: string, usuarioId: string) {
+    const convite = await prisma.equipeConvite.findUnique({
+      where: { id: conviteId },
       include: { equipe: { select: { id: true, nome: true } } },
     })
 
@@ -117,7 +131,7 @@ export class EquipeConviteService {
     if (convite.status !== 'PENDENTE') throw new Error('Este convite já foi respondido')
     if (convite.expiraEm < new Date()) {
       await prisma.equipeConvite.update({
-        where: { tokenHash },
+        where: { id: convite.id },
         data: { status: 'EXPIRADO', respondidoEm: new Date() },
       })
       throw new Error('Este convite expirou')
@@ -129,7 +143,7 @@ export class EquipeConviteService {
     })
     if (membroExistente) {
       await prisma.equipeConvite.update({
-        where: { tokenHash },
+        where: { id: convite.id },
         data: { status: 'CANCELADO', respondidoEm: new Date() },
       })
       throw new Error('Você já é membro desta equipe')
@@ -137,7 +151,7 @@ export class EquipeConviteService {
 
     await prisma.$transaction([
       prisma.equipeConvite.update({
-        where: { tokenHash },
+        where: { id: convite.id },
         data: { status: 'ACEITO', respondidoEm: new Date() },
       }),
       prisma.equipeMembro.create({
@@ -152,15 +166,24 @@ export class EquipeConviteService {
   }
 
   async recusarConvite(rawToken: string, usuarioId: string) {
-    const tokenHash = hashToken(rawToken)
-    const convite = await prisma.equipeConvite.findUnique({ where: { tokenHash } })
+    const convite = await prisma.equipeConvite.findUnique({
+      where: { tokenHash: hashToken(rawToken) },
+      select: { id: true },
+    })
+    if (!convite) throw new Error('Convite não encontrado ou inválido')
+    return this.recusarConvitePorId(convite.id, usuarioId)
+  }
+
+  /** Recusa a partir do id do convite — contraparte de aceitarConvitePorId. */
+  async recusarConvitePorId(conviteId: string, usuarioId: string) {
+    const convite = await prisma.equipeConvite.findUnique({ where: { id: conviteId } })
 
     if (!convite) throw new Error('Convite não encontrado ou inválido')
     if (convite.convidadoId !== usuarioId) throw new Error('Este convite não pertence a você')
     if (convite.status !== 'PENDENTE') throw new Error('Este convite já foi respondido')
 
     await prisma.equipeConvite.update({
-      where: { tokenHash },
+      where: { id: convite.id },
       data: { status: 'RECUSADO', respondidoEm: new Date() },
     })
   }
@@ -220,6 +243,8 @@ const _svc = new EquipeConviteService()
 export const criarEquipeConvite = (...args: Parameters<EquipeConviteService['criarConvite']>) => _svc.criarConvite(...args)
 export const aceitarEquipeConvite = (...args: Parameters<EquipeConviteService['aceitarConvite']>) => _svc.aceitarConvite(...args)
 export const recusarEquipeConvite = (...args: Parameters<EquipeConviteService['recusarConvite']>) => _svc.recusarConvite(...args)
+export const aceitarEquipeConvitePorId = (...args: Parameters<EquipeConviteService['aceitarConvitePorId']>) => _svc.aceitarConvitePorId(...args)
+export const recusarEquipeConvitePorId = (...args: Parameters<EquipeConviteService['recusarConvitePorId']>) => _svc.recusarConvitePorId(...args)
 export const listarEquipeConvitesPendentes = (...args: Parameters<EquipeConviteService['listarConvitesPendentes']>) => _svc.listarConvitesPendentes(...args)
 export const getEquipeConviteByToken = (...args: Parameters<EquipeConviteService['getConviteByToken']>) => _svc.getConviteByToken(...args)
 export const listarConvitesDaEquipe = (...args: Parameters<EquipeConviteService['listarConvitesDaEquipe']>) => _svc.listarConvitesDaEquipe(...args)

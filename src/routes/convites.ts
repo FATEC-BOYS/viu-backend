@@ -8,6 +8,8 @@ import {
   aceitarConviteHandler,
   listarConvitesDoProjetoHandler,
   recusarConviteHandler,
+  aceitarConvitePorIdHandler,
+  recusarConvitePorIdHandler,
 } from '../controllers/conviteController.js'
 
 export async function convitesRoutes(app: FastifyInstance) {
@@ -22,6 +24,11 @@ export async function convitesRoutes(app: FastifyInstance) {
 
   // Decline invite
   app.post('/convites/:token/recusar', { preHandler: [authenticate] }, recusarConviteHandler)
+
+  // Responder pelo id do convite — a lista de pendentes não tem o token cru,
+  // que só existe no e-mail. O segmento fixo 'id' evita colidir com :token.
+  app.post('/convites/id/:conviteId/aceitar', { preHandler: [authenticate] }, aceitarConvitePorIdHandler)
+  app.post('/convites/id/:conviteId/recusar', { preHandler: [authenticate] }, recusarConvitePorIdHandler)
 
   // Create a new invite for a project (project participant only)
   // Convites de um projeto (aba de pessoas)

@@ -81,9 +81,24 @@ export class ConviteService {
   }
 
   async aceitarConvite(rawToken: string, usuarioId: string) {
-    const tokenHash = hashToken(rawToken)
     const convite = await prisma.conviteProjeto.findUnique({
-      where: { tokenHash },
+      where: { tokenHash: hashToken(rawToken) },
+      select: { id: true },
+    })
+    if (!convite) throw new Error('Convite não encontrado ou inválido')
+    return this.aceitarConvitePorId(convite.id, usuarioId)
+  }
+
+  /**
+   * Aceite a partir do id do convite, para a lista de convites da interface.
+   *
+   * O token cru só existe no e-mail — o banco guarda o hash —, então quem
+   * perdeu o e-mail não teria como responder ao convite. As checagens são as
+   * mesmas do fluxo por token: só o próprio convidado responde.
+   */
+  async aceitarConvitePorId(conviteId: string, usuarioId: string) {
+    const convite = await prisma.conviteProjeto.findUnique({
+      where: { id: conviteId },
       include: { projeto: { select: { id: true, nome: true, status: true } } },
     })
 
@@ -92,7 +107,7 @@ export class ConviteService {
     if (convite.status !== 'PENDENTE') throw new Error('Este convite já foi respondido')
     if (convite.expiraEm < new Date()) {
       await prisma.conviteProjeto.update({
-        where: { tokenHash },
+        where: { id: convite.id },
         data: { status: 'EXPIRADO', respondidoEm: new Date() },
       })
       throw new Error('Este convite expirou')
@@ -103,7 +118,7 @@ export class ConviteService {
 
     await prisma.$transaction([
       prisma.conviteProjeto.update({
-        where: { tokenHash },
+        where: { id: convite.id },
         data: { status: 'ACEITO', respondidoEm: new Date() },
       }),
       prisma.projeto.update({
@@ -119,9 +134,18 @@ export class ConviteService {
   }
 
   async recusarConvite(rawToken: string, usuarioId: string) {
-    const tokenHash = hashToken(rawToken)
     const convite = await prisma.conviteProjeto.findUnique({
-      where: { tokenHash },
+      where: { tokenHash: hashToken(rawToken) },
+      select: { id: true },
+    })
+    if (!convite) throw new Error('Convite não encontrado ou inválido')
+    return this.recusarConvitePorId(convite.id, usuarioId)
+  }
+
+  /** Recusa a partir do id do convite — contraparte de aceitarConvitePorId. */
+  async recusarConvitePorId(conviteId: string, usuarioId: string) {
+    const convite = await prisma.conviteProjeto.findUnique({
+      where: { id: conviteId },
       include: { projeto: { select: { id: true, status: true } } },
     })
 
@@ -131,7 +155,7 @@ export class ConviteService {
 
     await prisma.$transaction([
       prisma.conviteProjeto.update({
-        where: { tokenHash },
+        where: { id: convite.id },
         data: { status: 'RECUSADO', respondidoEm: new Date() },
       }),
       prisma.projeto.update({
@@ -175,6 +199,8 @@ const _svc = new ConviteService()
 export const criarConvite = (...args: Parameters<ConviteService['criarConvite']>) => _svc.criarConvite(...args)
 export const aceitarConvite = (...args: Parameters<ConviteService['aceitarConvite']>) => _svc.aceitarConvite(...args)
 export const recusarConvite = (...args: Parameters<ConviteService['recusarConvite']>) => _svc.recusarConvite(...args)
+export const aceitarConvitePorId = (...args: Parameters<ConviteService['aceitarConvitePorId']>) => _svc.aceitarConvitePorId(...args)
+export const recusarConvitePorId = (...args: Parameters<ConviteService['recusarConvitePorId']>) => _svc.recusarConvitePorId(...args)
 export const listarConvitesPendentes = (...args: Parameters<ConviteService['listarConvitesPendentes']>) => _svc.listarConvitesPendentes(...args)
 export const getConviteByToken = (...args: Parameters<ConviteService['getConviteByToken']>) => _svc.getConviteByToken(...args)
 
