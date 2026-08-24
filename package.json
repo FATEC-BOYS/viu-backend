@@ -38,7 +38,7 @@
     "@fastify/cookie": "^9.4.0",
     "@fastify/cors": "^8.5.0",
     "@fastify/helmet": "^11.1.1",
-    "@fastify/jwt": "^7.2.4",
+    "@fastify/jwt": "^10.2.2",
     "@fastify/multipart": "^8.0.0",
     "@fastify/rate-limit": "^9.1.0",
     "@fastify/static": "^6.12.0",
