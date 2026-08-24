@@ -279,9 +279,13 @@ export class UsuarioService {
       data: { token, expiresAt, usuarioId: usuario.id, refreshToken, refreshExpiresAt },
     })
 
+    // Os prazos saem daqui para que o cookie de sessão expire junto com o
+    // token no banco — cookie que sobrevive ao token vira 401 silencioso.
     return {
       token,
       refreshToken,
+      expiresAt,
+      refreshExpiresAt,
       usuario: {
         id: usuario.id,
         email: usuario.email,
@@ -321,6 +325,8 @@ export class UsuarioService {
     return {
       token,
       refreshToken: newRefresh,
+      expiresAt,
+      refreshExpiresAt,
       usuario: {
         id: sessao.usuario.id,
         email: sessao.usuario.email,
@@ -363,6 +369,8 @@ export class UsuarioService {
     return {
       token,
       refreshToken,
+      expiresAt,
+      refreshExpiresAt,
       usuario: {
         id: usuario.id,
         email: usuario.email,

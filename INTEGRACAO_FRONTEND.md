@@ -16,6 +16,39 @@ Isso causava confusão e dificuldade na integração do frontend, pois era neces
 
 **Todos os endpoints foram unificados em um único servidor Fastify na porta 3001.**
 
+## 🔐 Autenticação — sessão por cookie
+
+`POST /auth/login`, `POST /auth/2fa/login` e `POST /auth/refresh` gravam a sessão em dois
+cookies `HttpOnly`: `viu_token` (acesso) e `viu_refresh_token`. O token **não volta no corpo
+da resposta** — é o que impede um XSS de ler a credencial e usá-la fora da sessão do
+navegador. O corpo devolve só `{ usuario }`.
+
+No cliente, isso significa:
+
+```js
+fetch(`${API_URL}/projetos`, { credentials: 'include' })  // sem header Authorization
+```
+
+- `credentials: 'include'` é obrigatório em toda chamada ao backend; o navegador anexa o
+  cookie sozinho e o JavaScript nunca vê o valor.
+- `POST /auth/logout` revoga a sessão no servidor e apaga os cookies.
+- `POST /auth/refresh` não precisa de corpo: o refresh token vem do cookie. Se falhar,
+  os cookies são apagados — a sessão acabou, mande para o login.
+
+**Escrita autenticada por cookie exige `Origin` conhecido** (403 caso contrário). É a defesa
+contra CSRF quando o deploy obriga `SameSite=none`. Requisições do próprio app já mandam
+`Origin`; chamadas server-side precisam mandá-lo explicitamente (ver `lib/serverBackend.ts`
+no frontend).
+
+`Authorization: Bearer {token}` continua aceito para clientes que não são navegador —
+scripts, integrações e os testes. Os exemplos abaixo usam essa forma.
+
+Variáveis relevantes: `COOKIE_SAMESITE` (`lax` quando app e API compartilham o site
+registrável; `none` + HTTPS quando estão em domínios diferentes) e `COOKIE_DOMAIN` (opcional,
+para compartilhar o cookie entre subdomínios).
+
+---
+
 ## 🎯 Novos Endpoints Disponíveis
 
 ### 1. Links Compartilhados

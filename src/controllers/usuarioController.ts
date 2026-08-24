@@ -3,6 +3,7 @@ import { UsuarioService, ListUsuariosParams } from '../services/usuarioService.j
 import { sendVerificationEmail } from '../services/emailVerificationService.js'
 import { uploadFile, signPath } from '../utils/storage.js'
 import { auditLogService } from '../services/auditLogService.js'
+import { definirCookiesDeSessao } from '../utils/authCookies.js'
 
 const usuarioService = new UsuarioService()
 
@@ -105,7 +106,21 @@ export async function deactivateUsuario(request: FastifyRequest, reply: FastifyR
 export async function loginUsuario(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
     const resultado = await usuarioService.login(request.body)
-    reply.send({ message: 'Login realizado com sucesso', data: resultado, success: true })
+
+    // Conta com 2FA ainda não tem sessão: o login só se completa em
+    // POST /auth/2fa/login.
+    if ((resultado as any).requires2FA) {
+      reply.send({ message: 'Verificação de 2FA necessária', data: resultado, success: true })
+      return
+    }
+
+    const { token, refreshToken, expiresAt, refreshExpiresAt, usuario } = resultado as any
+    definirCookiesDeSessao(reply, { token, refreshToken }, { expiresAt, refreshExpiresAt })
+
+    // O token não volta no corpo: se voltasse, qualquer XSS poderia lê-lo da
+    // resposta e guardar um bearer que sobrevive à sessão do navegador — que é
+    // exatamente o que sair do localStorage veio resolver.
+    reply.send({ message: 'Login realizado com sucesso', data: { usuario }, success: true })
   } catch (error: any) {
     if (error.message.includes('Email ou senha inválidos') || error.message.includes('inativo')) {
       reply.status(401).send({ message: error.message, success: false })

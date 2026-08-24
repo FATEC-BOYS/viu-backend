@@ -13,7 +13,6 @@ import {
   ForgotPasswordRequestSchema,
   ResetPasswordRequestSchema,
   ResendVerificationSchema,
-  RefreshTokenSchema,
   TwoFactorLoginSchema,
 } from '../schemas/validation.js'
 
@@ -37,9 +36,10 @@ export async function authRoutes(fastify: FastifyInstance) {
     preHandler: [validateBody(ResendVerificationSchema)],
   }, resendVerification)
 
+  // Sem validateBody: com sessão por cookie o corpo vem vazio, e o refresh
+  // token é lido do cookie. O handler valida a presença de um ou de outro.
   fastify.post('/auth/refresh', {
     config: { rateLimit: { max: 20, timeWindow: '15 minutes' } },
-    preHandler: [validateBody(RefreshTokenSchema)],
   }, refreshTokenHandler)
 
   fastify.post('/auth/logout', {}, logoutHandler)

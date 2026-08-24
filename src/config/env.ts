@@ -15,6 +15,13 @@ const envSchema = z.object({
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
   RATE_LIMIT_WINDOW: z.string().default('15 minutes'),
   FRONTEND_URL: z.string().default('http://localhost:3000'),
+  // Cookies de sessão. 'lax' vale quando app e API compartilham o site
+  // registrável (viu.app / api.viu.app, ou localhost:3000 / localhost:3001) e
+  // já protege contra CSRF. Domínios diferentes exigem 'none' + HTTPS, e aí a
+  // proteção passa a ser a guarda de origem em authMiddleware.
+  COOKIE_SAMESITE: z.enum(['lax', 'strict', 'none']).default('lax'),
+  // Opcional: define o domínio do cookie para compartilhá-lo entre subdomínios.
+  COOKIE_DOMAIN: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),
   // Sem DSN o SDK não sobe — error tracking é opt-in por ambiente.

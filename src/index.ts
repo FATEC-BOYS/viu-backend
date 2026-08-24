@@ -77,6 +77,10 @@ export async function buildServer() {
     app.log.info('Sentry habilitado')
   }
 
+  // Antes do CORS e das rotas: `request.cookies` precisa existir quando o
+  // authenticate for ler o cookie de sessão.
+  await app.register(import('@fastify/cookie'))
+
   const allowedOrigins = env.ALLOWED_ORIGINS.split(',')
 
   await app.register(import('@fastify/cors'), {

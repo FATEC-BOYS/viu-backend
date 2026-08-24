@@ -3,6 +3,12 @@ import { PasswordResetService } from '../services/passwordResetService.js'
 import { verifyEmail, resendVerificationEmail } from '../services/emailVerificationService.js'
 import { UsuarioService } from '../services/usuarioService.js'
 import { TwoFactorService } from '../services/twoFactorService.js'
+import {
+  definirCookiesDeSessao,
+  limparCookiesDeSessao,
+  lerRefreshTokenDaRequisicao,
+  lerTokenDaRequisicao,
+} from '../utils/authCookies.js'
 
 const passwordResetService = new PasswordResetService()
 const usuarioService = new UsuarioService()
@@ -77,23 +83,33 @@ export async function resendVerification(request: FastifyRequest, reply: Fastify
 
 export async function refreshTokenHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
-    const { refreshToken } = request.body as { refreshToken?: string }
+    // Navegador manda pelo cookie; script ou integração pode mandar no corpo.
+    const refreshToken = lerRefreshTokenDaRequisicao(request)
     if (!refreshToken) {
       reply.status(400).send({ message: 'Refresh token é obrigatório', success: false })
       return
     }
-    const result = await usuarioService.refresh(refreshToken)
-    reply.send({ data: result, success: true })
+    const { token, refreshToken: novoRefresh, expiresAt, refreshExpiresAt, usuario } =
+      await usuarioService.refresh(refreshToken)
+
+    definirCookiesDeSessao(reply, { token, refreshToken: novoRefresh }, { expiresAt, refreshExpiresAt })
+
+    // Sem token no corpo: um XSS que chamasse /auth/refresh levaria embora um
+    // par de tokens de longa duração, anulando o ganho do HttpOnly.
+    reply.send({ data: { usuario }, success: true })
   } catch (error: any) {
+    // Refresh que falhou é sessão morta — deixar o cookie no navegador só
+    // produziria 401 em toda requisição seguinte.
+    limparCookiesDeSessao(reply)
     reply.status(401).send({ message: error.message ?? 'Token inválido ou expirado', success: false })
   }
 }
 
 export async function logoutHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
-    const authHeader = request.headers.authorization
-    if (authHeader?.startsWith('Bearer ')) {
-      await usuarioService.logout(authHeader.slice(7))
+    const credencial = lerTokenDaRequisicao(request)
+    if (credencial) {
+      await usuarioService.logout(credencial.token)
     }
   } catch (erro) {
     // Sempre responde sucesso — a limpeza do lado do cliente acontece de todo
@@ -101,6 +117,7 @@ export async function logoutHandler(request: FastifyRequest, reply: FastifyReply
     // isso passava batido.
     request.log.error({ erro }, 'Falha ao revogar sessão no logout')
   }
+  limparCookiesDeSessao(reply)
   reply.send({ message: 'Logout realizado com sucesso', success: true })
 }
 
@@ -114,8 +131,11 @@ export async function twoFactorLoginHandler(request: FastifyRequest, reply: Fast
       return
     }
 
-    const result = await usuarioService.completeTwoFactorLogin(userId)
-    reply.send({ data: result, success: true })
+    const { token, refreshToken, expiresAt, refreshExpiresAt, usuario } =
+      await usuarioService.completeTwoFactorLogin(userId)
+
+    definirCookiesDeSessao(reply, { token, refreshToken }, { expiresAt, refreshExpiresAt })
+    reply.send({ data: { usuario }, success: true })
   } catch (error: any) {
     reply.status(400).send({ message: error.message ?? 'Erro na verificação 2FA', success: false })
   }

@@ -1,19 +1,52 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { jwtVerify } from 'jose'
-import { getJWTSecret } from '../config/env.js'
+import { getJWTSecret, env } from '../config/env.js'
 import prisma from '../database/client.js'
+import { lerTokenDaRequisicao } from '../utils/authCookies.js'
+
+const METODOS_SEGUROS = new Set(['GET', 'HEAD', 'OPTIONS'])
+
+/**
+ * Requisição que só pode ter partido do nosso app.
+ *
+ * Cookie é enviado pelo navegador automaticamente, inclusive quando quem
+ * dispara a requisição é outro site — é assim que CSRF funciona. O header
+ * `Authorization` não tem esse problema: alguém precisa colocá-lo ali de
+ * propósito.
+ *
+ * Por isso, escrita autenticada por cookie exige `Origin` conhecido. Com
+ * `SameSite=lax` o navegador já não mandaria o cookie nesse cenário, mas um
+ * deploy em domínios diferentes obriga `SameSite=none` — e aí esta checagem é
+ * o que sobra de proteção.
+ */
+function origemPermitida(request: FastifyRequest): boolean {
+  const origin = request.headers.origin
+  if (!origin) return false
+  return env.ALLOWED_ORIGINS.split(',')
+    .map((o) => o.trim())
+    .includes(origin)
+}
 
 export async function authenticate(
   request: FastifyRequest,
   reply: FastifyReply,
 ): Promise<void> {
-  const authHeader = request.headers.authorization
-  if (!authHeader?.startsWith('Bearer ')) {
+  const credencial = lerTokenDaRequisicao(request)
+  if (!credencial) {
     reply.status(401).send({ message: 'Token não fornecido', success: false })
     return
   }
 
-  const token = authHeader.slice(7)
+  if (
+    credencial.origem === 'cookie' &&
+    !METODOS_SEGUROS.has(request.method) &&
+    !origemPermitida(request)
+  ) {
+    reply.status(403).send({ message: 'Origem não autorizada', success: false })
+    return
+  }
+
+  const { token } = credencial
   const secret = new TextEncoder().encode(getJWTSecret())
 
   // Só a verificação do JWT vira 401. Antes um catch único cobria tudo, então

@@ -7,7 +7,7 @@ vi.mock('../../src/database/client.js', async () => {
 })
 
 import prisma from '../../src/database/client.js'
-import { makeToken, DESIGNER } from '../helpers/token.js'
+import { makeToken, DESIGNER, CLIENTE } from '../helpers/token.js'
 
 function createMockRequest(headers: Record<string, string> = {}) {
   return { headers } as any
@@ -95,5 +95,96 @@ describe('authenticate middleware', () => {
     await authenticate(req, reply)
     expect(reply.statusCode).toBe(500)
     expect(reply.body.message).toContain('Erro na autenticação')
+  })
+})
+
+// ─── sessão por cookie ────────────────────────────────────────────────────────
+
+function requestComCookie(
+  cookies: Record<string, string>,
+  extras: { method?: string; headers?: Record<string, string> } = {},
+) {
+  return {
+    headers: extras.headers ?? {},
+    cookies,
+    method: extras.method ?? 'GET',
+  } as any
+}
+
+describe('authenticate — cookie HttpOnly', () => {
+  it('aceita o token vindo do cookie quando não há header', async () => {
+    vi.mocked(prisma.sessao.findFirst).mockResolvedValue({ id: 'csessao1' } as any)
+    const req = requestComCookie({ viu_token: await makeToken(DESIGNER) })
+    const reply = createMockReply()
+
+    await authenticate(req, reply)
+
+    expect(req.usuario).toMatchObject({ id: DESIGNER.id })
+    expect(reply.statusCode).toBe(200)
+  })
+
+  it('o header tem precedência sobre o cookie', async () => {
+    vi.mocked(prisma.sessao.findFirst).mockResolvedValue({ id: 'csessao1' } as any)
+    const req = requestComCookie(
+      { viu_token: await makeToken(CLIENTE) },
+      { headers: { authorization: `Bearer ${await makeToken(DESIGNER)}` } },
+    )
+    const reply = createMockReply()
+
+    await authenticate(req, reply)
+
+    expect(req.usuario).toMatchObject({ id: DESIGNER.id })
+  })
+
+  it('recusa escrita autenticada por cookie sem Origin — é o vetor de CSRF', async () => {
+    vi.mocked(prisma.sessao.findFirst).mockResolvedValue({ id: 'csessao1' } as any)
+    const req = requestComCookie({ viu_token: await makeToken(DESIGNER) }, { method: 'POST' })
+    const reply = createMockReply()
+
+    await authenticate(req, reply)
+
+    expect(reply.statusCode).toBe(403)
+    expect(reply.body.message).toContain('Origem não autorizada')
+  })
+
+  it('recusa escrita por cookie vinda de origem desconhecida', async () => {
+    vi.mocked(prisma.sessao.findFirst).mockResolvedValue({ id: 'csessao1' } as any)
+    const req = requestComCookie(
+      { viu_token: await makeToken(DESIGNER) },
+      { method: 'POST', headers: { origin: 'https://site-malicioso.example' } },
+    )
+    const reply = createMockReply()
+
+    await authenticate(req, reply)
+
+    expect(reply.statusCode).toBe(403)
+  })
+
+  it('aceita escrita por cookie a partir de uma origem permitida', async () => {
+    vi.mocked(prisma.sessao.findFirst).mockResolvedValue({ id: 'csessao1' } as any)
+    const req = requestComCookie(
+      { viu_token: await makeToken(DESIGNER) },
+      { method: 'POST', headers: { origin: 'http://localhost:3000' } },
+    )
+    const reply = createMockReply()
+
+    await authenticate(req, reply)
+
+    expect(reply.statusCode).toBe(200)
+    expect(req.usuario).toMatchObject({ id: DESIGNER.id })
+  })
+
+  it('escrita com Bearer não exige Origin — cliente fora do navegador', async () => {
+    vi.mocked(prisma.sessao.findFirst).mockResolvedValue({ id: 'csessao1' } as any)
+    const req = {
+      headers: { authorization: `Bearer ${await makeToken(DESIGNER)}` },
+      method: 'POST',
+      cookies: {},
+    } as any
+    const reply = createMockReply()
+
+    await authenticate(req, reply)
+
+    expect(reply.statusCode).toBe(200)
   })
 })
