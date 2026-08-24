@@ -50,7 +50,7 @@
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
-    "fastify": "^4.24.3",
+    "fastify": "^5.12.1",
     "jose": "^6.0.13",
     "mercadopago": "^2.4.3",
     "openai": "^6.17.0",
