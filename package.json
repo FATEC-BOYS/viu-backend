@@ -47,7 +47,7 @@
     "dotenv": "^17.2.3",
     "fastify": "^4.24.3",
     "jose": "^6.0.13",
-    "mercadopago": "^2.4.3",
+    "mercadopago": "^3.6.0",
     "openai": "^6.17.0",
     "otplib": "^13.2.1",
     "qrcode": "^1.5.4",
