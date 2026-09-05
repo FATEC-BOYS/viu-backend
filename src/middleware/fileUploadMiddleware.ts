@@ -1,35 +1,8 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import path from 'path'
-
-const ALLOWED_MIME_TYPES = {
-  'image/jpeg': ['.jpg', '.jpeg'],
-  'image/png': ['.png'],
-  'image/gif': ['.gif'],
-  'image/webp': ['.webp'],
-  // SVG removido: pode conter <script> e causar XSS no viewer
-  'video/mp4': ['.mp4'],
-  'video/quicktime': ['.mov'],
-  'video/x-msvideo': ['.avi'],
-  'video/webm': ['.webm'],
-  'audio/mpeg': ['.mp3'],
-  'audio/wav': ['.wav'],
-  'audio/webm': ['.webm'],
-  'audio/ogg': ['.ogg'],
-  'audio/mp4': ['.m4a'],
-  'application/pdf': ['.pdf'],
-  'application/msword': ['.doc'],
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-  'application/vnd.ms-excel': ['.xls'],
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-  'application/zip': ['.zip'],
-} as const
-
-const FILE_SIZE_LIMITS = {
-  image: 10 * 1024 * 1024,
-  video: 100 * 1024 * 1024,
-  audio: 25 * 1024 * 1024,
-  document: 20 * 1024 * 1024,
-} as const
+// Limites e tipos vivem em config/uploadLimits para que middleware, plugin do
+// multipart e a rota que informa o frontend leiam o mesmo número.
+import { ALLOWED_MIME_TYPES, FILE_SIZE_LIMITS, limiteEfetivo } from '../config/uploadLimits.js'
 
 // Assinaturas de magic bytes para os tipos mais comuns
 // Previne MIME spoofing: cliente declara image/jpeg mas envia outro tipo
@@ -83,7 +56,7 @@ export function validateFileSize(
   size: number,
   category: keyof typeof FILE_SIZE_LIMITS,
 ): boolean {
-  return size <= FILE_SIZE_LIMITS[category]
+  return size <= limiteEfetivo(category)
 }
 
 export async function validateFileUpload(
@@ -113,7 +86,7 @@ export async function validateFileUpload(
 
     if (!validateFileSize(fileSize, category)) {
       return reply.status(400).send({
-        message: `Arquivo muito grande. Máximo para ${category}: ${FILE_SIZE_LIMITS[category] / (1024 * 1024)}MB`,
+        message: `Arquivo muito grande. Máximo para ${category}: ${limiteEfetivo(category) / (1024 * 1024)}MB`,
         success: false,
       })
     }
@@ -173,7 +146,7 @@ export async function validateAudioUpload(
 
     const buffer = await data.toBuffer()
     const fileSize = buffer.length
-    const maxSize = FILE_SIZE_LIMITS.audio
+    const maxSize = limiteEfetivo('audio')
 
     if (fileSize > maxSize) {
       return reply.status(400).send({
@@ -235,7 +208,7 @@ export async function validateArteVersaoUpload(
 
     if (!validateFileSize(fileSize, category)) {
       return reply.status(400).send({
-        message: `Arquivo muito grande. Máximo para ${category}: ${FILE_SIZE_LIMITS[category] / (1024 * 1024)}MB`,
+        message: `Arquivo muito grande. Máximo para ${category}: ${limiteEfetivo(category) / (1024 * 1024)}MB`,
         success: false,
       })
     }
@@ -292,7 +265,7 @@ export async function validateArteUpload(
 
     if (!validateFileSize(fileSize, category)) {
       return reply.status(400).send({
-        message: `Arquivo muito grande. Máximo para ${category}: ${FILE_SIZE_LIMITS[category] / (1024 * 1024)}MB`,
+        message: `Arquivo muito grande. Máximo para ${category}: ${limiteEfetivo(category) / (1024 * 1024)}MB`,
         success: false,
       })
     }

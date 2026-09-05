@@ -32,10 +32,12 @@ import { equipeConvitesRoutes } from './routes/equipeConvites.js'
 import { arteVersoesRoutes } from './routes/arteVersoes.js'
 import { buscaRoutes } from './routes/busca.js'
 import { vinculosRoutes } from "./routes/vinculos.js"
+import { uploadRoutes } from './routes/upload.js'
 import { setupErrorHandler } from './middleware/errorHandlerMiddleware.js'
 import { auditLogMiddleware } from './middleware/auditLogMiddleware.js'
 import { auditLogService } from './services/auditLogService.js'
 import { env } from './config/env.js'
+import { MAX_UPLOAD_BYTES } from './config/uploadLimits.js'
 
 const __filename = fileURLToPath(import.meta.url)
 
@@ -102,7 +104,7 @@ export async function buildServer() {
   })
 
   await app.register(import('@fastify/multipart'), {
-    limits: { fileSize: 25 * 1024 * 1024 },
+    limits: { fileSize: MAX_UPLOAD_BYTES },
   })
 
   await app.register(import('@fastify/rate-limit'), {
@@ -182,6 +184,7 @@ export async function buildServer() {
   await app.register(arteVersoesRoutes)
   await app.register(buscaRoutes)
   await app.register(vinculosRoutes)
+  await app.register(uploadRoutes)
 
   return app
 }
