@@ -36,12 +36,45 @@ const envSchema = z.object({
   MP_ACCESS_TOKEN: z.string().default(''),
   MP_WEBHOOK_SECRET: z.string().default(''),
 }).superRefine((data, ctx) => {
-  if (data.NODE_ENV === 'production') {
-    if (!data.MP_ACCESS_TOKEN) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['MP_ACCESS_TOKEN'], message: 'MP_ACCESS_TOKEN é obrigatório em produção' })
-    }
-    if (!data.MP_WEBHOOK_SECRET) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['MP_WEBHOOK_SECRET'], message: 'MP_WEBHOOK_SECRET é obrigatório em produção' })
+  if (data.NODE_ENV !== 'production') return
+
+  if (!data.MP_ACCESS_TOKEN) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['MP_ACCESS_TOKEN'], message: 'MP_ACCESS_TOKEN é obrigatório em produção' })
+  }
+  if (!data.MP_WEBHOOK_SECRET) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['MP_WEBHOOK_SECRET'], message: 'MP_WEBHOOK_SECRET é obrigatório em produção' })
+  }
+
+  const origens = data.ALLOWED_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
+
+  // authMiddleware compara a origem por igualdade contra esta lista, então '*'
+  // não abre nada — bloqueia tudo. Quem escreveu '*' acreditou no contrário, e
+  // o deploy sobe com uma falsa sensação de configuração. Falhar aqui é mais
+  // barato do que descobrir em produção.
+  if (origens.includes('*')) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['ALLOWED_ORIGINS'],
+      message: 'curinga "*" não é suportado — liste as origens explicitamente',
+    })
+  }
+
+  // Com SameSite=none o navegador manda o cookie mesmo em requisição partida de
+  // outro site: a proteção contra CSRF que o 'lax' dava desaparece e sobra só a
+  // guarda de origem. Nesse modo a lista precisa estar de fato configurada —
+  // uma origem http ou localhost aqui é ALLOWED_ORIGINS esquecido no default.
+  if (data.COOKIE_SAMESITE === 'none') {
+    const suspeitas = origens.filter(
+      (o) => o.startsWith('http://') || /(^|\/\/)(localhost|127\.0\.0\.1)(:|$)/.test(o),
+    )
+    if (suspeitas.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['ALLOWED_ORIGINS'],
+        message:
+          `com COOKIE_SAMESITE=none a checagem de origem é a única defesa contra CSRF; ` +
+          `use origens https explícitas (recebido: ${suspeitas.join(', ')})`,
+      })
     }
   }
 })

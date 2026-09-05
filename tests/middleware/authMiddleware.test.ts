@@ -174,6 +174,31 @@ describe('authenticate — cookie HttpOnly', () => {
     expect(req.usuario).toMatchObject({ id: DESIGNER.id })
   })
 
+  it("recusa Origin: null — é o que o navegador manda de iframe sandbox e de alguns redirects", async () => {
+    vi.mocked(prisma.sessao.findFirst).mockResolvedValue({ id: 'csessao1' } as any)
+    const req = requestComCookie(
+      { viu_token: await makeToken(DESIGNER) },
+      { method: 'POST', headers: { origin: 'null' } },
+    )
+    const reply = createMockReply()
+
+    await authenticate(req, reply)
+
+    // 'null' é uma string como outra qualquer e não está na lista permitida —
+    // o teste existe para que ninguém "conserte" isso tratando null como ausente.
+    expect(reply.statusCode).toBe(403)
+  })
+
+  it('leitura por cookie não exige Origin — GET não é vetor de CSRF com efeito', async () => {
+    vi.mocked(prisma.sessao.findFirst).mockResolvedValue({ id: 'csessao1' } as any)
+    const req = requestComCookie({ viu_token: await makeToken(DESIGNER) }, { method: 'GET' })
+    const reply = createMockReply()
+
+    await authenticate(req, reply)
+
+    expect(reply.statusCode).toBe(200)
+  })
+
   it('escrita com Bearer não exige Origin — cliente fora do navegador', async () => {
     vi.mocked(prisma.sessao.findFirst).mockResolvedValue({ id: 'csessao1' } as any)
     const req = {

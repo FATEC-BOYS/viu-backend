@@ -21,7 +21,6 @@ export default defineConfig({
         'src/index.ts',
         'src/database/client.ts',
         'src/database/seed.ts',
-        'src/supabaseAdmin.ts',
       ],
     },
   },

@@ -8,7 +8,7 @@ Este documento descreve as mudanças implementadas no backend VIU para melhorar 
 
 Anteriormente, o backend rodava **dois servidores separados**:
 - **Servidor Fastify** (porta 3001) - API principal
-- **Servidor Express** (porta 3333) - Endpoints de Supabase Storage
+- **Servidor Express** (porta 3333) - Endpoints de storage de arquivos
 
 Isso causava confusão e dificuldade na integração do frontend, pois era necessário configurar e se conectar a duas URLs diferentes.
 
@@ -92,7 +92,7 @@ GET /preview/{token}
       "id": "clxxxxx",
       "nome": "Logo v2",
       "arquivo": "artes/projeto123/logo.png",
-      "arquivo_url": "https://xxxxx.supabase.co/storage/v1/object/sign/artes/...",
+      "arquivo_url": "https://<account_id>.r2.cloudflarestorage.com/viu/artes/...?X-Amz-Signature=...",
       "projeto": { "nome": "Projeto ABC" },
       "autor": { "nome": "Designer", "email": "designer@viu.com" }
     },
@@ -107,7 +107,7 @@ GET /preview/{token}
         "id": "fbxxxxx",
         "tipo": "AUDIO",
         "arquivo": "audios/user123/feedback.webm",
-        "arquivo_url": "https://xxxxx.supabase.co/storage/v1/object/sign/audios/...",
+        "arquivo_url": "https://<account_id>.r2.cloudflarestorage.com/viu/feedbacks/...?X-Amz-Signature=...",
         "transcricao": "Texto transcrito do áudio"
       }
     ]
@@ -131,12 +131,12 @@ Authorization: Bearer {token}
     "id": "clxxxxx",
     "nome": "Logo",
     "arquivo": "artes/projeto123/logo.png",
-    "arquivo_url": "https://xxxxx.supabase.co/storage/v1/object/sign/artes/...",
+    "arquivo_url": "https://<account_id>.r2.cloudflarestorage.com/viu/artes/...?X-Amz-Signature=...",
     "feedbacks": [
       {
         "tipo": "AUDIO",
         "arquivo": "audios/user123/feedback.webm",
-        "arquivo_url": "https://xxxxx.supabase.co/storage/v1/object/sign/audios/..."
+        "arquivo_url": "https://<account_id>.r2.cloudflarestorage.com/viu/feedbacks/...?X-Amz-Signature=..."
       }
     ]
   },
@@ -160,7 +160,7 @@ Authorization: Bearer {token}
       "id": "fbxxxxx",
       "tipo": "AUDIO",
       "arquivo": "audios/user123/feedback.webm",
-      "arquivo_url": "https://xxxxx.supabase.co/storage/v1/object/sign/audios/...",
+      "arquivo_url": "https://<account_id>.r2.cloudflarestorage.com/viu/feedbacks/...?X-Amz-Signature=...",
       "transcricao": "Texto transcrito"
     }
   ],
@@ -189,7 +189,7 @@ Fields:
 ```javascript
 // Duas URLs diferentes
 const API_URL = 'http://localhost:3001'           // API principal
-const SUPABASE_API_URL = 'http://localhost:3333'   // Storage/links
+const STORAGE_API_URL = 'http://localhost:3333'    // Storage/links
 ```
 
 **Depois:**
@@ -218,7 +218,7 @@ const arte = await fetch(`${API_URL}/artes/${id}`, {
   headers: { Authorization: `Bearer ${token}` }
 }).then(r => r.json())
 
-// Usar arquivo_url (com URL assinada do Supabase)
+// Usar arquivo_url (URL assinada do R2)
 const imgSrc = arte.data.arquivo_url  // URL assinada, válida por 1 hora
 ```
 
@@ -278,33 +278,36 @@ async function uploadAudioFeedback(arteId, audioBlob, position = null) {
 }
 ```
 
-## 📝 Configuração do Supabase
+## 📝 Configuração do storage (Cloudflare R2)
 
-Para usar os recursos de storage (artes e áudios), configure o Supabase:
+Artes e áudios ficam num bucket R2 único (`viu`, por padrão), separados por
+prefixo de chave — `artes/...` e `feedbacks/...`. Não há bucket por tipo de
+arquivo, e o cliente nunca escolhe o caminho: a chave é montada no backend a
+partir de um UUID.
 
-1. Crie buckets no Supabase Storage:
-   - `artes` - para arquivos de artes
-   - `audios` - para feedbacks de áudio
-
-2. Configure as variáveis de ambiente no backend:
+Variáveis de ambiente no backend:
 ```env
-SUPABASE_URL=https://xxxxx.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+R2_ENDPOINT=https://<account_id>.r2.cloudflarestorage.com
+R2_ACCESS_KEY_ID=<r2_access_key_id>
+R2_SECRET_ACCESS_KEY=<r2_secret_access_key>
+R2_BUCKET=viu
 APP_URL=http://localhost:3001
 ```
 
 ## 🔒 URLs Assinadas
 
-O backend agora retorna `arquivo_url` para todos os arquivos armazenados no Supabase Storage:
+O backend retorna `arquivo_url` para todos os arquivos armazenados no R2:
 
-- **Válidade:** 1 hora (3600 segundos)
-- **Formato:** `https://xxxxx.supabase.co/storage/v1/object/sign/bucket/path?token=...`
+- **Validade:** 1 hora (3600 segundos)
+- **Formato:** `https://<account_id>.r2.cloudflarestorage.com/viu/<chave>?X-Amz-Signature=...`
 - **Uso:** Direto em `<img>`, `<audio>`, `<video>` ou download
 
-**Importante:** 
+**Importante:**
 - URLs assinadas expiram após 1 hora
 - Se precisar de acesso mais longo, refaça a requisição para obter nova URL
-- URLs regulares (http/https) não são modificadas
+- Um `arquivo` que já seja URL absoluta **não** é assinado: `signPath` devolve
+  `null` nesse caso, para que um valor vindo do banco não vire redirect para
+  fora do bucket
 
 ## 🎯 Benefícios da Unificação
 
@@ -320,12 +323,12 @@ O backend agora retorna `arquivo_url` para todos os arquivos armazenados no Supa
 1. Atualizar o frontend para usar a API unificada
 2. Implementar a funcionalidade de links compartilhados
 3. Testar upload de áudios com transcrição
-4. Configurar os buckets do Supabase Storage
+4. Configurar o bucket R2
 5. Atualizar documentação do frontend
 
 ## 📞 Suporte
 
 Para dúvidas ou problemas, consulte:
 - README.md do backend
-- Documentação do Supabase
+- Documentação do Cloudflare R2
 - Logs do servidor (porta 3001)

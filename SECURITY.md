@@ -106,34 +106,64 @@ fastify.put('/usuarios/:id',
 
 ---
 
-### 3. Configuração CORS Segura
+### 3. CORS e proteção contra CSRF
 
-**Arquivo:** `src/index.ts`
+**Arquivos:** `src/index.ts`, `src/middleware/authMiddleware.ts`, `src/utils/authCookies.ts`, `src/config/env.ts`
 
-**O que foi feito:**
-- ✅ CORS configurado com whitelist de origens
-- ✅ Lê origens permitidas de variável de ambiente `ALLOWED_ORIGINS`
-- ✅ Bloqueia origens não autorizadas
-- ✅ Permite requisições sem origin apenas em desenvolvimento
+Desde que a sessão passou a viver em cookie `HttpOnly`, CSRF virou uma
+preocupação real: o navegador anexa o cookie sozinho, inclusive quando quem
+dispara a requisição é outro site. É assim que o ataque funciona. O header
+`Authorization` não tem esse problema — alguém precisa colocá-lo ali de
+propósito.
 
-**Antes:**
+São três camadas, e **quanto vale cada uma depende de onde o app está publicado**:
+
+| | Mesmo site registrável<br>(`viu.app` + `api.viu.app`) | Domínios diferentes<br>(`app.vercel.app` + `api.railway.app`) |
+|---|---|---|
+| `COOKIE_SAMESITE` | `lax` | `none` (obrigatório) — **e a proteção do SameSite deixa de existir** |
+| Guarda de origem | defesa em profundidade | **única defesa** |
+| CORS | limita quem lê a resposta | idem |
+
+**Camada 1 — SameSite.** Com `lax`, o navegador simplesmente não envia o cookie
+numa escrita partida de outro site. É proteção de graça, e some com `none`.
+
+**Camada 2 — guarda de origem** (`authMiddleware.origemPermitida`). Toda escrita
+(`POST`/`PUT`/`PATCH`/`DELETE`) autenticada **por cookie** exige um `Origin`
+presente na whitelist. Sem `Origin`, ou com `Origin` desconhecido: `403`. Vale
+notar três detalhes que os testes fixam:
+
+- `Origin` ausente é recusado — não existe "sem origem, então deve ser seguro";
+- `Origin: null` (iframe sandbox, alguns redirects) é recusado como qualquer
+  outra string fora da lista;
+- autenticação por `Bearer` **não** exige `Origin`: não é vetor de CSRF, e
+  clientes fora do navegador (scripts, integrações, testes) seguem funcionando.
+
+**Camada 3 — CORS.** Whitelist a partir de `ALLOWED_ORIGINS`, e requisição sem
+`Origin` é rejeitada (inclusive em desenvolvimento).
+
 ```typescript
-origin: true // ❌ Aceita QUALQUER origem
-```
-
-**Depois:**
-```typescript
-const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000']
+// src/index.ts — sem exceção para dev
 origin: (origin, callback) => {
-  if (origin && allowedOrigins.includes(origin)) {
-    callback(null, true)
-  } else {
-    callback(new Error('Origem não autorizada pelo CORS'), false)
-  }
+  if (!origin) { callback(new Error('Origin header ausente'), false); return }
+  if (allowedOrigins.includes(origin)) { callback(null, true); return }
+  callback(new Error('Origem não autorizada pelo CORS'), false)
 }
 ```
 
-**Impacto:** Previne ataques CSRF de sites maliciosos.
+**Por que `ALLOWED_ORIGINS` é validado na subida.** Com `SameSite=none` essa
+lista deixa de ser conveniência de CORS e passa a ser o que impede uma escrita
+autenticada vinda de um site hostil. `src/config/env.ts` recusa subir em
+produção quando:
+
+- a lista contém `*` — a comparação é por igualdade, então `*` não abre nada,
+  bloqueia tudo, e quem configurou acredita no oposto;
+- `COOKIE_SAMESITE=none` e alguma origem é `http://` ou `localhost` — quase
+  sempre é a variável esquecida no valor padrão.
+
+**Token CSRF (double-submit): decisão de não implementar.** Com a guarda de
+origem cobrindo toda escrita por cookie, um token adicional protegeria contra o
+mesmo conjunto de ataques. Fica registrado como opção caso apareça um caso de
+uso que exija enviar o cookie sem `Origin` confiável.
 
 ---
 
@@ -488,8 +518,9 @@ DATABASE_URL=postgresql://user:senha_forte@host:5432/db
 
 # APIs Externas
 OPENAI_API_KEY=sk-...
-SUPABASE_URL=https://...
-SUPABASE_SERVICE_ROLE_KEY=...
+R2_ENDPOINT=https://<account_id>.r2.cloudflarestorage.com
+R2_ACCESS_KEY_ID=...
+R2_SECRET_ACCESS_KEY=...
 ```
 
 ### ⚠️ Checklist de Deploy

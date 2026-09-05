@@ -23,8 +23,8 @@ O VIU Backend é uma API completa para a plataforma VIU, oferecendo:
 - ✅ Banco de dados otimizado com Prisma
 - ✅ Rate limiting e segurança com CORS e Helmet
 - ✅ Hot reload para desenvolvimento
-- ✅ **Integração com Supabase Storage** para armazenamento de arquivos (artes e áudios)
-- ✅ **URLs assinadas** para acesso seguro a arquivos no Supabase
+- ✅ **Integração com Cloudflare R2** para armazenamento de arquivos (artes e áudios)
+- ✅ **URLs assinadas** para acesso seguro aos arquivos no bucket
 - ✅ **Links compartilhados** para preview público de artes sem autenticação
 - ✅ **Upload de áudio** com transcrição automática via OpenAI Whisper
 - ✅ **API unificada** em uma única porta (3001)
@@ -129,7 +129,7 @@ npm run db:studio
 
 ### 🎨 Artes
 - `GET /artes` - Listar artes (filtro por projeto, autor, tipo, status)
-- `GET /artes/:id` - Buscar arte com feedbacks e aprovações (inclui URLs assinadas do Supabase Storage)
+- `GET /artes/:id` - Buscar arte com feedbacks e aprovações (inclui URLs assinadas do R2)
 - `POST /artes` - Criar arte (requere projeto e autenticação)
 - `PUT /artes/:id` - Atualizar arte (nome, descrição, status, etc.)
 - `DELETE /artes/:id` - Remover arte
@@ -296,50 +296,45 @@ NODE_ENV=development
 DATABASE_URL="file:./dev.db"
 JWT_SECRET="sua_chave_secreta"
 ALLOWED_ORIGINS="http://localhost:3000,http://localhost:5173"
-SUPABASE_URL="https://<seu-projeto>.supabase.co"
-SUPABASE_SERVICE_ROLE_KEY="<service_role_key>"
+R2_ENDPOINT="https://<account_id>.r2.cloudflarestorage.com"
+R2_ACCESS_KEY_ID="<r2_access_key_id>"
+R2_SECRET_ACCESS_KEY="<r2_secret_access_key>"
+R2_BUCKET="viu"
 APP_URL="http://localhost:3001"
 OPENAI_API_KEY=""
 ```
 
-### 🟩 Supabase
+### 🗄️ Cloudflare R2 (storage)
 
-Para usar as rotas que dependem do Supabase (ex.: links compartilhados, storage de arquivos e feedbacks de áudio), é necessário criar um projeto no Supabase e obter as credenciais abaixo:
+Artes e áudios de feedback ficam em um bucket R2, acessado pelo SDK S3
+(`@aws-sdk/client-s3`). O banco guarda apenas a **chave** do objeto; a URL é
+assinada na leitura e expira em 1 hora.
 
-1. **Crie um projeto** em https://supabase.com e aguarde o provisionamento.
-2. **Copie a URL do projeto** em **Project Settings → API → Project URL** e preencha `SUPABASE_URL`.
-3. **Copie a Service Role Key** em **Project Settings → API → Service Role** e preencha `SUPABASE_SERVICE_ROLE_KEY`.
-4. **Defina `APP_URL`** com a URL pública do seu backend (ou `http://localhost:3001` em desenvolvimento).
-5. **Configure os buckets de storage** no Supabase:
-   - Crie um bucket chamado `audios` para feedbacks de áudio
-   - Configure as políticas de acesso conforme necessário
-
-#### 🗄️ Supabase Storage
-
-O backend utiliza o Supabase Storage para armazenar arquivos de artes e áudios de feedbacks. Os arquivos são armazenados com paths no formato `bucket/chave` e o backend gera URLs assinadas temporárias (válidas por 1 hora) para acesso seguro.
+1. **Crie um bucket** R2 no painel da Cloudflare (`viu`, por padrão).
+2. **Gere um API token** R2 com permissão de leitura e escrita nesse bucket.
+3. Preencha `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` e
+   `R2_BUCKET`. As quatro são validadas na subida — sem elas o servidor não
+   inicia (`src/config/env.ts`).
 
 **Exemplo de uso:**
 ```json
-// Criar arte com arquivo no Supabase
-POST /artes
-{
-  "nome": "Logo v2",
-  "arquivo": "artes/projeto123/logo-v2.png",  // Path no Supabase Storage
-  "projetoId": "...",
-  ...
-}
+// Upload cria a chave no bucket; o cliente nunca escolhe o caminho
+POST /artes/upload   (multipart)
 
-// Resposta inclui URL assinada
+// A leitura devolve a chave e a URL assinada
 GET /artes/:id
 {
   "data": {
-    "arquivo": "artes/projeto123/logo-v2.png",
-    "arquivo_url": "https://xxxxx.supabase.co/storage/v1/object/sign/artes/..."
+    "arquivo": "artes/projeto123/<arteId>/v1/<arteId>.png",
+    "arquivo_url": "https://<account_id>.r2.cloudflarestorage.com/viu/artes/...?X-Amz-Signature=..."
   }
 }
 ```
 
-> ⚠️ **Importante:** a Service Role Key tem permissões elevadas. **Nunca** exponha essa chave no front-end.
+> ⚠️ **Importante:** as credenciais R2 dão acesso total ao bucket. Ficam só no
+> backend — **nunca** no front-end. `signPath` recusa assinar qualquer valor que
+> já seja uma URL absoluta, para que um caminho vindo do banco não vire um
+> redirect para fora do bucket.
 
 ## 📊 Monitoramento
 

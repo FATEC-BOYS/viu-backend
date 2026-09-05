@@ -6,7 +6,7 @@ vi.mock('../../src/database/client.js', async () => {
   return { default: criarPrismaMock() }
 })
 
-// O serviço saiu do Supabase e usa utils/storage (R2). Sem este mock o teste
+// O serviço usa utils/storage (R2). Sem este mock o teste
 // tentava rede de verdade e morria com ENOTFOUND viu.r2.example.com.
 vi.mock('../../src/utils/storage.js', () => ({
   uploadFile: vi.fn().mockResolvedValue(undefined),

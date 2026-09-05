@@ -55,10 +55,13 @@ Necessitam de mocks mais elaborados de request/reply do Fastify.
 
 | Problema | Descrição |
 |----------|-----------|
-| **Dois servidores (Fastify + Express)** | `src/index.ts` usa Fastify e `src/server.ts` usa Express. Isso causa confusão e duplicação |
-| **`@fastify/helmet`, `@fastify/rate-limit`, `@fastify/jwt`** instalados mas não registrados em `index.ts` | Dependências pagas mas não utilizadas |
+> **Resolvidos desde a redação deste documento:** o servidor Express paralelo
+> foi eliminado (só resta o Fastify em `src/index.ts`); `@fastify/helmet` e
+> `@fastify/rate-limit` estão registrados; `@fastify/jwt` e `@fastify/static`
+> foram desinstalados por não terem uso (o JWT é feito com `jose`); e existe
+> error handler global em `setupErrorHandler`.
+
 | **Formatação de dados na camada de service** | `formatCurrency` e `formatDate` são chamados no service. Formatação deveria ser responsabilidade do frontend ou de uma camada de serialização |
-| **Sem tratamento de erro centralizado** | Cada controller faz `try/catch` individual. Um error handler global no Fastify simplificaria o código |
 
 ### 4. Performance
 
