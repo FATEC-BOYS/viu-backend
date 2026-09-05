@@ -173,12 +173,16 @@ export class FaturaService {
   async cancelarFatura(id: string, requesterId: string) {
     const fatura = await prisma.fatura.findUnique({ where: { id } })
     if (!fatura) throw new Error('Fatura não encontrada')
-    assertValidTransition('Fatura', FATURA_TRANSITIONS, fatura.status, 'CANCELADA')
 
+    // Autorização antes da máquina de estados. Na ordem inversa, a mensagem de
+    // "transição inválida" respondia sobre o estado de uma fatura de outra
+    // pessoa — um oráculo de status para quem só tem o id.
     const requester = await prisma.usuario.findUnique({ where: { id: requesterId } })
     if (fatura.designerId !== requesterId && requester?.tipo !== 'ADMIN') {
       throw new Error('Acesso negado')
     }
+
+    assertValidTransition('Fatura', FATURA_TRANSITIONS, fatura.status, 'CANCELADA')
 
     return prisma.fatura.update({
       where: { id },

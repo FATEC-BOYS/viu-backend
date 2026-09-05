@@ -59,6 +59,14 @@ describe('FeedbackService', () => {
   })
 })
 
+// A arte precisa carregar o projeto: createFeedbackComAudio agora confere se
+// o autor participa dele. Os casos aqui são sobre transcrição e formato do
+// registro — a negação cross-tenant é coberta em tests/security.
+const ARTE_COM_PROJETO = (id: string, autorId: string) => ({
+  id,
+  projeto: { designerId: autorId, clienteId: 'cliente-1' },
+})
+
 describe('FeedbackService - createFeedbackComAudio', () => {
   it('deve lançar erro se arte não existe', async () => {
     vi.mocked(prisma.arte.findUnique).mockResolvedValue(null)
@@ -77,7 +85,7 @@ describe('FeedbackService - createFeedbackComAudio', () => {
   })
 
   it('deve criar feedback POSICIONAL com áudio e transcrição', async () => {
-    vi.mocked(prisma.arte.findUnique).mockResolvedValue({ id: 'art1' } as any)
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue(ARTE_COM_PROJETO('art1', 'usr1') as any)
     vi.mocked(prisma.usuario.findUnique).mockResolvedValue({ id: 'usr1' } as any)
     vi.mocked(prisma.feedback.create).mockResolvedValue({ id: 'fb1', tipo: 'POSICIONAL' } as any)
 
@@ -103,7 +111,7 @@ describe('FeedbackService - createFeedbackComAudio', () => {
   })
 
   it('deve criar feedback AUDIO se sem coordenadas', async () => {
-    vi.mocked(prisma.arte.findUnique).mockResolvedValue({ id: 'art1' } as any)
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue(ARTE_COM_PROJETO('art1', 'usr1') as any)
     vi.mocked(prisma.usuario.findUnique).mockResolvedValue({ id: 'usr1' } as any)
     vi.mocked(prisma.feedback.create).mockResolvedValue({ id: 'fb1', tipo: 'AUDIO' } as any)
 

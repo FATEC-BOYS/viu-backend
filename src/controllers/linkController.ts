@@ -90,14 +90,21 @@ export async function createFeedbackViaLink(
     const arteId = await linkService.resolveArteIdFromToken(token)
     const body = request.body as any
 
-    const feedback = await feedbackService.createFeedback({
-      conteudo: body.conteudo ?? '',
-      tipo: body.tipo ?? 'TEXTO',
-      arteId,
-      autorId: usuario.id,
-      posicaoX: body.posicaoX ?? null,
-      posicaoY: body.posicaoY ?? null,
-    })
+    // `via: 'link'`: quem comenta por link é revisor externo e não participa
+    // do projeto — quem autorizou foi o token, já validado em
+    // resolveArteIdFromToken (não revogado, não expirado, dentro do limite,
+    // e não somenteLeitura).
+    const feedback = await feedbackService.createFeedback(
+      {
+        conteudo: body.conteudo ?? '',
+        tipo: body.tipo ?? 'TEXTO',
+        arteId,
+        autorId: usuario.id,
+        posicaoX: body.posicaoX ?? null,
+        posicaoY: body.posicaoY ?? null,
+      },
+      { via: 'link' },
+    )
 
     reply.status(201).send({ message: 'Feedback criado', data: feedback, success: true })
   } catch (error: any) {
@@ -139,6 +146,8 @@ export async function createAudioFeedbackViaLink(
     const posicaoY = fields?.posicaoY?.value ? parseFloat(fields.posicaoY.value) : undefined
 
     const feedback = await feedbackService.createFeedbackComAudio({
+      // Mesma justificativa do fluxo de texto por link — ver acima.
+      origem: { via: 'link' },
       arteId,
       autorId: usuario.id,
       audioBuffer: audioData.buffer,

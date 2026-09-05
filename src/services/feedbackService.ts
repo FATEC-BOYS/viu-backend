@@ -1,5 +1,6 @@
 import prisma from '../database/client.js'
 import { uploadFile } from '../utils/storage.js'
+import { PROJETO_ACCESS_SELECT, assertAcessoAoProjeto } from '../utils/projectAccess.js'
 import { transcreverAudio, sintetizarTexto } from './transcricaoService.js'
 import { notificacaoService } from './notificacaoService.js'
 
@@ -13,6 +14,24 @@ export interface ListFeedbacksParams {
   search?: string
   projetoIds?: string[] // access-control scope (set by controller for non-admins)
 }
+
+/**
+ * De onde vem a autorização para criar o feedback.
+ *
+ * Há duas portas de entrada com modelos de acesso diferentes, e tratá-las
+ * igual quebra uma das duas:
+ *   - `projeto`: API direta. Quem escreve tem que ser designer ou cliente do
+ *     projeto da arte.
+ *   - `link`: link compartilhado. Quem escreve é um revisor externo que não
+ *     participa do projeto — a autorização foi o token, já validado em
+ *     LinkService (não revogado, não expirado, dentro do limite de acessos,
+ *     e não somenteLeitura).
+ *
+ * O padrão é `projeto`: esquecer o parâmetro nega, nunca libera.
+ */
+export type OrigemFeedback =
+  | { via: 'projeto'; isAdmin?: boolean }
+  | { via: 'link' }
 
 export class FeedbackService {
   async listFeedbacks({ page = 1, limit = 10, arteId, autorId, tipo, status, search, projetoIds }: ListFeedbacksParams) {
@@ -84,7 +103,7 @@ export class FeedbackService {
     })
   }
 
-  async createFeedback(data: any) {
+  async createFeedback(data: any, origem: OrigemFeedback = { via: 'projeto' }) {
     const [arte, autor] = await Promise.all([
       prisma.arte.findUnique({
         where: { id: data.arteId },
@@ -94,6 +113,13 @@ export class FeedbackService {
     ])
     if (!arte) throw new Error('Arte não encontrada')
     if (!autor) throw new Error('Autor não encontrado')
+
+    // Sem isto, a única barreira era o middleware da rota — e ele aceitava um
+    // `projetoId` qualquer no corpo, o que permitia despejar feedback em arte
+    // de outro tenant.
+    if (origem.via === 'projeto') {
+      assertAcessoAoProjeto(arte.projeto, data.autorId, origem.isAdmin === true)
+    }
 
     // Validate thread: parent must belong to the same arte
     if (data.parentId) {
@@ -133,15 +159,25 @@ export class FeedbackService {
     filename: string
     posicaoX?: number
     posicaoY?: number
+    origem?: OrigemFeedback
   }) {
     const { arteId, autorId, audioBuffer, filename, posicaoX, posicaoY } = params
+    const origem = params.origem ?? { via: 'projeto' }
 
     const [arte, autor] = await Promise.all([
-      prisma.arte.findUnique({ where: { id: arteId } }),
+      prisma.arte.findUnique({
+        where: { id: arteId },
+        include: { projeto: { select: PROJETO_ACCESS_SELECT } },
+      }),
       prisma.usuario.findUnique({ where: { id: autorId } }),
     ])
     if (!arte) throw new Error('Arte não encontrada')
     if (!autor) throw new Error('Autor não encontrado')
+
+    // Mesma regra do fluxo de texto — ver OrigemFeedback.
+    if (origem.via === 'projeto') {
+      assertAcessoAoProjeto(arte.projeto, autorId, origem.isAdmin === true)
+    }
 
     const storagePath = `feedbacks/${arteId}/${Date.now()}_${filename}`
     await uploadFile(storagePath, audioBuffer, 'audio/webm')
@@ -225,9 +261,14 @@ export class FeedbackService {
     await prisma.feedback.delete({ where: { id } })
   }
 
-  async resolverThread(id: string, resolvidoPorId: string) {
-    const feedback = await prisma.feedback.findUnique({ where: { id } })
+  async resolverThread(id: string, resolvidoPorId: string, isAdmin = false) {
+    const feedback = await prisma.feedback.findUnique({
+      where: { id },
+      include: { arte: { select: { projeto: { select: PROJETO_ACCESS_SELECT } } } },
+    })
     if (!feedback) throw new Error('Feedback não encontrado')
+    assertAcessoAoProjeto(feedback.arte?.projeto, resolvidoPorId, isAdmin)
+
     if (feedback.resolvidoEm) throw new Error('Thread já está resolvida')
     return prisma.feedback.update({
       where: { id },
@@ -235,9 +276,14 @@ export class FeedbackService {
     })
   }
 
-  async reabrirThread(id: string) {
-    const feedback = await prisma.feedback.findUnique({ where: { id } })
+  async reabrirThread(id: string, requesterId: string, isAdmin = false) {
+    const feedback = await prisma.feedback.findUnique({
+      where: { id },
+      include: { arte: { select: { projeto: { select: PROJETO_ACCESS_SELECT } } } },
+    })
     if (!feedback) throw new Error('Feedback não encontrado')
+    assertAcessoAoProjeto(feedback.arte?.projeto, requesterId, isAdmin)
+
     if (!feedback.resolvidoEm) throw new Error('Thread não está resolvida')
     return prisma.feedback.update({
       where: { id },

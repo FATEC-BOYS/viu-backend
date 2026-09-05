@@ -8,6 +8,7 @@
 
 import prisma from '../database/client.js'
 import { assertValidTransition, TAREFA_TRANSITIONS } from '../utils/stateMachine.js'
+import { PROJETO_ACCESS_SELECT, assertAcessoAoProjeto } from '../utils/projectAccess.js'
 
 export interface ListTarefasParams {
   page?: number
@@ -74,15 +75,29 @@ export class TarefaService {
 
     return prisma.tarefa.create({ data })
   }
-  async updateTarefa(id: string, updateData: any) {
+  /**
+   * Atualiza uma tarefa.
+   *
+   * Duas checagens de acesso, não uma: a tarefa de origem e, quando o corpo
+   * pede para movê-la, o projeto de destino. Sem a segunda, quem alcança a
+   * tarefa poderia empurrá-la para dentro do projeto de outra pessoa.
+   */
+  async updateTarefa(id: string, updateData: any, requesterId: string, isAdmin = false) {
     const existing = await prisma.tarefa.findUnique({ where: { id }, include: { projeto: true } })
     if (!existing) throw new Error('Tarefa não encontrada')
+
+    assertAcessoAoProjeto(existing.projeto, requesterId, isAdmin)
 
     const projetoId = updateData.projetoId ?? existing.projetoId
     const projeto = projetoId !== existing.projetoId
       ? await prisma.projeto.findUnique({ where: { id: projetoId } })
       : existing.projeto
     if (updateData.projetoId && !projeto) throw new Error('Projeto não encontrado')
+
+    // Mudança de projeto: o destino também precisa ser alcançável.
+    if (updateData.projetoId && projetoId !== existing.projetoId) {
+      assertAcessoAoProjeto(projeto, requesterId, isAdmin)
+    }
 
     if (updateData.responsavelId && projeto) {
       const isParticipant =
@@ -96,9 +111,14 @@ export class TarefaService {
 
     return prisma.tarefa.update({ where: { id }, data: updateData })
   }
-  async deleteTarefa(id: string) {
-    const existing = await prisma.tarefa.findUnique({ where: { id } })
+  async deleteTarefa(id: string, requesterId: string, isAdmin = false) {
+    const existing = await prisma.tarefa.findUnique({
+      where: { id },
+      include: { projeto: { select: PROJETO_ACCESS_SELECT } },
+    })
     if (!existing) throw new Error('Tarefa não encontrada')
+    assertAcessoAoProjeto(existing.projeto, requesterId, isAdmin)
+
     await prisma.tarefa.delete({ where: { id } })
     return
   }

@@ -1,7 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { FeedbackService, ListFeedbacksParams } from '../services/feedbackService.js'
 import { signPath } from '../utils/storage.js'
-import prisma from '../database/client.js'
+import { getAccessibleProjectIds } from '../utils/projectAccess.js'
 
 const feedbackService = new FeedbackService()
 
@@ -19,13 +19,8 @@ export async function listFeedbacks(request: FastifyRequest, reply: FastifyReply
       search: search as string | undefined,
     }
 
-    if (usuario.tipo !== 'ADMIN') {
-      const projetos = await prisma.projeto.findMany({
-        where: { OR: [{ designerId: usuario.id }, { clienteId: usuario.id }] },
-        select: { id: true },
-      })
-      params.projetoIds = projetos.map((p: { id: string }) => p.id)
-    }
+    const acessiveis = await getAccessibleProjectIds(usuario.id, usuario.tipo === 'ADMIN')
+    if (acessiveis) params.projetoIds = acessiveis
 
     const { feedbacks, total } = await feedbackService.listFeedbacks(params)
     const feedbacksComUrl = await Promise.all(
@@ -77,9 +72,16 @@ export async function createFeedback(request: FastifyRequest, reply: FastifyRepl
       autorId: usuario.id,
       parentId: body.parentId,
     }
-    const feedback = await feedbackService.createFeedback(data)
+    const feedback = await feedbackService.createFeedback(data, {
+      via: 'projeto',
+      isAdmin: usuario.tipo === 'ADMIN',
+    })
     reply.status(201).send({ message: 'Feedback criado com sucesso', data: feedback, success: true })
   } catch (error: any) {
+    if (error.message.includes('Acesso negado')) {
+      reply.status(403).send({ message: error.message, success: false })
+      return
+    }
     if (error.message.includes('não encontrad')) {
       reply.status(400).send({ message: error.message, success: false })
       return
@@ -121,6 +123,7 @@ export async function createFeedbackComAudio(
     const posicaoY = fields?.posicaoY?.value ? parseFloat(fields.posicaoY.value) : undefined
 
     const feedback = await feedbackService.createFeedbackComAudio({
+      origem: { via: 'projeto', isAdmin: usuario.tipo === 'ADMIN' },
       arteId,
       autorId: usuario.id,
       audioBuffer: audioData.buffer,
@@ -225,9 +228,17 @@ export async function resolverThread(request: FastifyRequest, reply: FastifyRepl
   try {
     const { id } = request.params as { id: string }
     const usuario = (request as any).usuario
-    const feedback = await feedbackService.resolverThread(id, usuario.id)
+    const feedback = await feedbackService.resolverThread(
+      id,
+      usuario.id,
+      usuario.tipo === 'ADMIN',
+    )
     reply.send({ message: 'Thread resolvida com sucesso', data: feedback, success: true })
   } catch (error: any) {
+    if (error.message.includes('Acesso negado')) {
+      reply.status(403).send({ message: error.message, success: false })
+      return
+    }
     if (error.message.includes('não encontrado')) {
       reply.status(404).send({ message: error.message, success: false })
       return
@@ -242,10 +253,19 @@ export async function resolverThread(request: FastifyRequest, reply: FastifyRepl
 
 export async function reabrirThread(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
+    const usuario = (request as any).usuario
     const { id } = request.params as { id: string }
-    const feedback = await feedbackService.reabrirThread(id)
+    const feedback = await feedbackService.reabrirThread(
+      id,
+      usuario.id,
+      usuario.tipo === 'ADMIN',
+    )
     reply.send({ message: 'Thread reaberta com sucesso', data: feedback, success: true })
   } catch (error: any) {
+    if (error.message.includes('Acesso negado')) {
+      reply.status(403).send({ message: error.message, success: false })
+      return
+    }
     if (error.message.includes('não encontrado')) {
       reply.status(404).send({ message: error.message, success: false })
       return

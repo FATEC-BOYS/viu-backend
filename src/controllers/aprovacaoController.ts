@@ -1,7 +1,6 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { AprovacaoService, ListAprovacoesParams } from '../services/aprovacaoService.js'
-import prisma from '../database/client.js'
-// prisma used only by listAprovacoes to scope by project membership
+import { getAccessibleProjectIds } from '../utils/projectAccess.js'
 
 const aprovacaoService = new AprovacaoService()
 
@@ -18,13 +17,8 @@ export async function listAprovacoes(request: FastifyRequest, reply: FastifyRepl
       projetoId: projetoId as string | undefined,
     }
 
-    if (usuario.tipo !== 'ADMIN') {
-      const projetos = await prisma.projeto.findMany({
-        where: { OR: [{ designerId: usuario.id }, { clienteId: usuario.id }] },
-        select: { id: true },
-      })
-      params.projetoIds = projetos.map((p: { id: string }) => p.id)
-    }
+    const acessiveis = await getAccessibleProjectIds(usuario.id, usuario.tipo === 'ADMIN')
+    if (acessiveis) params.projetoIds = acessiveis
 
     const { aprovacoes, total } = await aprovacaoService.listAprovacoes(params)
     reply.send({

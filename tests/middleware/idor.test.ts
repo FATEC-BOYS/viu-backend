@@ -64,7 +64,7 @@ describe('requireProjectAccess com ID de feedback', () => {
     expect(reply.statusCode).toBe(403)
   })
 
-  it('retorna 400 quando feedback não existe (ID desconhecido)', async () => {
+  it('retorna 404 quando nenhum recurso casa com o ID', async () => {
     vi.mocked(prisma.arte.findUnique).mockResolvedValue(null)
     vi.mocked(prisma.tarefa.findUnique).mockResolvedValue(null)
     vi.mocked(prisma.feedback.findUnique).mockResolvedValue(null)
@@ -73,7 +73,66 @@ describe('requireProjectAccess com ID de feedback', () => {
     const reply = makeReply()
     await requireProjectAccess(req, reply)
 
-    expect(reply.statusCode).toBe(400)
+    // Antes respondia 400 "ID do projeto não fornecido", que descrevia mal o
+    // caso: o id foi fornecido, só não existe recurso com ele. E o 400 vinha
+    // de cair no corpo — o caminho que abria o IDOR.
+    expect(reply.statusCode).toBe(404)
+  })
+
+  it('ignora body.projetoId quando params.id endereça um recurso', async () => {
+    // O vetor do IDOR: corpo aponta para projeto próprio, params.id para uma
+    // arte de terceiro. Vence o recurso endereçado.
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue({
+      projetoId: 'proj-alheio', projeto: { designerId: 'outro', clienteId: 'outro2' },
+    } as any)
+
+    const req: any = {
+      usuario: designer,
+      params: { id: 'arte-alheia' },
+      body: { projetoId: 'proj-do-designer' },
+      audioData: null,
+    }
+    const reply = makeReply()
+    await requireProjectAccess(req, reply)
+
+    expect(reply.statusCode).toBe(403)
+    expect(prisma.projeto.findUnique).not.toHaveBeenCalled()
+  })
+
+  it('body.arteId tem precedência sobre body.projetoId na criação', async () => {
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue({
+      projetoId: 'proj-alheio', projeto: { designerId: 'outro', clienteId: 'outro2' },
+    } as any)
+
+    const req: any = {
+      usuario: designer,
+      params: {},
+      body: { arteId: 'arte-alheia', projetoId: 'proj-do-designer' },
+      audioData: null,
+    }
+    const reply = makeReply()
+    await requireProjectAccess(req, reply)
+
+    expect(reply.statusCode).toBe(403)
+    expect(prisma.projeto.findUnique).not.toHaveBeenCalled()
+  })
+
+  it('body.projetoId ainda vale quando a rota não endereça recurso', async () => {
+    vi.mocked(prisma.projeto.findUnique).mockResolvedValue({
+      designerId: 'd1', clienteId: 'c1',
+    } as any)
+
+    const req: any = {
+      usuario: designer,
+      params: {},
+      body: { projetoId: 'proj1' },
+      audioData: null,
+    }
+    const reply = makeReply()
+    await requireProjectAccess(req, reply)
+
+    expect(reply.statusCode).toBe(200)
+    expect(req.projetoId).toBe('proj1')
   })
 
   it('ADMIN bypassa a verificação mesmo sem feedback no banco', async () => {

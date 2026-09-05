@@ -1,7 +1,24 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { SessaoService, ListSessoesParams } from '../services/sessaoService.js'
+import { lerTokenDaRequisicao } from '../utils/authCookies.js'
 
 const sessaoService = new SessaoService()
+
+/**
+ * Token da requisição atual.
+ *
+ * Lia `headers.authorization` cru. Depois que a sessão passou a viver em
+ * cookie HttpOnly, quem entra pelo navegador não manda esse header — e o
+ * resultado era: `isCurrent` sempre falso na listagem, a trava que impede
+ * revogar a própria sessão nunca disparando, e `revoke-others` respondendo
+ * 401 para todo mundo. Justamente o botão de "me roubaram a sessão".
+ *
+ * `lerTokenDaRequisicao` é a mesma função que o authenticate usa, então as
+ * duas pontas concordam sobre qual é o token da requisição.
+ */
+function tokenAtual(request: FastifyRequest): string | undefined {
+  return lerTokenDaRequisicao(request)?.token
+}
 
 export async function listSessoes(
   request: FastifyRequest,
@@ -9,7 +26,7 @@ export async function listSessoes(
 ): Promise<void> {
   try {
     const usuario = (request as any).usuario
-    const currentToken = request.headers.authorization?.slice(7)
+    const currentToken = tokenAtual(request)
     const { ativo } = (request.query || {}) as any
     const params: ListSessoesParams = {
       usuarioId: usuario?.id,
@@ -36,7 +53,7 @@ export async function revokeSessao(
       reply.status(404).send({ message: 'Sessão não encontrada', success: false })
       return
     }
-    const currentToken = request.headers.authorization?.slice(7)
+    const currentToken = tokenAtual(request)
     if (sessao.token === currentToken) {
       reply.status(400).send({ message: 'Não é possível revogar a sessão atual por este endpoint. Use POST /auth/logout.', success: false })
       return
@@ -58,7 +75,7 @@ export async function revokeOtherSessoes(
 ): Promise<void> {
   try {
     const usuario = (request as any).usuario
-    const currentToken = request.headers.authorization?.slice(7)
+    const currentToken = tokenAtual(request)
     if (!currentToken) {
       reply.status(401).send({ message: 'Token não encontrado', success: false })
       return

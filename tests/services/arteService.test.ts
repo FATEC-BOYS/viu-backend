@@ -52,23 +52,29 @@ describe('ArteService.createArte', () => {
   })
 })
 
+// updateArte/deleteArte passaram a exigir o requisitante: a autorização
+// deixou de morar só no middleware da rota. Os casos abaixo usam o designer do
+// projeto — a negação de terceiros é coberta em tests/security.
+const DONO = 'designer-1'
+const ARTE_DO_DONO = { id: '1', projeto: { designerId: DONO, clienteId: 'cliente-1' } }
+
 describe('ArteService.updateArte', () => {
   it('deve lançar erro se arte não existe', async () => {
     vi.mocked(prisma.arte.findUnique).mockResolvedValue(null)
-    await expect(service.updateArte('x', {})).rejects.toThrow('Arte não encontrada')
+    await expect(service.updateArte('x', {}, DONO)).rejects.toThrow('Arte não encontrada')
   })
 })
 
 describe('ArteService.deleteArte', () => {
   it('deve lançar erro se arte não existe', async () => {
     vi.mocked(prisma.arte.findUnique).mockResolvedValue(null)
-    await expect(service.deleteArte('x')).rejects.toThrow('Arte não encontrada')
+    await expect(service.deleteArte('x', DONO)).rejects.toThrow('Arte não encontrada')
   })
 
   it('deve deletar arte existente', async () => {
-    vi.mocked(prisma.arte.findUnique).mockResolvedValue({ id: '1' } as any)
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue(ARTE_DO_DONO as any)
     vi.mocked(prisma.arte.delete).mockResolvedValue({} as any)
-    await service.deleteArte('1')
+    await service.deleteArte('1', DONO)
     expect(prisma.arte.delete).toHaveBeenCalled()
   })
 })

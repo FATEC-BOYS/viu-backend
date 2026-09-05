@@ -1,6 +1,6 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { TarefaService, ListTarefasParams } from '../services/tarefaService.js'
-import prisma from '../database/client.js'
+import { getAccessibleProjectIds } from '../utils/projectAccess.js'
 
 const tarefaService = new TarefaService()
 
@@ -20,18 +20,15 @@ export async function listTarefas(
       prioridade: prioridade as string | undefined,
     }
 
-    if (usuario.tipo !== 'ADMIN') {
-      const projetos = await prisma.projeto.findMany({
-        where: { OR: [{ designerId: usuario.id }, { clienteId: usuario.id }] },
-        select: { id: true },
-      })
-      const accessibleIds = projetos.map((p: { id: string }) => p.id)
-
-      if (params.projetoId && !accessibleIds.includes(params.projetoId)) {
+    const acessiveis = await getAccessibleProjectIds(usuario.id, usuario.tipo === 'ADMIN')
+    if (acessiveis) {
+      // 403 explícito em vez de lista vazia: pedir um projeto que não é seu é
+      // erro de autorização, não resultado sem itens.
+      if (params.projetoId && !acessiveis.includes(params.projetoId)) {
         reply.status(403).send({ message: 'Acesso negado', success: false })
         return
       }
-      params.projetoIds = accessibleIds
+      params.projetoIds = acessiveis
     }
 
     const { tarefas, total } = await tarefaService.listTarefas(params)
@@ -97,14 +94,24 @@ export async function updateTarefa(
   reply: FastifyReply,
 ): Promise<void> {
   try {
+    const usuario = (request as any).usuario
     const { id } = request.params as { id: string }
-    const tarefa = await tarefaService.updateTarefa(id, request.body)
+    const tarefa = await tarefaService.updateTarefa(
+      id,
+      request.body,
+      usuario.id,
+      usuario.tipo === 'ADMIN',
+    )
     reply.send({
       message: 'Tarefa atualizada com sucesso',
       data: tarefa,
       success: true,
     })
   } catch (error: any) {
+    if (error.message.includes('Acesso negado')) {
+      reply.status(403).send({ message: error.message, success: false })
+      return
+    }
     if (
       error.message.includes('Tarefa não encontrada') ||
       error.message.includes('Projeto não encontrado') ||
@@ -125,12 +132,17 @@ export async function deleteTarefa(
   reply: FastifyReply,
 ): Promise<void> {
   try {
+    const usuario = (request as any).usuario
     const { id } = request.params as { id: string }
-    await tarefaService.deleteTarefa(id)
+    await tarefaService.deleteTarefa(id, usuario.id, usuario.tipo === 'ADMIN')
     reply.send({ message: 'Tarefa removida com sucesso', success: true })
   } catch (error: any) {
     if (error.message.includes('Tarefa não encontrada')) {
       reply.status(404).send({ message: error.message, success: false })
+      return
+    }
+    if (error.message.includes('Acesso negado')) {
+      reply.status(403).send({ message: error.message, success: false })
       return
     }
     reply.status(500).send({ message: 'Erro ao remover tarefa', success: false })

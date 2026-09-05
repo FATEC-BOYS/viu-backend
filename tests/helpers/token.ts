@@ -21,6 +21,26 @@ export const CLIENTE: TestUser = {
   tipo: 'CLIENTE',
 }
 
+/**
+ * Segundo tenant — usado nos testes de IDOR.
+ *
+ * Designer A (DESIGNER) e Designer B (DESIGNER_B) não compartilham nenhum
+ * projeto: tudo que A alcança de B é vazamento.
+ */
+export const DESIGNER_B: TestUser = {
+  id: 'cdesignerb00000001',
+  email: 'designer-b@test.com',
+  nome: 'Test Designer B',
+  tipo: 'DESIGNER',
+}
+
+export const CLIENTE_B: TestUser = {
+  id: 'cclienteb000000001',
+  email: 'cliente-b@test.com',
+  nome: 'Test Cliente B',
+  tipo: 'CLIENTE',
+}
+
 export const ADMIN: TestUser = {
   id: 'cadmin00000000001',
   email: 'admin@test.com',

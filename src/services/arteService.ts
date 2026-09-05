@@ -9,6 +9,7 @@
 
 import prisma from '../database/client.js'
 import { assertValidTransition, ARTE_TRANSITIONS } from '../utils/stateMachine.js'
+import { PROJETO_ACCESS_SELECT, assertAcessoAoProjeto } from '../utils/projectAccess.js'
 
 export interface ListArtesParams {
   page?: number
@@ -36,11 +37,18 @@ export class ArteService {
     search,
   }: ListArtesParams) {
     const skip = (page - 1) * limit
+    // projetoId (filtro de quem chama) e projetoIds (escopo de acesso) são
+    // acumulativos. Antes o filtro *substituía* o escopo — pedir um projeto
+    // específico apagava a restrição de acesso, e o service só não vazava
+    // porque o controller conferia antes. Agora a listagem é segura sozinha,
+    // como já era em aprovacaoService e feedbackService.
+    const projetoConditions: any[] = []
+    if (projetoId) projetoConditions.push({ projetoId })
+    if (projetoIds) projetoConditions.push({ projetoId: { in: projetoIds } })
+
     const where: any = {
-      // projetoId takes precedence; projetoIds is the access-control fallback
-      ...(projetoId
-        ? { projetoId }
-        : projetoIds && { projetoId: { in: projetoIds } }),
+      ...(projetoConditions.length === 1 && projetoConditions[0]),
+      ...(projetoConditions.length > 1 && { AND: projetoConditions }),
       ...(autorId && { autorId }),
       ...(status && { status }),
       ...(tipo && { tipo }),
@@ -116,13 +124,23 @@ export class ArteService {
 
   /**
    * Atualiza uma arte existente.
-   * @throws Error se a arte não for encontrada.
+   *
+   * `requesterId` não é opcional de propósito: até então a autorização desta
+   * operação vivia inteira no middleware da rota, e um furo lá (ver
+   * requireProjectAccess) virava escrita em arte de outro tenant. Agora o
+   * service é a autoridade final e não depende de quem o chama.
+   *
+   * @throws Error se a arte não for encontrada ou o requisitante não tiver acesso.
    */
-  async updateArte(id: string, updateData: any) {
-    const existingArte = await prisma.arte.findUnique({ where: { id } })
+  async updateArte(id: string, updateData: any, requesterId: string, isAdmin = false) {
+    const existingArte = await prisma.arte.findUnique({
+      where: { id },
+      include: { projeto: { select: PROJETO_ACCESS_SELECT } },
+    })
     if (!existingArte) {
       throw new Error('Arte não encontrada')
     }
+    assertAcessoAoProjeto(existingArte.projeto, requesterId, isAdmin)
 
     if (updateData.status && updateData.status !== existingArte.status) {
       assertValidTransition('Arte', ARTE_TRANSITIONS, existingArte.status, updateData.status)
@@ -134,13 +152,18 @@ export class ArteService {
 
   /**
    * Remove uma arte do banco.
-   * @throws Error se a arte não for encontrada.
+   * @throws Error se a arte não for encontrada ou o requisitante não tiver acesso.
    */
-  async deleteArte(id: string) {
-    const existingArte = await prisma.arte.findUnique({ where: { id } })
+  async deleteArte(id: string, requesterId: string, isAdmin = false) {
+    const existingArte = await prisma.arte.findUnique({
+      where: { id },
+      include: { projeto: { select: PROJETO_ACCESS_SELECT } },
+    })
     if (!existingArte) {
       throw new Error('Arte não encontrada')
     }
+    assertAcessoAoProjeto(existingArte.projeto, requesterId, isAdmin)
+
     await prisma.arte.delete({ where: { id } })
     return
   }

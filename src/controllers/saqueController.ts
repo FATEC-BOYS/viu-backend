@@ -57,6 +57,14 @@ export async function removerChavePixHandler(
       reply.status(404).send({ message: error.message, success: false })
       return
     }
+    // O service lança 'Acesso negado' para chave de outro usuário, e isso não
+    // estava mapeado: a remoção era corretamente barrada, mas a resposta saía
+    // 500 — erro do servidor para o que é decisão de autorização, com alarme
+    // falso no log. 403 é o que POST /saques já devolve no mesmo caso.
+    if (error.message.includes('Acesso negado')) {
+      reply.status(403).send({ message: error.message, success: false })
+      return
+    }
     reply.status(500).send({ message: 'Erro ao remover chave PIX', success: false })
   }
 }

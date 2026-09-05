@@ -1,6 +1,6 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { buscaService, BuscaOptions } from '../services/buscaService.js'
-import prisma from '../database/client.js'
+import { getAccessibleProjectIds } from '../utils/projectAccess.js'
 
 export async function buscar(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
@@ -31,13 +31,8 @@ export async function buscar(request: FastifyRequest, reply: FastifyReply): Prom
     }
 
     // Non-admins only see results from their own projects
-    if (usuario.tipo !== 'ADMIN') {
-      const projetos = await prisma.projeto.findMany({
-        where: { OR: [{ designerId: usuario.id }, { clienteId: usuario.id }] },
-        select: { id: true },
-      })
-      opts.projetoIds = projetos.map((p: { id: string }) => p.id)
-    }
+    const acessiveis = await getAccessibleProjectIds(usuario.id, usuario.tipo === 'ADMIN')
+    if (acessiveis) opts.projetoIds = acessiveis
 
     const resultado = await buscaService.buscarTudo(query, opts)
 

@@ -1,21 +1,20 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { AceiteService } from '../services/aceiteService.js'
-import prisma from '../database/client.js'
+import { checkProjectAccess } from '../utils/projectAccess.js'
 
 const aceiteService = new AceiteService()
 
+/** Traduz o resultado do helper central para a resposta HTTP desta rota. */
 async function assertProjetoParticipant(
   projetoId: string,
   usuarioId: string,
   isAdmin: boolean,
 ): Promise<{ ok: boolean; status?: number; message?: string }> {
-  if (isAdmin) return { ok: true }
-  const projeto = await prisma.projeto.findUnique({
-    where: { id: projetoId },
-    select: { designerId: true, clienteId: true },
-  })
-  if (!projeto) return { ok: false, status: 404, message: 'Projeto não encontrado' }
-  if (projeto.designerId !== usuarioId && projeto.clienteId !== usuarioId) {
+  const resultado = await checkProjectAccess(projetoId, usuarioId, isAdmin)
+  if (resultado === 'nao-encontrado') {
+    return { ok: false, status: 404, message: 'Projeto não encontrado' }
+  }
+  if (resultado === 'negado') {
     return { ok: false, status: 403, message: 'Acesso negado: você não é parte deste projeto' }
   }
   return { ok: true }

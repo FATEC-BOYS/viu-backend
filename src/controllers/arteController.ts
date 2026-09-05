@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto'
 import { ArteService, ListArtesParams } from '../services/arteService.js'
 import { NotificacaoService } from '../services/notificacaoService.js'
 import { uploadFile, signPath, deleteFile } from '../utils/storage.js'
+import { getAccessibleProjectIds } from '../utils/projectAccess.js'
 import prisma from '../database/client.js'
 
 const arteService = new ArteService()
@@ -23,17 +24,15 @@ export async function listArtes(request: FastifyRequest, reply: FastifyReply): P
       search: search as string | undefined,
     }
 
-    if (usuario.tipo !== 'ADMIN') {
-      const projetos = await prisma.projeto.findMany({
-        where: { OR: [{ designerId: usuario.id }, { clienteId: usuario.id }] },
-        select: { id: true },
-      })
-      const accessibleIds = projetos.map((p: { id: string }) => p.id)
-      if (params.projetoId && !accessibleIds.includes(params.projetoId)) {
+    const acessiveis = await getAccessibleProjectIds(usuario.id, usuario.tipo === 'ADMIN')
+    if (acessiveis) {
+      // 403 explícito em vez de lista vazia: pedir um projeto que não é seu é
+      // erro de autorização, não resultado sem itens.
+      if (params.projetoId && !acessiveis.includes(params.projetoId)) {
         reply.status(403).send({ message: 'Acesso negado', success: false })
         return
       }
-      params.projetoIds = accessibleIds
+      params.projetoIds = acessiveis
     }
 
     const { artes, total } = await arteService.listArtes(params)
@@ -164,6 +163,7 @@ export async function createArte(request: FastifyRequest, reply: FastifyReply): 
 
 export async function updateArte(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
+    const usuario = (request as any).usuario
     const { id } = request.params as { id: string }
     const body = request.body as any
     const allowedUpdates: Record<string, any> = {}
@@ -171,11 +171,20 @@ export async function updateArte(request: FastifyRequest, reply: FastifyReply): 
     for (const field of ['nome', 'descricao'] as const) {
       if (body[field] !== undefined) allowedUpdates[field] = body[field]
     }
-    const arte = await arteService.updateArte(id, allowedUpdates)
+    const arte = await arteService.updateArte(
+      id,
+      allowedUpdates,
+      usuario.id,
+      usuario.tipo === 'ADMIN',
+    )
     reply.send({ message: 'Arte atualizada com sucesso', data: arte, success: true })
   } catch (error: any) {
     if (error.message.includes('Arte não encontrada')) {
       reply.status(404).send({ message: error.message, success: false })
+      return
+    }
+    if (error.message.includes('Acesso negado')) {
+      reply.status(403).send({ message: error.message, success: false })
       return
     }
     reply.status(500).send({ message: 'Erro ao atualizar arte', success: false })
@@ -184,6 +193,7 @@ export async function updateArte(request: FastifyRequest, reply: FastifyReply): 
 
 export async function deleteArte(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
+    const usuario = (request as any).usuario
     const { id } = request.params as { id: string }
 
     // Fetch before delete to get the storage key
@@ -193,7 +203,7 @@ export async function deleteArte(request: FastifyRequest, reply: FastifyReply): 
       return
     }
 
-    await arteService.deleteArte(id)
+    await arteService.deleteArte(id, usuario.id, usuario.tipo === 'ADMIN')
 
     // Remove from object storage — fire-and-forget so DB delete is never rolled back
     if (arte.arquivo) deleteFile(arte.arquivo).catch(() => {})
@@ -202,6 +212,10 @@ export async function deleteArte(request: FastifyRequest, reply: FastifyReply): 
   } catch (error: any) {
     if (error.message.includes('Arte não encontrada')) {
       reply.status(404).send({ message: error.message, success: false })
+      return
+    }
+    if (error.message.includes('Acesso negado')) {
+      reply.status(403).send({ message: error.message, success: false })
       return
     }
     reply.status(500).send({ message: 'Erro ao remover arte', success: false })
