@@ -173,6 +173,13 @@ export const CreateAprovacaoRequestSchema = z.object({
   status: z.enum(['PENDENTE', 'APROVADO', 'REJEITADO']).default('PENDENTE'),
   comentario: z.string().optional(),
   arteId: z.string().cuid('ID da arte inválido'),
+  versaoNumero: z.number().int().positive().optional(),
+});
+
+// Solicitar não carrega decisão: só diz qual entrega vai ser julgada. Sem
+// versão informada, o service usa a versão corrente da arte.
+export const SolicitarAprovacaoRequestSchema = z.object({
+  versaoNumero: z.number().int().positive().optional(),
 });
 
 // ===== SCHEMAS UTILITÁRIOS =====

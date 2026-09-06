@@ -222,6 +222,10 @@ model Aprovacao {
   id         String  @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
   status     String  @default("PENDENTE")
   comentario String?
+  // Qual entrega esta decisão aprova. Número, não FK: createArte não gera linha
+  // em ArteVersao, então a v1 de toda arte ficaria com FK nula — justamente o
+  // caso mais comum.
+  versaoNumero Int?
   // Soft delete: registros de aprovação são evidência contratual — nunca deletados fisicamente
   deletedAt  DateTime?
 
@@ -232,6 +236,10 @@ model Aprovacao {
 
   criadoEm DateTime @default(now())
 
+  // Trava a duplicata que o botão "Solicitar aprovação" cria com dois cliques:
+  // a rota de decisão busca com limit=1 e pega [0], então linhas repetidas
+  // fazem a decisão do cliente cair numa arbitrária.
+  @@unique([arteId, aprovadorId, versaoNumero])
   @@index([arteId])
   @@index([aprovadorId])
   @@index([status])

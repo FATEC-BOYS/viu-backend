@@ -76,6 +76,30 @@ export async function createAprovacao(request: FastifyRequest, reply: FastifyRep
   }
 }
 
+export async function solicitarAprovacaoHandler(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  try {
+    const usuario = (request as any).usuario
+    const { id } = request.params as { id: string }
+    const { versaoNumero } = (request.body ?? {}) as { versaoNumero?: number }
+
+    const aprovacao = await aprovacaoService.solicitarAprovacao(id, usuario.id, versaoNumero)
+    reply.status(201).send({ message: 'Aprovação solicitada', data: aprovacao, success: true })
+  } catch (error: any) {
+    if (error.message.includes('nao encontrad') || error.message.includes('encontrad')) {
+      reply.status(404).send({ message: error.message, success: false })
+      return
+    }
+    if (error.message.includes('Acesso negado')) {
+      reply.status(403).send({ message: error.message, success: false })
+      return
+    }
+    reply.status(500).send({ message: 'Erro ao solicitar aprovação', success: false })
+  }
+}
+
 export async function updateAprovacao(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
     const usuario = (request as any).usuario

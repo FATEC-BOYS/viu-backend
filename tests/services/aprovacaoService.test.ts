@@ -45,3 +45,90 @@ describe('AprovacaoService', () => {
     await expect(service.deleteAprovacao('x')).rejects.toThrow('Aprovação não encontrada')
   })
 })
+
+/**
+ * O gatilho que faltava: nada no produto criava Aprovacao.
+ *
+ * `POST /aprovacoes` não serve aqui — o controller força
+ * `aprovadorId = usuario.id` e a rota exige APROVAR_ARTE, permissão que o
+ * designer não tem. Aquela rota é "o cliente registra a própria decisão".
+ * Solicitar é o sentido oposto: o designer cria a pendência para o cliente.
+ */
+describe('solicitarAprovacao', () => {
+  const ARTE = {
+    id: 'a1',
+    nome: 'Capa',
+    versao: 3,
+    autorId: 'd1',
+    projeto: { clienteId: 'c1', designerId: 'd1' },
+  }
+
+  it('cria a pendência no nome do cliente, não de quem pediu', async () => {
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue(ARTE as any)
+    vi.mocked(prisma.aprovacao.findFirst).mockResolvedValue(null)
+    vi.mocked(prisma.aprovacao.create).mockResolvedValue({ id: 'ap1' } as any)
+
+    await service.solicitarAprovacao('a1', 'd1')
+
+    expect(prisma.aprovacao.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          arteId: 'a1',
+          aprovadorId: 'c1',
+          status: 'PENDENTE',
+        }),
+      }),
+    )
+  })
+
+  it('grava a versão corrente da arte quando nenhuma é informada', async () => {
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue(ARTE as any)
+    vi.mocked(prisma.aprovacao.findFirst).mockResolvedValue(null)
+    vi.mocked(prisma.aprovacao.create).mockResolvedValue({ id: 'ap1' } as any)
+
+    await service.solicitarAprovacao('a1', 'd1')
+
+    const [{ data }] = vi.mocked(prisma.aprovacao.create).mock.calls[0] as any[]
+    expect(data.versaoNumero).toBe(3)
+  })
+
+  it('recusa quem não é o designer do projeto', async () => {
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue(ARTE as any)
+
+    await expect(service.solicitarAprovacao('a1', 'estranho')).rejects.toThrow('Acesso negado')
+    expect(prisma.aprovacao.create).not.toHaveBeenCalled()
+  })
+
+  it('recusa arte inexistente', async () => {
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue(null)
+    await expect(service.solicitarAprovacao('x', 'd1')).rejects.toThrow('Arte não encontrada')
+  })
+
+  /**
+   * Sem isto, dois cliques em "Solicitar" criam duas linhas para a mesma
+   * arte+cliente+versão. A rota de decisão busca com `limit=1` e pega `[0]`:
+   * a decisão do cliente cairia numa arbitrária e a outra ficaria PENDENTE
+   * para sempre.
+   */
+  it('devolve a pendência existente em vez de duplicar', async () => {
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue(ARTE as any)
+    vi.mocked(prisma.aprovacao.findFirst).mockResolvedValue({ id: 'ja-existe' } as any)
+
+    const resultado = await service.solicitarAprovacao('a1', 'd1')
+
+    expect(resultado).toMatchObject({ id: 'ja-existe' })
+    expect(prisma.aprovacao.create).not.toHaveBeenCalled()
+  })
+
+  it('avisa o cliente de que há algo esperando por ele', async () => {
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue(ARTE as any)
+    vi.mocked(prisma.aprovacao.findFirst).mockResolvedValue(null)
+    vi.mocked(prisma.aprovacao.create).mockResolvedValue({ id: 'ap1' } as any)
+
+    await service.solicitarAprovacao('a1', 'd1')
+
+    expect(prisma.notificacao.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ usuarioId: 'c1' }) }),
+    )
+  })
+})
