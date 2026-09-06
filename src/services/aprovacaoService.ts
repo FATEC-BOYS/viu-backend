@@ -81,6 +81,7 @@ export class AprovacaoService {
     status: string
     comentario?: string
     aprovadorId: string
+    versaoNumero?: number | null
   }) {
     const arte = await prisma.arte.findUnique({
       where: { id: data.arteId },
@@ -105,6 +106,7 @@ export class AprovacaoService {
         status: data.status,
         comentario: data.comentario,
         aprovadorId: data.aprovadorId,
+        versaoNumero: data.versaoNumero ?? arte.versao,
       },
     })
 
@@ -118,6 +120,60 @@ export class AprovacaoService {
         `A arte "${arte.nome}" foi ${statusLabel} pelo cliente.${data.comentario ? ` Comentário: ${data.comentario}` : ''}`,
       )
     }
+
+    return aprovacao
+  }
+
+  /**
+   * O designer pede a decisão; o cliente decide.
+   *
+   * `POST /aprovacoes` não serve para isso: o controller força
+   * `aprovadorId = usuario.id` e a rota exige APROVAR_ARTE, que o designer não
+   * tem. Aquela rota é "o cliente registra a própria decisão" — o sentido
+   * oposto. Ampliá-la significaria aceitar `aprovadorId` do body de novo.
+   */
+  async solicitarAprovacao(arteId: string, solicitanteId: string, versaoNumero?: number | null) {
+    const arte = await prisma.arte.findUnique({
+      where: { id: arteId },
+      include: { projeto: { select: { clienteId: true, designerId: true } } },
+    })
+    if (!arte) throw new Error('Arte não encontrada')
+
+    if (arte.projeto.designerId !== solicitanteId) {
+      throw new Error('Acesso negado: apenas o designer do projeto pode solicitar aprovação')
+    }
+
+    const versao = versaoNumero ?? arte.versao
+
+    // Reaproveita a pendência em vez de criar outra. Dois cliques em
+    // "Solicitar" criariam duas linhas, e a rota de decisão — que busca com
+    // limit=1 e pega [0] — aplicaria a resposta do cliente numa arbitrária.
+    const existente = await prisma.aprovacao.findFirst({
+      where: {
+        arteId,
+        aprovadorId: arte.projeto.clienteId,
+        versaoNumero: versao,
+        status: 'PENDENTE',
+        deletedAt: null,
+      },
+    })
+    if (existente) return existente
+
+    const aprovacao = await prisma.aprovacao.create({
+      data: {
+        arteId,
+        aprovadorId: arte.projeto.clienteId,
+        status: 'PENDENTE',
+        versaoNumero: versao,
+      },
+    })
+
+    notificacaoService.dispatch(
+      arte.projeto.clienteId,
+      'APROVACAO_SOLICITADA',
+      `"${arte.nome}" aguarda sua aprovação`,
+      `A versão ${versao} de "${arte.nome}" foi enviada para sua aprovação.`,
+    )
 
     return aprovacao
   }
