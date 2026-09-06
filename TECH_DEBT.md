@@ -198,3 +198,31 @@ alguém voltou a implementar o que já existia.
 ---
 
 *Última atualização: 2026-08-21*
+
+---
+
+### Índice em `Disputa.faturaId`
+
+`getSaldoDisponivel` e `solicitarSaque` agregam `Disputa.saldoBloqueado` filtrando
+por `fatura: { designerId }`. A tabela tem índice em `projetoId`, `abertaPorId` e
+`status`, mas não em `faturaId`, então esse join varre. Em volume de Closed Beta
+não pesa; vale corrigir antes de escalar. Exige migration.
+
+### Saque concorrente com abertura de disputa
+
+Medido contra Postgres real em `tests/concorrencia/saldo-disputa.test.ts`: quando
+as duas operações correm ao mesmo tempo, quem chega primeiro leva. Se o saque
+chega primeiro, o dinheiro sai e a disputa nasce sobre valor que já foi embora.
+
+Não é falha de isolamento — é execução serial válida, e SERIALIZABLE em
+`abrirDisputa` foi tentado sem efeito (só acrescentava P2034 ao fluxo de
+disputa). Fechar de verdade exige carência antes de a fatura virar sacável, ou
+lock pessimista na linha da `Fatura` nos dois fluxos. Ambas são decisão de
+produto, não ajuste técnico.
+
+### Saldo negativo não tem tratamento
+
+Estorno depois de saque concluído deixa o saldo negativo. O cálculo registra
+corretamente e novos saques ficam bloqueados (`valor > saldo` com saldo
+negativo), mas nada notifica ninguém e a dívida é absorvida em silêncio pela
+receita seguinte. É a opção D da análise de integridade financeira.

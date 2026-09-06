@@ -18,7 +18,8 @@
     "db:seed": "tsx src/database/seed.ts",
     "lint:fix": "eslint src --ext .ts --fix",
     "typecheck": "tsc --noEmit",
-    "test:ci": "vitest run"
+    "test:ci": "vitest run",
+    "test:db": "bash scripts/pg-test.sh"
   },
   "keywords": [
     "viu",

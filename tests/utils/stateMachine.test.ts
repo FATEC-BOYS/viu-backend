@@ -9,6 +9,7 @@ import {
   PAGAMENTO_TRANSITIONS,
   SAQUE_TRANSITIONS,
   DISPUTA_TRANSITIONS,
+  estadosNaoTerminais,
 } from '../../src/utils/stateMachine.js'
 
 function ok(label: string, map: Record<string, string[]>, from: string, to: string) {
@@ -141,5 +142,25 @@ describe('assertValidTransition — status desconhecido', () => {
   it('lança erro para status de origem desconhecido', () => {
     expect(() => assertValidTransition('Projeto', PROJETO_TRANSITIONS, 'INVALIDO', 'EM_ANDAMENTO'))
       .toThrow('Status desconhecido')
+  })
+})
+
+describe('estadosNaoTerminais', () => {
+  it('devolve só os estados de onde ainda se pode sair', () => {
+    expect(estadosNaoTerminais(DISPUTA_TRANSITIONS).sort()).toEqual(
+      ['ABERTA', 'EM_ANALISE', 'ESCALADA'],
+    )
+  })
+
+  it('exclui os terminais — é o que impede travar saldo de disputa resolvida', () => {
+    const naoTerminais = estadosNaoTerminais(DISPUTA_TRANSITIONS)
+    expect(naoTerminais).not.toContain('RESOLVIDA_DESIGNER')
+    expect(naoTerminais).not.toContain('RESOLVIDA_CLIENTE')
+  })
+
+  it('vale para qualquer máquina, não só disputa', () => {
+    expect(estadosNaoTerminais(SAQUE_TRANSITIONS).sort()).toEqual(
+      ['PROCESSANDO', 'SOLICITADO'],
+    )
   })
 })

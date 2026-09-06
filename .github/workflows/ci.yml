@@ -73,3 +73,11 @@ jobs:
             --from-url "$DATABASE_URL" \
             --to-schema-datamodel prisma/schema.prisma \
             --exit-code && echo "sem drift"
+
+      # Reaproveita o Postgres deste job. O mock do Prisma não tem isolamento:
+      # SERIALIZABLE, conflito e P2034 só existem contra um banco real, e é
+      # isso que impede sacar o mesmo saldo duas vezes.
+      - name: Testes de concorrência (Postgres real)
+        env:
+          DATABASE_URL_TESTE: postgresql://postgres:postgres@localhost:5432/viu_ci
+        run: npm run test:db
