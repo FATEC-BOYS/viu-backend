@@ -29,10 +29,11 @@ let tokenAdmin: string
 
 const auth = (t = tokenA) => ({ authorization: `Bearer ${t}`, ...ORIGIN })
 
-/** Saldo = faturas pagas − saques já comprometidos. */
-function mockarSaldo(recebido: number, sacado: number) {
+/** Saldo = faturas pagas − saques comprometidos − valor travado em disputa. */
+function mockarSaldo(recebido: number, sacado: number, bloqueado = 0) {
   db.fatura.aggregate.mockResolvedValue({ _sum: { valorLiquidoDesigner: recebido } })
   db.saque.aggregate.mockResolvedValue({ _sum: { valor: sacado } })
+  db.disputa.aggregate.mockResolvedValue({ _sum: { saldoBloqueado: bloqueado } })
 }
 
 beforeAll(async () => {
@@ -125,6 +126,71 @@ describe('POST /saques', () => {
         data: expect.objectContaining({ designerId: DESIGNER.id, status: 'SOLICITADO' }),
       }),
     )
+  })
+})
+
+/**
+ * O furo que este bloco fecha: Disputa.saldoBloqueado era gravado ao abrir a
+ * disputa e nunca lido por nenhuma query de saldo. Um cliente abria disputa de
+ * calote sobre uma fatura e o designer sacava o valor na mesma hora, antes de
+ * qualquer admin resolver.
+ */
+describe('disputa aberta trava o saldo', () => {
+  it('GET /saques/saldo desconta o valor em disputa e diz quanto está travado', async () => {
+    mockarSaldo(100_00, 0, 40_00)
+
+    const res = await app.inject({ method: 'GET', url: '/saques/saldo', headers: auth() })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json().data.saldo).toBe(60_00)
+    expect(res.json().data.saldoBloqueado).toBe(40_00)
+  })
+
+  it('POST /saques do valor total com disputa aberta é recusado', async () => {
+    db.chavePix.findUnique.mockResolvedValue(CHAVE_A)
+    mockarSaldo(100_00, 0, 100_00)
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/saques',
+      headers: auth(),
+      payload: { chavePixId: CHAVE_A.id, valor: 100_00 },
+    })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.json().message).toMatch(/Saldo insuficiente/)
+    expect(db.saque.create).not.toHaveBeenCalled()
+  })
+
+  it('o mesmo saque passa depois de a disputa ser resolvida', async () => {
+    db.chavePix.findUnique.mockResolvedValue(CHAVE_A)
+    // Resolver zera saldoBloqueado e tira a disputa dos status bloqueantes.
+    mockarSaldo(100_00, 0, 0)
+    db.saque.create.mockResolvedValue({ id: 'csaque0000000000000000001', valor: 100_00 })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/saques',
+      headers: auth(),
+      payload: { chavePixId: CHAVE_A.id, valor: 100_00 },
+    })
+
+    expect(res.statusCode).toBe(201)
+    expect(db.saque.create).toHaveBeenCalled()
+  })
+
+  it('a agregação de disputa é escopada pelo designer da sessão', async () => {
+    mockarSaldo(100_00, 0, 0)
+
+    await app.inject({
+      method: 'GET',
+      url: `/saques/saldo?designerId=${DESIGNER_B.id}`,
+      headers: auth(),
+    })
+
+    for (const call of db.disputa.aggregate.mock.calls) {
+      expect(call[0].where.fatura).toEqual({ designerId: DESIGNER.id })
+    }
   })
 })
 

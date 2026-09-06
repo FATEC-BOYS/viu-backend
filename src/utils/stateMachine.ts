@@ -82,6 +82,20 @@ export const DISPUTA_TRANSITIONS: TransitionMap = {
   RESOLVIDA_CLIENTE:  [],
 }
 
+/**
+ * Estados dos quais ainda se pode sair — os que têm ao menos uma transição.
+ *
+ * Serve para perguntar "isto já acabou?" sem repetir a lista de estados finais
+ * à mão em outro arquivo. Uma lista copiada sai de sincronia no dia em que um
+ * estado novo aparece, e o efeito de esquecer um estado aqui é liberar dinheiro
+ * que devia estar travado.
+ */
+export function estadosNaoTerminais(transitions: TransitionMap): string[] {
+  return Object.entries(transitions)
+    .filter(([, permitidos]) => permitidos.length > 0)
+    .map(([estado]) => estado)
+}
+
 // ─── Validação ────────────────────────────────────────────────────────────────
 
 export function assertValidTransition(

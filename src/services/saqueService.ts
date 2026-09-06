@@ -1,8 +1,36 @@
 import prisma from '../database/client.js'
 import { formatCurrency, formatDate } from '../utils/formatters.js'
-import { assertValidTransition, SAQUE_TRANSITIONS } from '../utils/stateMachine.js'
+import {
+  assertValidTransition,
+  estadosNaoTerminais,
+  DISPUTA_TRANSITIONS,
+  SAQUE_TRANSITIONS,
+} from '../utils/stateMachine.js'
 
 const VALOR_MINIMO_SAQUE = 500 // R$ 5,00 em centavos
+
+/**
+ * Disputa em aberto congela o valor da fatura em `saldoBloqueado`. Enquanto ela
+ * não termina, esse dinheiro não é sacável.
+ *
+ * A lista sai da própria máquina de estados em vez de ser escrita à mão: um
+ * estado novo que ninguém lembrasse de incluir aqui viraria dinheiro liberado
+ * durante uma disputa em andamento.
+ */
+const DISPUTA_STATUS_BLOQUEANTES = estadosNaoTerminais(DISPUTA_TRANSITIONS)
+
+/**
+ * Disputa não tem designerId — o vínculo é a fatura de onde o valor saiu.
+ *
+ * Disputa sem faturaId fica com saldoBloqueado 0 e não afeta nada, que é o
+ * comportamento atual: disputa sem cobrança associada não trava saldo.
+ */
+function disputasBloqueantesWhere(designerId: string) {
+  return {
+    status: { in: DISPUTA_STATUS_BLOQUEANTES },
+    fatura: { designerId },
+  }
+}
 
 export class SaqueService {
   async listarChavesPix(usuarioId: string) {
@@ -29,7 +57,7 @@ export class SaqueService {
   }
 
   async getSaldoDisponivel(designerId: string) {
-    const [faturasPagas, saquesAtivos] = await Promise.all([
+    const [faturasPagas, saquesAtivos, disputasAbertas] = await Promise.all([
       prisma.fatura.aggregate({
         _sum: { valorLiquidoDesigner: true },
         where: { designerId, status: 'PAGA' },
@@ -38,11 +66,20 @@ export class SaqueService {
         _sum: { valor: true },
         where: { designerId, status: { in: ['SOLICITADO', 'PROCESSANDO', 'CONCLUIDO'] } },
       }),
+      prisma.disputa.aggregate({
+        _sum: { saldoBloqueado: true },
+        where: disputasBloqueantesWhere(designerId),
+      }),
     ])
 
     const totalRecebido = faturasPagas._sum.valorLiquidoDesigner ?? 0
     const totalSacado = saquesAtivos._sum.valor ?? 0
-    const saldo = totalRecebido - totalSacado
+    const saldoBloqueado = disputasAbertas._sum.saldoBloqueado ?? 0
+
+    // Sem clamp em zero: estorno depois de saque concluido deixa saldo
+    // negativo, e esconder isso atras de um Math.max transformaria uma divida
+    // real em numero bonito. Quem consome precisa enxergar o buraco.
+    const saldo = totalRecebido - totalSacado - saldoBloqueado
 
     return {
       saldo,
@@ -51,6 +88,10 @@ export class SaqueService {
       totalRecebidoFormatado: formatCurrency(totalRecebido),
       totalSacado,
       totalSacadoFormatado: formatCurrency(totalSacado),
+      // Exposto para a interface poder dizer por que o saldo caiu — numero que
+      // encolhe sem explicacao parece dinheiro sumido.
+      saldoBloqueado,
+      saldoBloqueadoFormatado: formatCurrency(saldoBloqueado),
     }
   }
 
@@ -69,7 +110,10 @@ export class SaqueService {
         if (!chave || !chave.ativa) throw new Error('Chave PIX não encontrada ou inativa')
         if (chave.usuarioId !== designerId) throw new Error('Acesso negado')
 
-        const [faturasPagas, saquesAtivos] = await Promise.all([
+        // As tres leituras rodam com `tx`, nao com o prisma global: fora da
+        // transacao seria TOCTOU — uma disputa aberta entre a leitura e o
+        // insert passaria batido e o valor em disputa sairia mesmo assim.
+        const [faturasPagas, saquesAtivos, disputasAbertas] = await Promise.all([
           tx.fatura.aggregate({
             _sum: { valorLiquidoDesigner: true },
             where: { designerId, status: 'PAGA' },
@@ -78,8 +122,15 @@ export class SaqueService {
             _sum: { valor: true },
             where: { designerId, status: { in: ['SOLICITADO', 'PROCESSANDO', 'CONCLUIDO'] } },
           }),
+          tx.disputa.aggregate({
+            _sum: { saldoBloqueado: true },
+            where: disputasBloqueantesWhere(designerId),
+          }),
         ])
-        const saldo = (faturasPagas._sum.valorLiquidoDesigner ?? 0) - (saquesAtivos._sum.valor ?? 0)
+        const saldo =
+          (faturasPagas._sum.valorLiquidoDesigner ?? 0) -
+          (saquesAtivos._sum.valor ?? 0) -
+          (disputasAbertas._sum.saldoBloqueado ?? 0)
         if (valor > saldo) throw new Error('Saldo insuficiente para o saque solicitado')
 
         return tx.saque.create({

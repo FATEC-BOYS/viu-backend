@@ -11,6 +11,10 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['tests/**/*.test.ts'],
+    // tests/concorrencia precisa de Postgres de verdade e roda por
+    // `npm run test:db`, com config própria. Sem esta exclusão, `npm test`
+    // falharia para quem não tem banco levantado.
+    exclude: ['node_modules/**', 'tests/concorrencia/**'],
     setupFiles: ['tests/setup.ts'],
     testTimeout: 10000,
     coverage: {
