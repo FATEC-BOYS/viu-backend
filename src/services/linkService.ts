@@ -85,7 +85,13 @@ export class LinkService {
           select: {
             id: true,
             nome: true,
-            projeto: { select: { nome: true, cliente: { select: { nome: true } } } },
+            // telefone: o designer manda o link de revisão pelo WhatsApp a partir
+            // da listagem. Sem ele aqui, redigita o número a cada envio mesmo
+            // com o cadastro preenchido. Nome e telefone é o suficiente — o
+            // resto do cadastro do cliente não tem o que fazer nesta rota.
+            projeto: {
+              select: { nome: true, cliente: { select: { nome: true, telefone: true } } },
+            },
           },
         },
       },
