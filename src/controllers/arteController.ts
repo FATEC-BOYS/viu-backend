@@ -36,8 +36,24 @@ export async function listArtes(request: FastifyRequest, reply: FastifyReply): P
     }
 
     const { artes, total } = await arteService.listArtes(params)
+    /**
+     * A lista devolvia só `arquivo`, que é a chave do bucket — e a grade de
+     * artes ficava com o ícone de imagem quebrada, porque chave crua no `src`
+     * de um `<img>` não carrega nada. Assinar aqui é o que a torna exibível.
+     *
+     * O nome do campo é `previewUrl` porque é o que a resposta do upload já
+     * devolve e o que o frontend lê. O detalhe da arte chamava a mesma coisa
+     * de `arquivo_url` e as versões de `arquivoUrl`: três nomes para o mesmo
+     * dado foi como a leitura ficou para trás sem ninguém notar.
+     */
+    const artesComPreview = await Promise.all(
+      artes.map(async (arte: any) => ({
+        ...arte,
+        previewUrl: await signPath(arte.arquivo),
+      })),
+    )
     reply.send({
-      data: artes,
+      data: artesComPreview,
       pagination: { page: params.page, limit: params.limit, total, pages: Math.ceil(total / params.limit!) },
       success: true,
     })
@@ -78,7 +94,12 @@ export async function getArteById(request: FastifyRequest, reply: FastifyReply):
         arquivo_url: fb.tipo === 'AUDIO' && fb.arquivo ? await signPath(fb.arquivo) : null,
       })),
     )
-    reply.send({ data: { ...arte, arquivo_url, feedbacks: feedbacksComUrl }, success: true })
+    // `previewUrl` é o nome que o frontend lê; `arquivo_url` fica porque a
+    // tela de feedbacks ainda o consome para o áudio.
+    reply.send({
+      data: { ...arte, arquivo_url, previewUrl: arquivo_url, feedbacks: feedbacksComUrl },
+      success: true,
+    })
   } catch (erro) {
     request.log.error({ erro }, 'Erro ao buscar arte')
     reply.status(500).send({ message: 'Erro ao buscar arte', success: false })
@@ -134,6 +155,10 @@ export async function uploadAndCreateArte(request: FastifyRequest, reply: Fastif
       reply.status(400).send({ message: error.message, success: false })
       return
     }
+    // Sem esta linha o upload falhava e o log registrava apenas
+    // `{"res":{"statusCode":500}}` — a causa (R2 fora do ar, credencial
+    // errada, banco recusando) morria aqui e o diagnóstico virava adivinhação.
+    request.log.error({ erro: error }, 'Falha no upload da arte')
     reply.status(500).send({ message: 'Erro ao criar arte', success: false })
   }
 }
