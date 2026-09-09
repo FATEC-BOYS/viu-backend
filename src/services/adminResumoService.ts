@@ -9,11 +9,10 @@ import { DISPUTA_TRANSITIONS, estadosNaoTerminais } from '../utils/stateMachine.
  * listas, e quinze requisições para montar isso deixariam a página piscando
  * em pedaços.
  *
- * O que NÃO está aqui, e por quê: "aprovações decididas hoje". `Aprovacao` só
- * guarda `criadoEm`; a linha passa de PENDENTE para APROVADO sem carimbo de
- * quando, e o audit log cobre apenas o POST (a decisão é um PUT). Devolvemos
- * `null` e a tela mostra "—". Inventar um número a partir de `criadoEm` diria
- * "decidido" para uma aprovação apenas solicitada.
+ * "Aprovações decididas" conta `decididoEm`, carimbado quando a aprovação sai
+ * de PENDENTE. Decisões anteriores a essa coluna não têm o carimbo e não
+ * entram — não há de onde recuperá-lo, e chutar `criadoEm` diria "decidido"
+ * para o que foi apenas solicitado.
  */
 
 export const FUSO_PADRAO = 'America/Sao_Paulo'
@@ -78,7 +77,7 @@ export interface ResumoAdmin {
     linksGerados: number
     feedbacksCriados: number
     aprovacoesSolicitadas: number
-    aprovacoesDecididas: null
+    aprovacoesDecididas: number
   }
   funil: { janelaDias: number; criados: number; abertos: number; comFeedback: number; comDecisao: number }
   precisaDeVoce: { saquesPendentes: number; disputasAbertas: number; linksTravados: number }
@@ -103,7 +102,7 @@ export async function obterResumoAdmin(fuso: string = FUSO_PADRAO): Promise<Resu
 
   const [
     contasNovas, projetosCriados, artesEnviadas, linksGerados, feedbacksCriados,
-    aprovacoesSolicitadas, saquesPendentes, disputasAbertas,
+    aprovacoesSolicitadas, aprovacoesDecididas, saquesPendentes, disputasAbertas,
     funilBruto, travados, saques, disputas, usuariosRecentes,
   ] = await Promise.all([
     prisma.usuario.count({ where: { criadoEm: { gte: desdeHoje } } }),
@@ -112,6 +111,7 @@ export async function obterResumoAdmin(fuso: string = FUSO_PADRAO): Promise<Resu
     prisma.linkCompartilhado.count({ where: { criadoEm: { gte: desdeHoje } } }),
     prisma.feedback.count({ where: { criadoEm: { gte: desdeHoje } } }),
     prisma.aprovacao.count({ where: { criadoEm: { gte: desdeHoje }, deletedAt: null } }),
+    prisma.aprovacao.count({ where: { decididoEm: { gte: desdeHoje }, deletedAt: null } }),
     prisma.saque.count({ where: { status: 'SOLICITADO' } }),
     prisma.disputa.count({ where: { status: { in: disputasPendentes } } }),
 
@@ -213,7 +213,7 @@ export async function obterResumoAdmin(fuso: string = FUSO_PADRAO): Promise<Resu
       linksGerados,
       feedbacksCriados,
       aprovacoesSolicitadas,
-      aprovacoesDecididas: null,
+      aprovacoesDecididas,
     },
     funil: {
       janelaDias: DIAS_DO_FUNIL,

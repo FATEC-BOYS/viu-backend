@@ -40,6 +40,39 @@ describe('AprovacaoService', () => {
     await expect(service.updateAprovacao('x', {})).rejects.toThrow('Aprovação não encontrada')
   })
 
+  /**
+   * Sem este carimbo a linha vai de PENDENTE a APROVADO sem deixar rastro de
+   * quando, e o produto não consegue medir o que promete encurtar: o tempo
+   * entre pedir a aprovação e receber a resposta.
+   */
+  it('updateAprovacao carimba quando a decisão saiu de PENDENTE', async () => {
+    vi.mocked(prisma.aprovacao.findUnique).mockResolvedValue({
+      id: 'a1', status: 'PENDENTE', aprovadorId: 'c1',
+      arte: { projeto: { clienteId: 'c1' } },
+    } as any)
+    vi.mocked(prisma.aprovacao.update).mockResolvedValue({ id: 'a1' } as any)
+
+    await service.updateAprovacao('a1', { status: 'APROVADO' }, 'c1')
+
+    const [argumentos] = vi.mocked(prisma.aprovacao.update).mock.calls[0] as [any]
+    expect(argumentos.data.status).toBe('APROVADO')
+    expect(argumentos.data.decididoEm).toBeInstanceOf(Date)
+  })
+
+  /** Editar só o comentário não é decidir — e não pode reescrever a data. */
+  it('updateAprovacao não carimba quando só muda o comentário', async () => {
+    vi.mocked(prisma.aprovacao.findUnique).mockResolvedValue({
+      id: 'a1', status: 'APROVADO', aprovadorId: 'c1',
+      arte: { projeto: { clienteId: 'c1' } },
+    } as any)
+    vi.mocked(prisma.aprovacao.update).mockResolvedValue({ id: 'a1' } as any)
+
+    await service.updateAprovacao('a1', { comentario: 'ajustando o texto' }, 'c1')
+
+    const [argumentos] = vi.mocked(prisma.aprovacao.update).mock.calls[0] as [any]
+    expect(argumentos.data).not.toHaveProperty('decididoEm')
+  })
+
   it('deleteAprovacao deve lançar erro se não existe', async () => {
     vi.mocked(prisma.aprovacao.findUnique).mockResolvedValue(null)
     await expect(service.deleteAprovacao('x')).rejects.toThrow('Aprovação não encontrada')

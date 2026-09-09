@@ -5,9 +5,9 @@ import type { FastifyInstance } from 'fastify'
  * A home do admin em uma requisição.
  *
  * O que estes testes travam: a porta (só ADMIN entra) e o contrato que a tela
- * consome — inclusive `aprovacoesDecididas: null`, que não é lacuna
- * esquecida e sim a única resposta honesta enquanto `Aprovacao` não guarda
- * quando foi decidida.
+ * consome — inclusive a diferença entre aprovação *solicitada* e *decidida*,
+ * que são contagens de campos distintos (`criadoEm` e `decididoEm`) e não
+ * podem sair da mesma consulta.
  */
 
 vi.mock('../../src/database/client.js', async () => {
@@ -33,7 +33,9 @@ beforeEach(() => {
   db.arte.count.mockResolvedValue(7)
   db.linkCompartilhado.count.mockResolvedValue(5)
   db.feedback.count.mockResolvedValue(12)
-  db.aprovacao.count.mockResolvedValue(3)
+  // Solicitadas e decididas são duas contagens: a ordem das chamadas segue a
+  // do Promise.all no service.
+  db.aprovacao.count.mockResolvedValueOnce(3).mockResolvedValueOnce(1)
   db.saque.count.mockResolvedValue(2)
   db.disputa.count.mockResolvedValue(1)
   db.$queryRaw
@@ -95,8 +97,21 @@ describe('GET /admin/resumo', () => {
       linksGerados: 5,
       feedbacksCriados: 12,
       aprovacoesSolicitadas: 3,
-      aprovacoesDecididas: null,
+      aprovacoesDecididas: 1,
     })
+  })
+
+  /**
+   * Uma conta `criadoEm` (quando foi pedida), a outra `decididoEm` (quando o
+   * cliente respondeu). Contar as duas pelo mesmo campo diria "decidido" para
+   * o que só foi solicitado.
+   */
+  it('separa aprovação pedida de aprovação decidida', async () => {
+    await pedir(ADMIN)
+
+    const campos = db.aprovacao.count.mock.calls.map(([a]: any) => Object.keys(a.where))
+    expect(campos[0]).toContain('criadoEm')
+    expect(campos[1]).toContain('decididoEm')
   })
 
   it('devolve o funil e o que precisa de atenção', async () => {
