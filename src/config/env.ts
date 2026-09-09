@@ -80,7 +80,18 @@ const envSchema = z.object({
   R2_ACCESS_KEY_ID: z.string().min(1, 'R2_ACCESS_KEY_ID é obrigatório'),
   R2_SECRET_ACCESS_KEY: z.string().min(1, 'R2_SECRET_ACCESS_KEY é obrigatório'),
   R2_BUCKET: z.string().default('viu'),
-  // MercadoPago — empty allowed in dev/test; required in production (see superRefine below)
+  /**
+   * Liga a cobrança (faturas por PIX e assinaturas).
+   *
+   * Antes as credenciais do MercadoPago eram exigidas por "estar em produção",
+   * o que obrigava quem não cobra nada a abrir conta em gateway de pagamento só
+   * para o servidor iniciar. A pergunta certa não é onde o servidor roda, e sim
+   * se ele vai processar dinheiro.
+   */
+  COBRANCA_ATIVA: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
   MP_ACCESS_TOKEN: z.string().default(''),
   MP_WEBHOOK_SECRET: z.string().default(''),
 }).superRefine((data, ctx) => {
@@ -96,14 +107,19 @@ const envSchema = z.object({
     })
   }
 
-  if (data.NODE_ENV !== 'production') return
+  // Cobrança ligada exige a configuração completa, em qualquer ambiente: sem
+  // token não há como criar cobrança, e sem segredo não há como distinguir uma
+  // confirmação de pagamento verdadeira de uma forjada.
+  if (data.COBRANCA_ATIVA) {
+    if (!data.MP_ACCESS_TOKEN) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['MP_ACCESS_TOKEN'], message: 'MP_ACCESS_TOKEN é obrigatório com COBRANCA_ATIVA=true' })
+    }
+    if (!data.MP_WEBHOOK_SECRET) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['MP_WEBHOOK_SECRET'], message: 'MP_WEBHOOK_SECRET é obrigatório com COBRANCA_ATIVA=true' })
+    }
+  }
 
-  if (!data.MP_ACCESS_TOKEN) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['MP_ACCESS_TOKEN'], message: 'MP_ACCESS_TOKEN é obrigatório em produção' })
-  }
-  if (!data.MP_WEBHOOK_SECRET) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['MP_WEBHOOK_SECRET'], message: 'MP_WEBHOOK_SECRET é obrigatório em produção' })
-  }
+  if (data.NODE_ENV !== 'production') return
 
   const origens = data.ALLOWED_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
 
