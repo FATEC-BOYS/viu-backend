@@ -14,6 +14,54 @@ const envSchema = z.object({
   // existe para dar folga em dev/testes e para ajustar em produção sem deploy.
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
   RATE_LIMIT_WINDOW: z.string().default('15 minutes'),
+  /**
+   * Quantos proxies existem na frente da API.
+   *
+   * Todo limite por IP depende de `request.ip` ser o IP de quem chamou. Atrás
+   * de um proxy (Railway, Fly, um Nginx), sem isto o `request.ip` é o do
+   * proxy — e aí o beta inteiro divide o mesmo balde: o sexto cadastro do dia
+   * seria recusado mesmo vindo de outra pessoa.
+   *
+   * O número importa. `true` mandaria confiar em toda a cadeia de
+   * X-Forwarded-For, que o cliente pode forjar para trocar de identidade a
+   * cada requisição e nunca bater no limite. Com a contagem de saltos, o
+   * endereço lido é o que o proxy de fora escreveu. Railway: 1. Local: 0.
+   */
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).default(0),
+  /**
+   * Cadastro público. A hora conta tentativas (em memória, barato) e o dia
+   * conta contas efetivamente criadas (no banco, sobrevive a deploy).
+   */
+  REGISTRO_MAX_HORA: z.coerce.number().int().positive().default(5),
+  REGISTRO_MAX_DIA: z.coerce.number().int().positive().default(15),
+  /** Clientes que um designer cria por hora pelo wizard (chave: o usuário). */
+  CLIENTES_MAX_HORA: z.coerce.number().int().positive().default(20),
+  /** Tentativas de login por IP a cada 15 minutos. */
+  LOGIN_MAX_15MIN: z.coerce.number().int().positive().default(10),
+  /** Cloudflare Turnstile no cadastro. Desligado, o registro segue sem widget. */
+  CAPTCHA_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+  TURNSTILE_SECRET_KEY: z.string().optional(),
+  /**
+   * Bloqueia escrita (projeto, arte, versão, link) de quem não confirmou o
+   * e-mail. Fica desligado por padrão de propósito: com o bloqueio ligado
+   * antes de o Resend estar entregando de verdade, ninguém consegue começar a
+   * usar o produto e a causa não aparece em lugar nenhum da tela. Ligue depois
+   * de confirmar, com um cadastro real, que o e-mail chega.
+   */
+  EXIGIR_EMAIL_VERIFICADO: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+  /**
+   * Teto de quem não tem assinatura. Sem isto o plano "free" é ilimitado —
+   * `requirePlanLimit` só olhava assinatura ativa, e usuário novo não tem
+   * nenhuma.
+   */
+  BETA_MAX_PROJETOS: z.coerce.number().int().positive().default(3),
+  BETA_MAX_ARTES: z.coerce.number().int().positive().default(20),
   FRONTEND_URL: z.string().default('http://localhost:3000'),
   // Cookies de sessão. 'lax' vale quando app e API compartilham o site
   // registrável (viu.app / api.viu.app, ou localhost:3000 / localhost:3001) e
@@ -36,6 +84,18 @@ const envSchema = z.object({
   MP_ACCESS_TOKEN: z.string().default(''),
   MP_WEBHOOK_SECRET: z.string().default(''),
 }).superRefine((data, ctx) => {
+  // Vale em qualquer ambiente: com a flag ligada e sem segredo, o serviço não
+  // tem como validar token nenhum. Ou o registro passaria a recusar todo mundo,
+  // ou (pior) passaria a aceitar qualquer token — e o time acharia que está
+  // protegido. Falhar no boot é o único desfecho honesto.
+  if (data.CAPTCHA_ENABLED && !data.TURNSTILE_SECRET_KEY) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['TURNSTILE_SECRET_KEY'],
+      message: 'obrigatório quando CAPTCHA_ENABLED=true',
+    })
+  }
+
   if (data.NODE_ENV !== 'production') return
 
   if (!data.MP_ACCESS_TOKEN) {

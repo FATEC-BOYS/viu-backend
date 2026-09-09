@@ -68,6 +68,22 @@ describe('UsuarioService.getUsuarioById', () => {
     const result = await service.getUsuarioById('inexistente')
     expect(result).toBeNull()
   })
+
+  /**
+   * Este método alimenta `/auth/me`, que o AuthProvider consulta em toda carga
+   * de página. Sem `emailVerificado` no select, o campo chegava `undefined` ao
+   * cliente e o aviso de confirmação sumia da tela — inclusive para quem não
+   * tinha confirmado. Nenhum teste pegava: o mock devolve o que mandarem, e a
+   * ausência só aparecia no navegador.
+   */
+  it('inclui emailVerificado — é o que sustenta o aviso de confirmação na tela', async () => {
+    vi.mocked(prisma.usuario.findUnique).mockResolvedValue({ id: '1' } as any)
+
+    await service.getUsuarioById('1')
+
+    const [argumentos] = vi.mocked(prisma.usuario.findUnique).mock.calls[0] as [any]
+    expect(argumentos.select.emailVerificado).toBe(true)
+  })
 })
 
 describe('UsuarioService.createUsuario', () => {

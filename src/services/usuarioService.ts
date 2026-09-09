@@ -119,6 +119,11 @@ export class UsuarioService {
         avatar: true,
         tipo: true,
         ativo: true,
+        // Alimenta /auth/me, que o AuthProvider consulta em toda carga de
+        // página. Sem este campo o perfil voltava sem ele, `emailVerificado`
+        // virava undefined no cliente e o aviso de confirmação sumia da tela
+        // — inclusive para quem não tinha confirmado nada.
+        emailVerificado: true,
         criadoEm: true,
         atualizadoEm: true,
         _count: {

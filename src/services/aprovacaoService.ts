@@ -194,6 +194,11 @@ export class AprovacaoService {
     if (updateData.status !== undefined) {
       assertValidTransition('Aprovação', APROVACAO_TRANSITIONS, existing.status, updateData.status)
       allowedUpdate.status = updateData.status
+      // Carimba a saída de PENDENTE. É o único momento em que a decisão
+      // acontece — a máquina de estados não permite voltar — e sem isto não há
+      // como medir quanto tempo o cliente levou para responder, que é
+      // exatamente o que o produto promete encurtar.
+      allowedUpdate.decididoEm = new Date()
     }
     if (updateData.comentario !== undefined) allowedUpdate.comentario = updateData.comentario
 

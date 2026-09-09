@@ -234,6 +234,16 @@ model Aprovacao {
   aprovadorId String
   aprovador   Usuario @relation("AprovacaoAprovador", fields: [aprovadorId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
+  /**
+   * Quando a aprovação saiu de PENDENTE.
+   *
+   * Sem isto a linha vai de PENDENTE a APROVADO sem deixar rastro de quando, e
+   * o produto não consegue medir a própria promessa: o tempo entre pedir e
+   * receber a decisão. Nulo em aprovação ainda pendente — e nas decididas
+   * antes desta coluna existir, que não têm como ser recuperadas.
+   */
+  decididoEm DateTime?
+
   criadoEm DateTime @default(now())
 
   // Trava a duplicata que o botão "Solicitar aprovação" cria com dois cliques:
@@ -245,6 +255,7 @@ model Aprovacao {
   @@index([status])
   @@index([deletedAt])
   @@index([criadoEm])
+  @@index([decididoEm])
   @@map("aprovacoes")
 }
 
@@ -341,6 +352,10 @@ model AuditLog {
   @@index([resource])
   @@index([status])
   @@index([criadoEm])
+  // O teto diário de cadastros conta linhas REGISTER deste IP nas últimas 24h.
+  // Sem o índice composto a consulta varre por data e filtra IP depois — e ela
+  // roda em toda tentativa de cadastro.
+  @@index([ipAddress, criadoEm])
   @@map("audit_logs")
 }
 
