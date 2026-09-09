@@ -56,6 +56,7 @@ export async function createUsuario(request: FastifyRequest, reply: FastifyReply
       reply.status(400).send({ message: error.message, success: false })
       return
     }
+    request.log.error({ erro: error }, 'Falha inesperada ao criar usuário')
     reply.status(500).send({ message: 'Erro ao criar usuário', success: false })
   }
 }
@@ -126,6 +127,12 @@ export async function loginUsuario(request: FastifyRequest, reply: FastifyReply)
       reply.status(401).send({ message: error.message, success: false })
       return
     }
+    // Sem este log, um 500 aqui vira "Erro no login" na tela e mais nada em
+    // lugar nenhum — nem no servidor. Já custou uma sessão inteira de
+    // adivinhação em produção: dava para ver a requisição falhando e não o
+    // motivo. A mensagem ao usuário continua genérica de propósito; quem
+    // precisa do detalhe é quem lê o log.
+    request.log.error({ erro: error }, 'Falha inesperada no login')
     reply.status(500).send({ message: 'Erro no login', success: false })
   }
 }
