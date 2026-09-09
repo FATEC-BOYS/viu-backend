@@ -36,6 +36,24 @@ export async function signPath(
   }
 }
 
+/**
+ * A foto de perfil para exibir, venha ela de onde vier.
+ *
+ * A coluna `avatar` guarda duas coisas diferentes: a chave do R2, quando a
+ * pessoa subiu um arquivo, e uma URL absoluta, quando veio do seed. Chave
+ * crua no `src` de um `<img>` não carrega nada, e `signPath` devolve `null`
+ * para URL absoluta — de propósito, para não assinar link de terceiro. Sem
+ * este intermediário, cada leitura teria que lembrar dos dois casos.
+ */
+export async function assinarAvatar(
+  avatar: string | null | undefined,
+  expires = 3600 * 24,
+): Promise<string | null> {
+  if (!avatar) return null
+  if (/^https?:\/\//i.test(avatar)) return avatar
+  return signPath(avatar, expires)
+}
+
 export async function signPaths(
   paths: (string | null)[],
   expires = 3600,
