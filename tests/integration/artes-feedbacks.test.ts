@@ -98,6 +98,24 @@ describe('GET /artes', () => {
     )
   })
 
+  /**
+   * A grade de artes mostrava o ícone de imagem quebrada: a listagem
+   * devolvia só `arquivo`, a chave do bucket, e chave crua no `src` de um
+   * `<img>` não carrega nada. Só a resposta do upload assinava — então a
+   * miniatura existia no instante em que a arte subia e nunca mais.
+   */
+  it('devolve previewUrl assinada em cada item, não a chave do bucket', async () => {
+    db.arte.findMany.mockResolvedValue([ARTE_A])
+    db.arte.count.mockResolvedValue(1)
+
+    const res = await app.inject({ method: 'GET', url: '/artes', headers: auth() })
+
+    expect(res.statusCode).toBe(200)
+    const item = res.json().data[0]
+    expect(item.previewUrl).toContain('assinado')
+    expect(item.previewUrl).toMatch(/^https?:\/\//)
+  })
+
   it('filtrar por projeto alheio → 403, não lista vazia', async () => {
     const res = await app.inject({
       method: 'GET',
@@ -141,6 +159,9 @@ describe('GET /artes/:id', () => {
 
     expect(res.statusCode).toBe(200)
     expect(res.json().data.arquivo_url).toContain('assinado')
+    // O frontend lê `previewUrl`; `arquivo_url` era um terceiro nome para o
+    // mesmo dado, e por isso a tela de detalhe também não mostrava nada.
+    expect(res.json().data.previewUrl).toContain('assinado')
   })
 
   it('arte de outro tenant → 403', async () => {
