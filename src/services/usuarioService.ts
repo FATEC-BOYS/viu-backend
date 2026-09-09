@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import { SignJWT } from 'jose'
 import { getJWTSecret, env } from '../config/env.js'
 import { randomUUID, randomBytes } from 'crypto'
+import { assinarAvatar } from '../utils/storage.js'
 
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
 
@@ -138,7 +139,13 @@ export class UsuarioService {
         },
       },
     })
-    return usuario
+    if (!usuario) return usuario
+    /**
+     * O upload guarda a chave do R2, que não carrega em `<img>`. Assinar só
+     * na resposta do upload fazia a foto aparecer e sumir no primeiro reload,
+     * porque é daqui que vêm /auth/me e a tela de perfil.
+     */
+    return { ...usuario, avatar: await assinarAvatar(usuario.avatar) }
   }
 
   async createUsuario(userData: any) {
@@ -199,7 +206,7 @@ export class UsuarioService {
         atualizadoEm: true,
       },
     })
-    return usuario
+    return { ...usuario, avatar: await assinarAvatar(usuario.avatar) }
   }
 
   async deactivateUsuario(id: string) {
@@ -296,7 +303,7 @@ export class UsuarioService {
         email: usuario.email,
         nome: usuario.nome,
         tipo: usuario.tipo,
-        avatar: usuario.avatar,
+        avatar: await assinarAvatar(usuario.avatar),
         emailVerificado: usuario.emailVerificado,
       },
     }
@@ -337,7 +344,7 @@ export class UsuarioService {
         email: sessao.usuario.email,
         nome: sessao.usuario.nome,
         tipo: sessao.usuario.tipo,
-        avatar: sessao.usuario.avatar,
+        avatar: await assinarAvatar(sessao.usuario.avatar),
         emailVerificado: sessao.usuario.emailVerificado,
       },
     }
@@ -381,7 +388,7 @@ export class UsuarioService {
         email: usuario.email,
         nome: usuario.nome,
         tipo: usuario.tipo,
-        avatar: usuario.avatar,
+        avatar: await assinarAvatar(usuario.avatar),
         emailVerificado: usuario.emailVerificado,
       },
     }

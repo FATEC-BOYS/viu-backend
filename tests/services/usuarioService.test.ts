@@ -7,6 +7,16 @@ vi.mock('../../src/database/client.js', async () => {
   return { default: criarPrismaMock() }
 })
 
+/**
+ * A assinatura do R2 é rede e credencial; aqui interessa só quem passa por
+ * ela. `assinarAvatar` real está coberto pelos testes de storage.
+ */
+vi.mock('../../src/utils/storage.js', () => ({
+  assinarAvatar: vi.fn(async (avatar: string | null | undefined) =>
+    !avatar ? null : /^https?:\/\//i.test(avatar) ? avatar : `https://r2.exemplo/${avatar}?assinada`,
+  ),
+}))
+
 // Mock bcrypt
 vi.mock('bcryptjs', () => ({
   default: {
@@ -60,7 +70,31 @@ describe('UsuarioService.getUsuarioById', () => {
     vi.mocked(prisma.usuario.findUnique).mockResolvedValue(mockUser as any)
 
     const result = await service.getUsuarioById('1')
-    expect(result).toEqual(mockUser)
+    expect(result).toMatchObject(mockUser)
+  })
+
+  /**
+   * O upload guarda a chave do R2, e chave crua não carrega em `<img>`.
+   * Assinar só na resposta do upload fazia a foto aparecer e sumir no
+   * primeiro reload — é daqui que vêm /auth/me e a tela de perfil.
+   */
+  it('assina a chave do R2 antes de devolver o avatar', async () => {
+    vi.mocked(prisma.usuario.findUnique).mockResolvedValue(
+      { id: '1', nome: 'Test', avatar: 'avatars/1/123_foto.png' } as any,
+    )
+
+    const result = await service.getUsuarioById('1')
+    expect(result?.avatar).toBe('https://r2.exemplo/avatars/1/123_foto.png?assinada')
+  })
+
+  /** As fotos do seed são URL absoluta: assinar devolveria null e sumiria. */
+  it('deixa passar avatar que já é URL absoluta', async () => {
+    vi.mocked(prisma.usuario.findUnique).mockResolvedValue(
+      { id: '1', nome: 'Test', avatar: 'https://images.unsplash.com/foto?w=150' } as any,
+    )
+
+    const result = await service.getUsuarioById('1')
+    expect(result?.avatar).toBe('https://images.unsplash.com/foto?w=150')
   })
 
   it('deve retornar null se não encontrado', async () => {

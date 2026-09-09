@@ -1,7 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { UsuarioService, ListUsuariosParams } from '../services/usuarioService.js'
 import { sendVerificationEmail } from '../services/emailVerificationService.js'
-import { uploadFile, signPath } from '../utils/storage.js'
+import { uploadFile } from '../utils/storage.js'
 import { auditLogService } from '../services/auditLogService.js'
 import { definirCookiesDeSessao } from '../utils/authCookies.js'
 
@@ -181,12 +181,14 @@ export async function uploadAvatar(request: FastifyRequest, reply: FastifyReply)
     const key = `avatars/${id}/${Date.now()}_${fileData.filename}`
     await uploadFile(key, fileData.buffer, fileData.mimetype)
 
+    // `updateUsuario` já devolve o avatar assinado — a chave crua não carrega
+    // em `<img>`, e assinar em dois lugares diferentes foi como a leitura
+    // ficou para trás.
     const updated = await usuarioService.updateUsuario(id, { avatar: key })
-    const avatarUrl = await signPath(key, 3600 * 24)
 
     reply.send({
       message: 'Avatar atualizado com sucesso',
-      data: { ...updated, avatar: avatarUrl },
+      data: updated,
       success: true,
     })
   } catch (erro) {
