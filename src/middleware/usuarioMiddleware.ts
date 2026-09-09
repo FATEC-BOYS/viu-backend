@@ -31,6 +31,28 @@ export async function validateCreateUsuario(
   }
 }
 
+/**
+ * `POST /usuarios` é o designer cadastrando o cliente dele pelo wizard — não
+ * uma segunda porta de cadastro. Sem esta restrição, uma conta comum podia
+ * criar contas de DESIGNER por ali, fora do cadastro público e portanto sem
+ * captcha, sem limite por IP e sem linha de auditoria de REGISTER.
+ *
+ * Recusa em vez de corrigir o `tipo` calado: quem chamou errado precisa
+ * descobrir, e o silêncio esconderia justamente a tentativa que interessa ver.
+ */
+export async function restringirCriacaoACliente(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  const { tipo } = (request.body ?? {}) as { tipo?: string }
+  if (tipo !== 'CLIENTE') {
+    reply.status(403).send({
+      message: 'Por esta rota só é possível cadastrar clientes.',
+      success: false,
+    })
+  }
+}
+
 export async function validateUpdateUsuario(
   request: FastifyRequest,
   reply: FastifyReply,

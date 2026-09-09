@@ -341,6 +341,10 @@ model AuditLog {
   @@index([resource])
   @@index([status])
   @@index([criadoEm])
+  // O teto diário de cadastros conta linhas REGISTER deste IP nas últimas 24h.
+  // Sem o índice composto a consulta varre por data e filtra IP depois — e ela
+  // roda em toda tentativa de cadastro.
+  @@index([ipAddress, criadoEm])
   @@map("audit_logs")
 }
 

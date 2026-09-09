@@ -63,6 +63,11 @@ export async function buildServer() {
         },
       },
     },
+    // Quantos proxies confiar na cadeia de X-Forwarded-For. Sem isto,
+    // `request.ip` atrás do Railway é o IP do proxy, e todo limite por IP
+    // passa a valer para o conjunto dos usuários em vez de para cada um.
+    // Ver TRUST_PROXY_HOPS em config/env.ts para por que é um número.
+    trustProxy: env.TRUST_PROXY_HOPS > 0 ? env.TRUST_PROXY_HOPS : false,
     genReqId: () => randomUUID(),
     requestIdHeader: 'x-request-id',
     requestIdLogLabel: 'requestId',
@@ -111,10 +116,13 @@ export async function buildServer() {
     global: true,
     max: env.RATE_LIMIT_MAX,
     timeWindow: env.RATE_LIMIT_WINDOW,
+    // Quem lê isto é uma pessoa na tela, não quem escreveu o limite: o número
+    // de requisições e a janela não dizem a ela o que fazer. O tempo restante,
+    // sim — e o `Retry-After` continua no header para o cliente HTTP.
     errorResponseBuilder: (_request, context) => ({
       statusCode: 429,
       error: 'Too Many Requests',
-      message: `Limite de ${context.max} requisições por ${context.after} atingido.`,
+      message: `Muitas tentativas. Espere ${context.after} e tente de novo.`,
       success: false,
     }),
   })

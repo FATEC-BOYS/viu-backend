@@ -51,6 +51,12 @@ function mapRouteToAudit(
   }
 
   if (url.includes('/usuarios')) {
+    // Criação por designer autenticado. Ação própria, e não REGISTER: o teto
+    // diário de cadastros por IP conta REGISTER, e um designer cadastrando
+    // clientes não pode consumir a cota do cadastro público.
+    if (method === 'POST' && /\/usuarios\/?$/.test(url.replace(/\?.*$/, ''))) {
+      return { action: 'CREATE_USER', resource: 'Usuario' }
+    }
     if (method === 'PUT' || method === 'PATCH') return { action: 'UPDATE_USER', resource: 'Usuario' }
     if (method === 'DELETE') return { action: 'DELETE_USER', resource: 'Usuario' }
   }

@@ -11,12 +11,13 @@ import {
 } from '../controllers/linkController.js'
 import { authenticate } from '../middleware/authMiddleware.js'
 import { validateAudioUpload } from '../middleware/fileUploadMiddleware.js'
+import { requireEmailVerificado } from '../middleware/emailVerificadoMiddleware.js'
 
 export async function linksRoutes(fastify: FastifyInstance) {
   fastify.post('/links', {
     // 20 links por hora — geração massiva de links é um vetor de crawling
     config: { rateLimit: { max: 20, timeWindow: '1 hour' } },
-    preHandler: [authenticate],
+    preHandler: [authenticate, requireEmailVerificado],
   }, createSharedLink)
 
   fastify.get('/links', { preHandler: [authenticate] }, listLinks)

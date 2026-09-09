@@ -1,12 +1,23 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import prisma from '../database/client.js'
+import { env } from '../config/env.js'
 
 type LimitResource = 'projetos' | 'artes'
 
-// Factory that returns a preHandler enforcing plan-level resource limits.
-// Returns 402 if the user has an active subscription whose plan cap is exceeded.
-// Skips silently when: no subscription (free tier, no cap) or limit is null (unlimited).
-// Free plans (precoMensal === 0) still enforce their limitesProjetos/limitesArtes if set.
+/**
+ * Teto de recursos por usuário.
+ *
+ * Antes este middleware saía calado para quem não tinha assinatura ativa —
+ * "free tier, sem limite". Como usuário novo nunca tem assinatura, o plano
+ * gratuito era, na prática, ilimitado: exatamente o contrário do que a
+ * palavra "free" faz o time acreditar ao ler o código. Agora quem não assina
+ * cai no teto de beta (`BETA_MAX_*`), ajustável por variável de ambiente sem
+ * deploy.
+ *
+ * Quem assina continua com o limite do plano, e `null` no plano segue
+ * significando ilimitado — plano pago sem teto é decisão de produto, não
+ * descuido.
+ */
 export function requirePlanLimit(resource: LimitResource) {
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     try {
@@ -18,32 +29,31 @@ export function requirePlanLimit(resource: LimitResource) {
         include: { plano: { select: { nome: true, limitesProjetos: true, limitesArtes: true } } },
       })
 
-      // No active subscription → free tier with no plan limits
-      if (!assinatura) return
+      const plano = assinatura?.plano
+      const tetoBeta = resource === 'projetos' ? env.BETA_MAX_PROJETOS : env.BETA_MAX_ARTES
 
-      const plano = assinatura.plano
-      let limite: number | null = null
-      let uso = 0
+      const limite: number | null = plano
+        ? resource === 'projetos'
+          ? plano.limitesProjetos
+          : plano.limitesArtes
+        : tetoBeta
 
-      if (resource === 'projetos') {
-        limite = plano.limitesProjetos
-        if (limite !== null) {
-          uso = await prisma.projeto.count({
-            where: { designerId: usuario.id, status: { notIn: ['CANCELADO'] } },
-          })
-        }
-      } else {
-        limite = plano.limitesArtes
-        if (limite !== null) {
-          uso = await prisma.arte.count({
-            where: { autorId: usuario.id, projeto: { designerId: usuario.id } },
-          })
-        }
-      }
+      if (limite === null) return
 
-      if (limite !== null && uso >= limite) {
+      const uso =
+        resource === 'projetos'
+          ? await prisma.projeto.count({
+              where: { designerId: usuario.id, status: { notIn: ['CANCELADO'] } },
+            })
+          : await prisma.arte.count({
+              where: { autorId: usuario.id, projeto: { designerId: usuario.id } },
+            })
+
+      if (uso >= limite) {
         reply.status(402).send({
-          message: `Limite do plano "${plano.nome}" atingido: ${limite} ${resource}. Faça upgrade para continuar.`,
+          message: plano
+            ? `Limite do plano "${plano.nome}" atingido: ${limite} ${resource}. Faça upgrade para continuar.`
+            : `Você chegou ao limite do beta: ${limite} ${resource}. Fale com a gente para liberar mais.`,
           success: false,
           limitReached: true,
           resource,

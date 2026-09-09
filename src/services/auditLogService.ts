@@ -4,6 +4,9 @@ export type AuditAction =
   | 'LOGIN'
   | 'LOGOUT'
   | 'REGISTER'
+  // Designer cadastrando o cliente dele — não é cadastro público, e por isso
+  // não entra na contagem diária de REGISTER por IP.
+  | 'CREATE_USER'
   | 'CREATE_PROJECT'
   | 'UPDATE_PROJECT'
   | 'DELETE_PROJECT'

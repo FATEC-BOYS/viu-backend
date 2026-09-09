@@ -10,3 +10,9 @@ process.env.ALLOWED_ORIGINS = 'http://localhost:3000'
 process.env.FRONTEND_URL = 'http://localhost:3000'
 process.env.MP_ACCESS_TOKEN = ''
 process.env.MP_WEBHOOK_SECRET = ''
+// Flags de produto fixadas no padrão: o app carrega o .env do desenvolvedor,
+// então sem isto a suíte passava ou falhava conforme o arquivo local de quem
+// rodou. O comportamento de cada flag ligada é coberto nos testes de
+// middleware, que a controlam explicitamente.
+process.env.EXIGIR_EMAIL_VERIFICADO = 'false'
+process.env.CAPTCHA_ENABLED = 'false'
