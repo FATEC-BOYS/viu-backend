@@ -18,8 +18,6 @@ const BASE = {
   R2_ENDPOINT: 'https://r2.example.com',
   R2_ACCESS_KEY_ID: 'k',
   R2_SECRET_ACCESS_KEY: 's',
-  MP_ACCESS_TOKEN: 'mp-token',
-  MP_WEBHOOK_SECRET: 'mp-secret',
 }
 
 const originais = { ...process.env }
@@ -89,5 +87,41 @@ describe('fora de produção a validação não atrapalha', () => {
       ALLOWED_ORIGINS: 'http://localhost:3000',
     })
     expect(env.ALLOWED_ORIGINS).toBe('http://localhost:3000')
+  })
+})
+
+/**
+ * As credenciais do MercadoPago eram exigidas por "estar em produção", o que
+ * obrigava quem não cobra nada a abrir conta em gateway só para o servidor
+ * iniciar. A pergunta certa não é onde roda, e sim se vai processar dinheiro.
+ */
+describe('cobrança', () => {
+  it('sobe em produção sem MercadoPago quando a cobrança está desligada', async () => {
+    const { env } = await carregarEnv({ ALLOWED_ORIGINS: 'https://viu.app' })
+    expect(env.COBRANCA_ATIVA).toBe(false)
+    expect(env.MP_ACCESS_TOKEN).toBe('')
+  })
+
+  it('exige as duas credenciais quando a cobrança é ligada', async () => {
+    await expect(
+      carregarEnv({ ALLOWED_ORIGINS: 'https://viu.app', COBRANCA_ATIVA: 'true' }),
+    ).rejects.toThrow(/Validação de variáveis de ambiente falhou/)
+  })
+
+  /** Vale em qualquer ambiente: cobrar em dev sem segredo é o mesmo buraco. */
+  it('exige também fora de produção', async () => {
+    await expect(
+      carregarEnv({ NODE_ENV: 'development', COBRANCA_ATIVA: 'true', MP_ACCESS_TOKEN: 'tok' }),
+    ).rejects.toThrow(/Validação de variáveis de ambiente falhou/)
+  })
+
+  it('aceita a cobrança ligada com token e segredo', async () => {
+    const { env } = await carregarEnv({
+      ALLOWED_ORIGINS: 'https://viu.app',
+      COBRANCA_ATIVA: 'true',
+      MP_ACCESS_TOKEN: 'tok',
+      MP_WEBHOOK_SECRET: 'seg',
+    })
+    expect(env.COBRANCA_ATIVA).toBe(true)
   })
 })

@@ -19,7 +19,13 @@ export function validateMpWebhookSignature(
   xRequestId: string,
   dataId: string,
 ): boolean {
-  if (!env.MP_WEBHOOK_SECRET) return true // Em dev, aceita sem validar
+  // Sem segredo não há como distinguir uma notificação do MercadoPago de uma
+  // forjada por quem descobriu a URL — e uma forjada marca fatura como paga.
+  // Antes isto devolvia `true` "em dev", o que significava aceitar tudo em
+  // qualquer ambiente onde a variável estivesse vazia. Recusar é a única
+  // resposta honesta: com a cobrança desligada não há webhook legítimo para
+  // receber, e com ela ligada a validação do env garante que o segredo existe.
+  if (!env.MP_WEBHOOK_SECRET) return false
 
   const parts = Object.fromEntries(
     xSignature.split(',').map((part) => {
