@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { AceiteService } from '../services/aceiteService.js'
 import { checkProjectAccess } from '../utils/projectAccess.js'
+import { erroInterno } from '../utils/erroInterno.js'
 
 const aceiteService = new AceiteService()
 
@@ -53,7 +54,7 @@ export async function registrarAceite(request: FastifyRequest, reply: FastifyRep
       reply.status(404).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao registrar aceite', success: false })
+    erroInterno(request, reply, error, 'Erro ao registrar aceite')
   }
 }
 

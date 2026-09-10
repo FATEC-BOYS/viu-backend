@@ -3,6 +3,7 @@ import { jwtVerify } from 'jose'
 import { getJWTSecret, env } from '../config/env.js'
 import prisma from '../database/client.js'
 import { lerTokenDaRequisicao } from '../utils/authCookies.js'
+import { erroInterno } from '../utils/erroInterno.js'
 
 const METODOS_SEGUROS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
@@ -79,6 +80,6 @@ export async function authenticate(
     }
   } catch (error) {
     request.log?.error(error)
-    reply.status(500).send({ message: 'Erro na autenticação', success: false })
+    erroInterno(request, reply, error, 'Erro na autenticação')
   }
 }

@@ -5,6 +5,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { auditLogService } from '../services/auditLogService.js'
 import { securityMonitoringService } from '../services/securityMonitoringService.js'
+import { erroInterno } from '../utils/erroInterno.js'
 
 /**
  * GET /security/audit-logs
@@ -33,11 +34,7 @@ export async function getAuditLogs(
       success: true,
     })
   } catch (error: any) {
-    reply.status(500).send({
-      message: 'Erro ao buscar logs de auditoria',
-      error: error.message,
-      success: false,
-    })
+    erroInterno(request, reply, error, 'Erro ao buscar logs de auditoria')
   }
 }
 
@@ -63,11 +60,7 @@ export async function getAuditStats(
       success: true,
     })
   } catch (error: any) {
-    reply.status(500).send({
-      message: 'Erro ao obter estatísticas de auditoria',
-      error: error.message,
-      success: false,
-    })
+    erroInterno(request, reply, error, 'Erro ao obter estatísticas de auditoria')
   }
 }
 
@@ -90,11 +83,7 @@ export async function getSecurityEvents(
       success: true,
     })
   } catch (error: any) {
-    reply.status(500).send({
-      message: 'Erro ao buscar eventos de segurança',
-      error: error.message,
-      success: false,
-    })
+    erroInterno(request, reply, error, 'Erro ao buscar eventos de segurança')
   }
 }
 
@@ -126,11 +115,7 @@ export async function resolveSecurityEvent(
       success: true,
     })
   } catch (error: any) {
-    reply.status(500).send({
-      message: 'Erro ao resolver evento de segurança',
-      error: error.message,
-      success: false,
-    })
+    erroInterno(request, reply, error, 'Erro ao resolver evento de segurança')
   }
 }
 
@@ -150,11 +135,7 @@ export async function getSecurityDashboard(
       success: true,
     })
   } catch (error: any) {
-    reply.status(500).send({
-      message: 'Erro ao obter dashboard de segurança',
-      error: error.message,
-      success: false,
-    })
+    erroInterno(request, reply, error, 'Erro ao obter dashboard de segurança')
   }
 }
 
@@ -179,11 +160,7 @@ export async function getSecurityStats(
       success: true,
     })
   } catch (error: any) {
-    reply.status(500).send({
-      message: 'Erro ao obter estatísticas de segurança',
-      error: error.message,
-      success: false,
-    })
+    erroInterno(request, reply, error, 'Erro ao obter estatísticas de segurança')
   }
 }
 
@@ -212,11 +189,7 @@ export async function getRecentActivity(
       success: true,
     })
   } catch (error: any) {
-    reply.status(500).send({
-      message: 'Erro ao obter atividades recentes',
-      error: error.message,
-      success: false,
-    })
+    erroInterno(request, reply, error, 'Erro ao obter atividades recentes')
   }
 }
 
@@ -246,10 +219,6 @@ export async function getUserSecurityHistory(
       success: true,
     })
   } catch (error: any) {
-    reply.status(500).send({
-      message: 'Erro ao obter histórico de segurança do usuário',
-      error: error.message,
-      success: false,
-    })
+    erroInterno(request, reply, error, 'Erro ao obter histórico de segurança do usuário')
   }
 }

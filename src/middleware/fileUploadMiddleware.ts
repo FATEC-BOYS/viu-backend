@@ -3,6 +3,7 @@ import path from 'path'
 // Limites e tipos vivem em config/uploadLimits para que middleware, plugin do
 // multipart e a rota que informa o frontend leiam o mesmo número.
 import { ALLOWED_MIME_TYPES, FILE_SIZE_LIMITS, limiteEfetivo } from '../config/uploadLimits.js'
+import { erroInterno } from '../utils/erroInterno.js'
 
 // Assinaturas de magic bytes para os tipos mais comuns
 // Previne MIME spoofing: cliente declara image/jpeg mas envia outro tipo
@@ -108,7 +109,7 @@ export async function validateFileUpload(
       category,
     }
   } catch (error: any) {
-    return reply.status(500).send({ message: 'Erro ao validar arquivo', success: false })
+    return erroInterno(request, reply, error, 'Erro ao validar arquivo')
   }
 }
 
@@ -173,7 +174,7 @@ export async function validateAudioUpload(
       fields,
     }
   } catch (error: any) {
-    return reply.status(500).send({ message: 'Erro ao validar arquivo de áudio', success: false })
+    return erroInterno(request, reply, error, 'Erro ao validar arquivo de áudio')
   }
 }
 
@@ -230,8 +231,8 @@ export async function validateArteVersaoUpload(
         descricao: fields?.descricao?.value?.trim() || null,
       },
     }
-  } catch {
-    return reply.status(500).send({ message: 'Erro ao validar arquivo da versão', success: false })
+  } catch (erro) {
+    return erroInterno(request, reply, erro, 'Erro ao validar arquivo da versão')
   }
 }
 
@@ -295,7 +296,7 @@ export async function validateArteUpload(
         projetoId,
       },
     }
-  } catch {
-    return reply.status(500).send({ message: 'Erro ao validar arquivo da arte', success: false })
+  } catch (erro) {
+    return erroInterno(request, reply, erro, 'Erro ao validar arquivo da arte')
   }
 }

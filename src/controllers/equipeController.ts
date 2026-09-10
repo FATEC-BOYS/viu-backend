@@ -12,6 +12,7 @@ import {
   desvincularProjeto,
 } from '../services/equipeService.js'
 import { auditLogService } from '../services/auditLogService.js'
+import { erroInterno } from '../utils/erroInterno.js'
 
 function isAdmin(usuario: any) {
   return usuario.tipo === 'ADMIN'
@@ -28,7 +29,7 @@ export async function criarEquipeHandler(request: FastifyRequest, reply: Fastify
       reply.status(409).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao criar equipe', success: false })
+    erroInterno(request, reply, error, 'Erro ao criar equipe')
   }
 }
 
@@ -58,7 +59,7 @@ export async function getEquipeHandler(request: FastifyRequest, reply: FastifyRe
       reply.status(403).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao buscar equipe', success: false })
+    erroInterno(request, reply, error, 'Erro ao buscar equipe')
   }
 }
 
@@ -82,7 +83,7 @@ export async function atualizarEquipeHandler(request: FastifyRequest, reply: Fas
       reply.status(409).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao atualizar equipe', success: false })
+    erroInterno(request, reply, error, 'Erro ao atualizar equipe')
   }
 }
 
@@ -101,7 +102,7 @@ export async function deletarEquipeHandler(request: FastifyRequest, reply: Fasti
       reply.status(403).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao excluir equipe', success: false })
+    erroInterno(request, reply, error, 'Erro ao excluir equipe')
   }
 }
 
@@ -125,7 +126,7 @@ export async function adicionarMembroHandler(request: FastifyRequest, reply: Fas
       reply.status(400).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao adicionar membro', success: false })
+    erroInterno(request, reply, error, 'Erro ao adicionar membro')
   }
 }
 
@@ -144,7 +145,7 @@ export async function removerMembroHandler(request: FastifyRequest, reply: Fasti
       reply.status(403).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao remover membro', success: false })
+    erroInterno(request, reply, error, 'Erro ao remover membro')
   }
 }
 
@@ -176,7 +177,7 @@ export async function atualizarPapelHandler(request: FastifyRequest, reply: Fast
       reply.status(400).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao atualizar papel', success: false })
+    erroInterno(request, reply, error, 'Erro ao atualizar papel')
   }
 }
 
@@ -196,7 +197,7 @@ export async function vincularProjetoHandler(request: FastifyRequest, reply: Fas
       reply.status(403).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao vincular projeto', success: false })
+    erroInterno(request, reply, error, 'Erro ao vincular projeto')
   }
 }
 
@@ -215,6 +216,6 @@ export async function desvincularProjetoHandler(request: FastifyRequest, reply: 
       reply.status(403).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao desvincular projeto', success: false })
+    erroInterno(request, reply, error, 'Erro ao desvincular projeto')
   }
 }

@@ -1,5 +1,6 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { notificacaoService, ListNotificacoesParams } from '../services/notificacaoService.js'
+import { erroInterno } from '../utils/erroInterno.js'
 
 export async function listNotificacoes(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
@@ -41,7 +42,7 @@ export async function getNotificacaoById(request: FastifyRequest, reply: Fastify
       reply.status(403).send({ message: 'Acesso negado', success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao buscar notificação', success: false })
+    erroInterno(request, reply, error, 'Erro ao buscar notificação')
   }
 }
 
@@ -54,7 +55,7 @@ export async function createNotificacao(request: FastifyRequest, reply: FastifyR
       reply.status(400).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao criar notificação', success: false })
+    erroInterno(request, reply, error, 'Erro ao criar notificação')
   }
 }
 
@@ -74,7 +75,7 @@ export async function markNotificacaoAsRead(request: FastifyRequest, reply: Fast
       reply.status(403).send({ message: 'Acesso negado', success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao atualizar notificação', success: false })
+    erroInterno(request, reply, error, 'Erro ao atualizar notificação')
   }
 }
 
@@ -104,6 +105,6 @@ export async function deleteNotificacao(request: FastifyRequest, reply: FastifyR
       reply.status(403).send({ message: 'Acesso negado', success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao remover notificação', success: false })
+    erroInterno(request, reply, error, 'Erro ao remover notificação')
   }
 }

@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { SessaoService, ListSessoesParams } from '../services/sessaoService.js'
 import { lerTokenDaRequisicao } from '../utils/authCookies.js'
+import { erroInterno } from '../utils/erroInterno.js'
 
 const sessaoService = new SessaoService()
 
@@ -65,7 +66,7 @@ export async function revokeSessao(
       reply.status(404).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao revogar sessão', success: false })
+    erroInterno(request, reply, error, 'Erro ao revogar sessão')
   }
 }
 

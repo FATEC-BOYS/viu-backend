@@ -2,6 +2,7 @@ import { FastifyRequest, FastifyReply } from 'fastify'
 import { ArteVersaoService } from '../services/arteVersaoService.js'
 import { signPath } from '../utils/storage.js'
 import prisma from '../database/client.js'
+import { erroInterno } from '../utils/erroInterno.js'
 
 const arteVersaoService = new ArteVersaoService()
 
@@ -21,7 +22,7 @@ export async function listarVersoes(request: FastifyRequest, reply: FastifyReply
       reply.status(404).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao listar versões', success: false })
+    erroInterno(request, reply, error, 'Erro ao listar versões')
   }
 }
 
@@ -36,7 +37,7 @@ export async function getVersaoById(request: FastifyRequest, reply: FastifyReply
       reply.status(404).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao buscar versão', success: false })
+    erroInterno(request, reply, error, 'Erro ao buscar versão')
   }
 }
 
@@ -81,7 +82,7 @@ export async function uploadNovaVersao(request: FastifyRequest, reply: FastifyRe
       reply.status(404).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao criar versão', success: false })
+    erroInterno(request, reply, error, 'Erro ao criar versão')
   }
 }
 
@@ -108,6 +109,6 @@ export async function restaurarVersao(request: FastifyRequest, reply: FastifyRep
       reply.status(404).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao restaurar versão', success: false })
+    erroInterno(request, reply, error, 'Erro ao restaurar versão')
   }
 }

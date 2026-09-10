@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { AprovacaoService, ListAprovacoesParams } from '../services/aprovacaoService.js'
 import { getAccessibleProjectIds } from '../utils/projectAccess.js'
+import { erroInterno } from '../utils/erroInterno.js'
 
 const aprovacaoService = new AprovacaoService()
 
@@ -47,7 +48,7 @@ export async function getAprovacaoById(request: FastifyRequest, reply: FastifyRe
       reply.status(403).send({ message: 'Acesso negado', success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao buscar aprovação', success: false })
+    erroInterno(request, reply, error, 'Erro ao buscar aprovação')
   }
 }
 
@@ -72,7 +73,7 @@ export async function createAprovacao(request: FastifyRequest, reply: FastifyRep
       reply.status(403).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao criar aprovação', success: false })
+    erroInterno(request, reply, error, 'Erro ao criar aprovação')
   }
 }
 
@@ -96,7 +97,7 @@ export async function solicitarAprovacaoHandler(
       reply.status(403).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao solicitar aprovação', success: false })
+    erroInterno(request, reply, error, 'Erro ao solicitar aprovação')
   }
 }
 
@@ -122,7 +123,7 @@ export async function updateAprovacao(request: FastifyRequest, reply: FastifyRep
       reply.status(403).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao atualizar aprovação', success: false })
+    erroInterno(request, reply, error, 'Erro ao atualizar aprovação')
   }
 }
 
@@ -141,7 +142,7 @@ export async function deleteAprovacao(request: FastifyRequest, reply: FastifyRep
       reply.status(403).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao remover aprovação', success: false })
+    erroInterno(request, reply, error, 'Erro ao remover aprovação')
   }
 }
 
