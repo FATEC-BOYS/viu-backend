@@ -6,6 +6,7 @@ import {
   ProjetoAcesso,
   participaDoProjeto,
 } from '../utils/projectAccess.js'
+import { erroInterno } from '../utils/erroInterno.js'
 
 /**
  * Middleware de autorização baseada em papéis (RBAC)
@@ -30,10 +31,7 @@ export function requireRole(...roles: string[]) {
         })
       }
     } catch (error: any) {
-      return reply.status(500).send({
-        message: 'Erro ao verificar permissões',
-        success: false,
-      })
+      return erroInterno(request, reply, error, 'Erro ao verificar permissões')
     }
   }
 }
@@ -101,8 +99,8 @@ export function requirePermission(action: Permissao) {
         success: false,
         requiredPermission: action,
       })
-    } catch {
-      return reply.status(500).send({ message: 'Erro ao verificar permissão', success: false })
+    } catch (erro) {
+      return erroInterno(request, reply, erro, 'Erro ao verificar permissão')
     }
   }
 }
@@ -160,10 +158,7 @@ export function requireOwnership(resourceType: 'usuario' | 'projeto') {
         }
       }
     } catch (error: any) {
-      return reply.status(500).send({
-        message: 'Erro ao verificar propriedade do recurso',
-        success: false,
-      })
+      return erroInterno(request, reply, error, 'Erro ao verificar propriedade do recurso')
     }
   }
 }
@@ -324,8 +319,8 @@ export async function requireProjectAccess(
 
     // Disponibiliza projetoId para controllers evitarem nova query
     (request as any).projetoId = resolvido.projetoId
-  } catch {
-    return reply.status(500).send({ message: 'Erro ao verificar acesso ao projeto', success: false })
+  } catch (erro) {
+    return erroInterno(request, reply, erro, 'Erro ao verificar acesso ao projeto')
   }
 }
 
@@ -389,9 +384,6 @@ export async function requireAuthor(
       success: false,
     })
   } catch (error: any) {
-    return reply.status(500).send({
-      message: 'Erro ao verificar autoria',
-      success: false,
-    })
+    return erroInterno(request, reply, error, 'Erro ao verificar autoria')
   }
 }

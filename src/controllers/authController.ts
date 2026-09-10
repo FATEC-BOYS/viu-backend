@@ -9,6 +9,7 @@ import {
   lerRefreshTokenDaRequisicao,
   lerTokenDaRequisicao,
 } from '../utils/authCookies.js'
+import { erroInterno } from '../utils/erroInterno.js'
 
 const passwordResetService = new PasswordResetService()
 const usuarioService = new UsuarioService()
@@ -53,7 +54,7 @@ export async function resetPassword(request: FastifyRequest, reply: FastifyReply
       reply.status(400).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao redefinir senha', success: false })
+    erroInterno(request, reply, error, 'Erro ao redefinir senha')
   }
 }
 
@@ -71,7 +72,7 @@ export async function verifyEmailHandler(request: FastifyRequest, reply: Fastify
       reply.status(400).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao verificar e-mail', success: false })
+    erroInterno(request, reply, error, 'Erro ao verificar e-mail')
   }
 }
 

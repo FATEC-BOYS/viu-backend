@@ -9,6 +9,7 @@ import {
   getEquipeConviteByToken,
   listarConvitesDaEquipe,
 } from '../services/equipeConviteService.js'
+import { erroInterno } from '../utils/erroInterno.js'
 
 function isAdmin(usuario: any) {
   return usuario.tipo === 'ADMIN'
@@ -34,7 +35,7 @@ export async function criarEquipeConviteHandler(request: FastifyRequest, reply: 
       reply.status(400).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao criar convite', success: false })
+    erroInterno(request, reply, error, 'Erro ao criar convite')
   }
 }
 
@@ -61,7 +62,7 @@ export async function aceitarEquipeConviteHandler(request: FastifyRequest, reply
       reply.status(409).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao aceitar convite', success: false })
+    erroInterno(request, reply, error, 'Erro ao aceitar convite')
   }
 }
 
@@ -135,7 +136,7 @@ export async function recusarEquipeConviteHandler(request: FastifyRequest, reply
       reply.status(409).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao recusar convite', success: false })
+    erroInterno(request, reply, error, 'Erro ao recusar convite')
   }
 }
 
@@ -176,6 +177,6 @@ export async function listarConvitesDaEquipeHandler(request: FastifyRequest, rep
       reply.status(403).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao listar convites da equipe', success: false })
+    erroInterno(request, reply, error, 'Erro ao listar convites da equipe')
   }
 }

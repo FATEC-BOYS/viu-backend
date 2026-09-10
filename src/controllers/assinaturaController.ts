@@ -6,6 +6,7 @@ import {
   handleWebhookAssinatura,
 } from '../services/assinaturaService.js'
 import { validateMpWebhookSignature } from '../services/mercadoPagoService.js'
+import { erroInterno } from '../utils/erroInterno.js'
 
 export async function getMinhaAssinaturaHandler(
   request: FastifyRequest,
@@ -39,7 +40,7 @@ export async function criarAssinaturaHandler(
       reply.status(400).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao criar assinatura', success: false })
+    erroInterno(request, reply, error, 'Erro ao criar assinatura')
   }
 }
 
@@ -57,7 +58,7 @@ export async function cancelarAssinaturaHandler(
       reply.status(404).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao cancelar assinatura', success: false })
+    erroInterno(request, reply, error, 'Erro ao cancelar assinatura')
   }
 }
 

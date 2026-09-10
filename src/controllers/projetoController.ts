@@ -4,6 +4,7 @@ import { evaluateBriefing } from '../services/evalForgeService.js'
 import { AceiteService } from '../services/aceiteService.js'
 import { isMembroEquipe } from '../services/equipeService.js'
 import { criarConvite } from '../services/conviteService.js'
+import { erroInterno } from '../utils/erroInterno.js'
 
 const projetoService = new ProjetoService()
 const aceiteService = new AceiteService()
@@ -152,7 +153,7 @@ export async function createProjeto(request: FastifyRequest, reply: FastifyReply
       reply.status(400).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao criar projeto', success: false })
+    erroInterno(request, reply, error, 'Erro ao criar projeto')
   }
 }
 
@@ -176,7 +177,7 @@ export async function updateProjeto(request: FastifyRequest, reply: FastifyReply
       reply.status(404).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao atualizar projeto', success: false })
+    erroInterno(request, reply, error, 'Erro ao atualizar projeto')
   }
 }
 
@@ -194,7 +195,7 @@ export async function deleteProjeto(request: FastifyRequest, reply: FastifyReply
       reply.status(404).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao deletar projeto', success: false })
+    erroInterno(request, reply, error, 'Erro ao deletar projeto')
   }
 }
 

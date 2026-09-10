@@ -2,6 +2,7 @@ import { FastifyRequest, FastifyReply } from 'fastify'
 import { LinkService } from '../services/linkService.js'
 import { FeedbackService } from '../services/feedbackService.js'
 import { env } from '../config/env.js'
+import { erroInterno } from '../utils/erroInterno.js'
 
 const linkService = new LinkService()
 const feedbackService = new FeedbackService()
@@ -53,7 +54,7 @@ export async function createSharedLink(
       reply.status(400).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao criar link compartilhado', success: false })
+    erroInterno(request, reply, error, 'Erro ao criar link compartilhado')
   }
 }
 
@@ -76,7 +77,7 @@ export async function revokeLink(
       reply.status(404).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao revogar link', success: false })
+    erroInterno(request, reply, error, 'Erro ao revogar link')
   }
 }
 
@@ -122,7 +123,7 @@ export async function createFeedbackViaLink(
       reply.status(404).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao criar feedback', success: false })
+    erroInterno(request, reply, error, 'Erro ao criar feedback')
   }
 }
 
@@ -176,7 +177,7 @@ export async function createAudioFeedbackViaLink(
       reply.status(503).send({ message: 'Serviço de transcrição não configurado', success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao criar feedback com áudio', success: false })
+    erroInterno(request, reply, error, 'Erro ao criar feedback com áudio')
   }
 }
 
@@ -214,7 +215,7 @@ export async function updateLink(
       reply.status(404).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao atualizar link', success: false })
+    erroInterno(request, reply, error, 'Erro ao atualizar link')
   }
 }
 
@@ -237,7 +238,7 @@ export async function deleteLink(
       reply.status(404).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao remover link', success: false })
+    erroInterno(request, reply, error, 'Erro ao remover link')
   }
 }
 
@@ -261,6 +262,6 @@ export async function getPreviewByToken(
       reply.status(404).send({ message: 'Link não encontrado', success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao buscar preview', success: false })
+    erroInterno(request, reply, error, 'Erro ao buscar preview')
   }
 }

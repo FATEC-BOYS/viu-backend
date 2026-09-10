@@ -5,6 +5,7 @@ import { uploadFile, signPath, deleteFile } from '../utils/storage.js'
 import { getAccessibleProjectIds } from '../utils/projectAccess.js'
 import { novoId } from '../utils/ids.js'
 import prisma from '../database/client.js'
+import { erroInterno } from '../utils/erroInterno.js'
 
 const arteService = new ArteService()
 const notificacaoService = new NotificacaoService()
@@ -185,7 +186,7 @@ export async function createArte(request: FastifyRequest, reply: FastifyReply): 
       reply.status(400).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao criar arte', success: false })
+    erroInterno(request, reply, error, 'Erro ao criar arte')
   }
 }
 
@@ -215,7 +216,7 @@ export async function updateArte(request: FastifyRequest, reply: FastifyReply): 
       reply.status(403).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao atualizar arte', success: false })
+    erroInterno(request, reply, error, 'Erro ao atualizar arte')
   }
 }
 
@@ -246,6 +247,6 @@ export async function deleteArte(request: FastifyRequest, reply: FastifyReply): 
       reply.status(403).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao remover arte', success: false })
+    erroInterno(request, reply, error, 'Erro ao remover arte')
   }
 }

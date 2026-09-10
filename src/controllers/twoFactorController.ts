@@ -5,6 +5,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { twoFactorService } from '../services/twoFactorService.js'
 import { auditLogService } from '../services/auditLogService.js'
+import { erroInterno } from '../utils/erroInterno.js'
 
 /**
  * POST /2fa/setup
@@ -51,10 +52,7 @@ export async function setupTwoFactor(
       ipAddress: request.ip,
     })
 
-    reply.status(500).send({
-      message: 'Erro ao configurar 2FA',
-      success: false,
-    })
+    erroInterno(request, reply, error, 'Erro ao configurar 2FA')
   }
 }
 
@@ -205,10 +203,7 @@ export async function verifyTwoFactorCode(
       })
     }
   } catch (error: any) {
-    reply.status(500).send({
-      message: 'Erro ao verificar código 2FA',
-      success: false,
-    })
+    erroInterno(request, reply, error, 'Erro ao verificar código 2FA')
   }
 }
 
@@ -296,10 +291,7 @@ export async function getTwoFactorStatus(
       success: true,
     })
   } catch (error: any) {
-    reply.status(500).send({
-      message: 'Erro ao verificar status do 2FA',
-      success: false,
-    })
+    erroInterno(request, reply, error, 'Erro ao verificar status do 2FA')
   }
 }
 
@@ -319,9 +311,6 @@ export async function getTwoFactorStats(
       success: true,
     })
   } catch (error: any) {
-    reply.status(500).send({
-      message: 'Erro ao obter estatísticas de 2FA',
-      success: false,
-    })
+    erroInterno(request, reply, error, 'Erro ao obter estatísticas de 2FA')
   }
 }

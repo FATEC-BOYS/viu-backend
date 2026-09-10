@@ -10,7 +10,9 @@ import prisma from '../../src/database/client.js'
 import { makeToken, DESIGNER, CLIENTE } from '../helpers/token.js'
 
 function createMockRequest(headers: Record<string, string> = {}) {
-  return { headers } as any
+  // `log` faz parte de toda request do Fastify — quem responde 500 registra a
+  // causa antes de responder, e um dublê sem logger quebraria só nesse caminho.
+  return { headers, log: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } } as any
 }
 
 function createMockReply() {

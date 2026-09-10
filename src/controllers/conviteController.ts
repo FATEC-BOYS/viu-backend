@@ -9,6 +9,7 @@ import {
   getConviteByToken,
   listarConvitesDoProjeto,
 } from '../services/conviteService.js'
+import { erroInterno } from '../utils/erroInterno.js'
 
 export async function createConvite(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
@@ -28,7 +29,7 @@ export async function createConvite(request: FastifyRequest, reply: FastifyReply
       reply.status(400).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao criar convite', success: false })
+    erroInterno(request, reply, error, 'Erro ao criar convite')
   }
 }
 
@@ -79,7 +80,7 @@ export async function aceitarConviteHandler(request: FastifyRequest, reply: Fast
       reply.status(400).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao aceitar convite', success: false })
+    erroInterno(request, reply, error, 'Erro ao aceitar convite')
   }
 }
 
@@ -102,7 +103,7 @@ export async function recusarConviteHandler(request: FastifyRequest, reply: Fast
       reply.status(400).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao recusar convite', success: false })
+    erroInterno(request, reply, error, 'Erro ao recusar convite')
   }
 }
 

@@ -1,5 +1,6 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { DisputaService, DisputaTipo } from '../services/disputaService.js'
+import { erroInterno } from '../utils/erroInterno.js'
 
 const disputaService = new DisputaService()
 
@@ -31,7 +32,7 @@ export async function abrirDisputa(request: FastifyRequest, reply: FastifyReply)
       reply.status(400).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao abrir disputa', success: false })
+    erroInterno(request, reply, error, 'Erro ao abrir disputa')
   }
 }
 
@@ -102,7 +103,7 @@ export async function resolverDisputa(request: FastifyRequest, reply: FastifyRep
       reply.status(400).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao resolver disputa', success: false })
+    erroInterno(request, reply, error, 'Erro ao resolver disputa')
   }
 }
 

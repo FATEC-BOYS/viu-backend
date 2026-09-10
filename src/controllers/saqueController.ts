@@ -10,6 +10,7 @@ import {
   listarSaquesAdmin,
   listarLedger,
 } from '../services/saqueService.js'
+import { erroInterno } from '../utils/erroInterno.js'
 
 export async function listarChavesPixHandler(
   request: FastifyRequest,
@@ -39,7 +40,7 @@ export async function cadastrarChavePixHandler(
       reply.status(400).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao cadastrar chave PIX', success: false })
+    erroInterno(request, reply, error, 'Erro ao cadastrar chave PIX')
   }
 }
 
@@ -65,7 +66,7 @@ export async function removerChavePixHandler(
       reply.status(403).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao remover chave PIX', success: false })
+    erroInterno(request, reply, error, 'Erro ao remover chave PIX')
   }
 }
 
@@ -110,7 +111,7 @@ export async function solicitarSaqueHandler(
       reply.status(409).send({ message: 'Requisição conflitante. Tente novamente.', success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao solicitar saque', success: false })
+    erroInterno(request, reply, error, 'Erro ao solicitar saque')
   }
 }
 
@@ -174,7 +175,7 @@ export async function processarSaqueHandler(
       reply.status(400).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao processar saque', success: false })
+    erroInterno(request, reply, error, 'Erro ao processar saque')
   }
 }
 

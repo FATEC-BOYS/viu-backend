@@ -6,6 +6,7 @@ import {
   getFaturaById,
   cancelarFatura,
 } from '../services/faturaService.js'
+import { erroInterno } from '../utils/erroInterno.js'
 
 export async function criarFaturaHandler(
   request: FastifyRequest,
@@ -30,7 +31,7 @@ export async function criarFaturaHandler(
       reply.status(409).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao criar fatura', success: false })
+    erroInterno(request, reply, error, 'Erro ao criar fatura')
   }
 }
 
@@ -57,7 +58,7 @@ export async function pagarFaturaPixHandler(
       reply.status(409).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao gerar pagamento PIX', success: false })
+    erroInterno(request, reply, error, 'Erro ao gerar pagamento PIX')
   }
 }
 
@@ -94,7 +95,7 @@ export async function getFaturaHandler(
       reply.status(404).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao buscar fatura', success: false })
+    erroInterno(request, reply, error, 'Erro ao buscar fatura')
   }
 }
 
@@ -116,6 +117,6 @@ export async function cancelarFaturaHandler(
       reply.status(403).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao cancelar fatura', success: false })
+    erroInterno(request, reply, error, 'Erro ao cancelar fatura')
   }
 }

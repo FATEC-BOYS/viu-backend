@@ -2,6 +2,7 @@ import { FastifyRequest, FastifyReply } from 'fastify'
 import { FeedbackService, ListFeedbacksParams } from '../services/feedbackService.js'
 import { signPath } from '../utils/storage.js'
 import { getAccessibleProjectIds } from '../utils/projectAccess.js'
+import { erroInterno } from '../utils/erroInterno.js'
 
 const feedbackService = new FeedbackService()
 
@@ -86,7 +87,7 @@ export async function createFeedback(request: FastifyRequest, reply: FastifyRepl
       reply.status(400).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao criar feedback', success: false })
+    erroInterno(request, reply, error, 'Erro ao criar feedback')
   }
 }
 
@@ -146,7 +147,7 @@ export async function createFeedbackComAudio(
       reply.status(503).send({ message: 'Serviço de transcrição não configurado', success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao criar feedback com áudio', success: false })
+    erroInterno(request, reply, error, 'Erro ao criar feedback com áudio')
   }
 }
 
@@ -171,7 +172,7 @@ export async function getFeedbackAudio(request: FastifyRequest, reply: FastifyRe
       reply.status(503).send({ message: 'Serviço de síntese não configurado', success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao gerar áudio do feedback', success: false })
+    erroInterno(request, reply, error, 'Erro ao gerar áudio do feedback')
   }
 }
 
@@ -192,7 +193,7 @@ export async function getFeedbackTranscricao(
       reply.status(400).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao obter transcrição', success: false })
+    erroInterno(request, reply, error, 'Erro ao obter transcrição')
   }
 }
 
@@ -206,7 +207,7 @@ export async function updateFeedback(request: FastifyRequest, reply: FastifyRepl
       reply.status(404).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao atualizar feedback', success: false })
+    erroInterno(request, reply, error, 'Erro ao atualizar feedback')
   }
 }
 
@@ -220,7 +221,7 @@ export async function deleteFeedback(request: FastifyRequest, reply: FastifyRepl
       reply.status(404).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao remover feedback', success: false })
+    erroInterno(request, reply, error, 'Erro ao remover feedback')
   }
 }
 
@@ -247,7 +248,7 @@ export async function resolverThread(request: FastifyRequest, reply: FastifyRepl
       reply.status(409).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao resolver thread', success: false })
+    erroInterno(request, reply, error, 'Erro ao resolver thread')
   }
 }
 
@@ -274,6 +275,6 @@ export async function reabrirThread(request: FastifyRequest, reply: FastifyReply
       reply.status(409).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao reabrir thread', success: false })
+    erroInterno(request, reply, error, 'Erro ao reabrir thread')
   }
 }

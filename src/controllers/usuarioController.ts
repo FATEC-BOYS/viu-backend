@@ -4,6 +4,7 @@ import { sendVerificationEmail } from '../services/emailVerificationService.js'
 import { uploadFile } from '../utils/storage.js'
 import { auditLogService } from '../services/auditLogService.js'
 import { definirCookiesDeSessao } from '../utils/authCookies.js'
+import { erroInterno } from '../utils/erroInterno.js'
 
 const usuarioService = new UsuarioService()
 
@@ -75,7 +76,7 @@ export async function updateUsuario(request: FastifyRequest, reply: FastifyReply
       reply.status(400).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao atualizar usuário', success: false })
+    erroInterno(request, reply, error, 'Erro ao atualizar usuário')
   }
 }
 
@@ -100,7 +101,7 @@ export async function deactivateUsuario(request: FastifyRequest, reply: FastifyR
       reply.status(404).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao remover conta', success: false })
+    erroInterno(request, reply, error, 'Erro ao remover conta')
   }
 }
 

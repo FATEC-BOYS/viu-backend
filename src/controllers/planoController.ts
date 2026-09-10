@@ -1,5 +1,6 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { listPlanos, getPlanoById, createPlano, updatePlano } from '../services/planoService.js'
+import { erroInterno } from '../utils/erroInterno.js'
 
 export async function listPlanosHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
@@ -22,7 +23,7 @@ export async function getPlanoHandler(request: FastifyRequest, reply: FastifyRep
       reply.status(404).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao buscar plano', success: false })
+    erroInterno(request, reply, error, 'Erro ao buscar plano')
   }
 }
 
@@ -46,6 +47,6 @@ export async function updatePlanoHandler(request: FastifyRequest, reply: Fastify
       reply.status(404).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao atualizar plano', success: false })
+    erroInterno(request, reply, error, 'Erro ao atualizar plano')
   }
 }

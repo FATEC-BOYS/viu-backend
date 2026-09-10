@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { TarefaService, ListTarefasParams } from '../services/tarefaService.js'
 import { getAccessibleProjectIds } from '../utils/projectAccess.js'
+import { erroInterno } from '../utils/erroInterno.js'
 
 const tarefaService = new TarefaService()
 
@@ -85,7 +86,7 @@ export async function createTarefa(
       reply.status(400).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao criar tarefa', success: false })
+    erroInterno(request, reply, error, 'Erro ao criar tarefa')
   }
 }
 
@@ -123,7 +124,7 @@ export async function updateTarefa(
       })
       return
     }
-    reply.status(500).send({ message: 'Erro ao atualizar tarefa', success: false })
+    erroInterno(request, reply, error, 'Erro ao atualizar tarefa')
   }
 }
 
@@ -145,6 +146,6 @@ export async function deleteTarefa(
       reply.status(403).send({ message: error.message, success: false })
       return
     }
-    reply.status(500).send({ message: 'Erro ao remover tarefa', success: false })
+    erroInterno(request, reply, error, 'Erro ao remover tarefa')
   }
 }
