@@ -1,9 +1,9 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
-import { randomUUID } from 'crypto'
 import { ArteService, ListArtesParams } from '../services/arteService.js'
 import { NotificacaoService } from '../services/notificacaoService.js'
 import { uploadFile, signPath, deleteFile } from '../utils/storage.js'
 import { getAccessibleProjectIds } from '../utils/projectAccess.js'
+import { novoId } from '../utils/ids.js'
 import prisma from '../database/client.js'
 
 const arteService = new ArteService()
@@ -123,7 +123,10 @@ export async function uploadAndCreateArte(request: FastifyRequest, reply: Fastif
       }
     }
 
-    const arteId = randomUUID()
+    // O id precisa existir antes do upload porque a chave do bucket é montada
+    // com ele. Tem que ser no formato do banco: `randomUUID()` devolvia um
+    // UUID, e aí a arte subia e nenhuma rota `/:id` aceitava o id dela.
+    const arteId = novoId()
     // Always use a UUID-based key — never trust the original filename for the storage path
     const ext = upload.filename.includes('.') ? upload.filename.split('.').pop() : ''
     const key = `artes/${projetoId}/${arteId}/v1/${arteId}${ext ? '.' + ext : ''}`
