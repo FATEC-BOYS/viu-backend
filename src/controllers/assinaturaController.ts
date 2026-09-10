@@ -17,7 +17,7 @@ export async function getMinhaAssinaturaHandler(
     const assinatura = await getMinhaAssinatura(usuario.id)
     reply.send({ data: assinatura, success: true })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao buscar assinatura')
+    request.log.error({ err: erro }, 'Erro ao buscar assinatura')
     reply.status(500).send({ message: 'Erro ao buscar assinatura', success: false })
   }
 }
@@ -83,7 +83,7 @@ export async function webhookAssinaturaHandler(
 
     reply.status(200).send({ success: true })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao processar webhook')
+    request.log.error({ err: erro }, 'Erro ao processar webhook')
     reply.status(500).send({ message: 'Erro ao processar webhook', success: false })
   }
 }

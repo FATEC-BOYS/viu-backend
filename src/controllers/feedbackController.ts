@@ -37,7 +37,7 @@ export async function listFeedbacks(request: FastifyRequest, reply: FastifyReply
       success: true,
     })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao listar feedbacks')
+    request.log.error({ err: erro }, 'Erro ao listar feedbacks')
     reply.status(500).send({ message: 'Erro ao listar feedbacks', success: false })
   }
 }
@@ -54,7 +54,7 @@ export async function getFeedbackById(request: FastifyRequest, reply: FastifyRep
       feedback.tipo === 'AUDIO' && feedback.arquivo ? await signPath(feedback.arquivo) : null
     reply.send({ data: { ...feedback, arquivo_url }, success: true })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao buscar feedback')
+    request.log.error({ err: erro }, 'Erro ao buscar feedback')
     reply.status(500).send({ message: 'Erro ao buscar feedback', success: false })
   }
 }

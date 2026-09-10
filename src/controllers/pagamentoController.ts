@@ -41,7 +41,7 @@ export async function listarPagamentosHandler(
     const pagamentos = await listarPagamentos(usuario.id)
     reply.send({ data: pagamentos, success: true })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao buscar pagamentos')
+    request.log.error({ err: erro }, 'Erro ao buscar pagamentos')
     reply.status(500).send({ message: 'Erro ao buscar pagamentos', success: false })
   }
 }

@@ -2,6 +2,7 @@ import { FastifyRequest, FastifyReply } from 'fastify'
 import { AprovacaoService, ListAprovacoesParams } from '../services/aprovacaoService.js'
 import { getAccessibleProjectIds } from '../utils/projectAccess.js'
 import { erroInterno } from '../utils/erroInterno.js'
+import { signPath } from '../utils/storage.js'
 
 const aprovacaoService = new AprovacaoService()
 
@@ -22,13 +23,24 @@ export async function listAprovacoes(request: FastifyRequest, reply: FastifyRepl
     if (acessiveis) params.projetoIds = acessiveis
 
     const { aprovacoes, total } = await aprovacaoService.listAprovacoes(params)
+    /**
+     * `arquivo` é a chave do bucket e não carrega em `<img>`. Sem assinar
+     * aqui, o painel de aprovação mostra "sem preview" ao lado de cada arte
+     * — justamente na tela onde a pessoa decide olhando.
+     */
+    const comPreview = await Promise.all(
+      aprovacoes.map(async (ap: any) => ({
+        ...ap,
+        arte: ap.arte ? { ...ap.arte, previewUrl: await signPath(ap.arte.arquivo) } : ap.arte,
+      })),
+    )
     reply.send({
-      data: aprovacoes,
+      data: comPreview,
       pagination: { page: params.page, limit: params.limit, total, pages: Math.ceil(total / params.limit!) },
       success: true,
     })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao listar aprovações')
+    request.log.error({ err: erro }, 'Erro ao listar aprovações')
     reply.status(500).send({ message: 'Erro ao listar aprovações', success: false })
   }
 }

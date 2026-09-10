@@ -54,7 +54,7 @@ export async function listProjetos(request: FastifyRequest, reply: FastifyReply)
       success: true,
     })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao buscar projetos')
+    request.log.error({ err: erro }, 'Erro ao buscar projetos')
     reply.status(500).send({ message: 'Erro ao buscar projetos', success: false })
   }
 }
@@ -69,7 +69,7 @@ export async function getProjetoById(request: FastifyRequest, reply: FastifyRepl
     }
     reply.send({ data: projeto, success: true })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao buscar projeto')
+    request.log.error({ err: erro }, 'Erro ao buscar projeto')
     reply.status(500).send({ message: 'Erro ao buscar projeto', success: false })
   }
 }
@@ -204,7 +204,7 @@ export async function dashboardStats(request: FastifyRequest, reply: FastifyRepl
     const data = await projetoService.dashboardStats()
     reply.send({ data, success: true })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao buscar dashboard')
+    request.log.error({ err: erro }, 'Erro ao buscar dashboard')
     reply.status(500).send({ message: 'Erro ao buscar dashboard', success: false })
   }
 }
@@ -227,7 +227,7 @@ export async function listProjetosByDesigner(
     const projetos = await projetoService.listProjetosByDesigner(designerId, status as string | undefined)
     reply.send({ data: projetos, success: true })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao buscar projetos do designer')
+    request.log.error({ err: erro }, 'Erro ao buscar projetos do designer')
     reply.status(500).send({ message: 'Erro ao buscar projetos do designer', success: false })
   }
 }
