@@ -43,7 +43,7 @@ export async function getConvite(request: FastifyRequest, reply: FastifyReply): 
     }
     reply.send({ data: convite, success: true })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao buscar convite')
+    request.log.error({ err: erro }, 'Erro ao buscar convite')
     reply.status(500).send({ message: 'Erro ao buscar convite', success: false })
   }
 }
@@ -54,7 +54,7 @@ export async function listarConvites(request: FastifyRequest, reply: FastifyRepl
     const convites = await listarConvitesPendentes(usuario.id)
     reply.send({ data: convites, success: true })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao listar convites')
+    request.log.error({ err: erro }, 'Erro ao listar convites')
     reply.status(500).send({ message: 'Erro ao listar convites', success: false })
   }
 }
@@ -118,7 +118,7 @@ export async function aceitarConvitePorIdHandler(request: FastifyRequest, reply:
     const projeto = await aceitarConvitePorId(conviteId, usuario.id)
     reply.send({ data: projeto, success: true, message: 'Convite aceito com sucesso' })
   } catch (error: any) {
-    request.log.error({ erro: error, requestId: request.id }, 'Erro ao aceitar convite por id')
+    request.log.error({ err: error, requestId: request.id }, 'Erro ao aceitar convite por id')
     responderErroDeConvite(error, reply, 'Erro ao aceitar convite')
   }
 }
@@ -131,7 +131,7 @@ export async function recusarConvitePorIdHandler(request: FastifyRequest, reply:
     await recusarConvitePorId(conviteId, usuario.id)
     reply.send({ success: true, message: 'Convite recusado' })
   } catch (error: any) {
-    request.log.error({ erro: error, requestId: request.id }, 'Erro ao recusar convite por id')
+    request.log.error({ err: error, requestId: request.id }, 'Erro ao recusar convite por id')
     responderErroDeConvite(error, reply, 'Erro ao recusar convite')
   }
 }

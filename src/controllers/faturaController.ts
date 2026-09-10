@@ -19,18 +19,39 @@ export async function criarFaturaHandler(
     const fatura = await criarFatura(projetoId, usuario.id, descricao, dataVencimento)
     reply.status(201).send({ message: 'Fatura criada com sucesso', data: fatura, success: true })
   } catch (error: any) {
-    if (error.message.includes('Acesso negado')) {
-      reply.status(403).send({ message: error.message, success: false })
-      return
+    /**
+     * Regra de negócio não é falha do servidor.
+     *
+     * Três das quatro razões para recusar uma fatura caíam no 500: "não
+     * possui orçamento" e "apenas o designer" não tinham ramo nenhum, e
+     * "já existe" só era reconhecida em minúsculo, enquanto a mensagem
+     * lançada começa com "Já existe". O resultado é que quem tentava gerar
+     * uma fatura sem orçamento — o caso mais comum de quem está começando —
+     * recebia um erro genérico, sem nunca descobrir que faltava o valor do
+     * projeto.
+     *
+     * A comparação é sem acento e sem caixa de propósito: casar mensagem por
+     * texto é frágil, e o custo de errar aqui é a pessoa levar a culpa por um
+     * problema que é do servidor, ou o contrário.
+     */
+    const motivo = String(error?.message ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+
+    const situacao: [RegExp, number][] = [
+      [/acesso negado|apenas o designer/, 403],
+      [/nao encontrado/, 404],
+      [/ja existe/, 409],
+      [/nao possui orcamento/, 422],
+    ]
+    for (const [padrao, status] of situacao) {
+      if (padrao.test(motivo)) {
+        reply.status(status).send({ message: error.message, success: false })
+        return
+      }
     }
-    if (error.message.includes('não encontrado')) {
-      reply.status(404).send({ message: error.message, success: false })
-      return
-    }
-    if (error.message.includes('já existe')) {
-      reply.status(409).send({ message: error.message, success: false })
-      return
-    }
+
     erroInterno(request, reply, error, 'Erro ao criar fatura')
   }
 }
@@ -72,7 +93,7 @@ export async function listarFaturasHandler(
     const faturas = await listarFaturas(usuario.id, tipo)
     reply.send({ data: faturas, success: true })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao buscar faturas')
+    request.log.error({ err: erro }, 'Erro ao buscar faturas')
     reply.status(500).send({ message: 'Erro ao buscar faturas', success: false })
   }
 }

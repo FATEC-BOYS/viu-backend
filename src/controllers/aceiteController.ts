@@ -66,7 +66,7 @@ export async function verificarAceite(request: FastifyRequest, reply: FastifyRep
     const aceite = await aceiteService.verificarAceite(usuario.id, projetoId)
     reply.send({ data: aceite, aceitou: !!aceite, success: true })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao verificar aceite')
+    request.log.error({ err: erro }, 'Erro ao verificar aceite')
     reply.status(500).send({ message: 'Erro ao verificar aceite', success: false })
   }
 }
@@ -88,7 +88,7 @@ export async function listarAceitesProjeto(
     const aceites = await aceiteService.listarAceitesPorProjeto(projetoId)
     reply.send({ data: aceites, success: true })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao listar aceites')
+    request.log.error({ err: erro }, 'Erro ao listar aceites')
     reply.status(500).send({ message: 'Erro ao listar aceites', success: false })
   }
 }

@@ -48,7 +48,7 @@ export class AprovacaoService {
         skip,
         take: Number(limit),
         include: {
-          arte: { select: { id: true, nome: true, versao: true, projetoId: true } },
+          arte: { select: { id: true, nome: true, versao: true, projetoId: true, arquivo: true } },
           aprovador: { select: { id: true, nome: true, avatar: true } },
         },
         orderBy: { criadoEm: 'desc' },

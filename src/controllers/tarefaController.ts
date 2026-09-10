@@ -44,7 +44,7 @@ export async function listTarefas(
       success: true,
     })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao listar tarefas')
+    request.log.error({ err: erro }, 'Erro ao listar tarefas')
     reply.status(500).send({ message: 'Erro ao listar tarefas', success: false })
   }
 }
@@ -62,7 +62,7 @@ export async function getTarefaById(
     }
     reply.send({ data: tarefa, success: true })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao buscar tarefa')
+    request.log.error({ err: erro }, 'Erro ao buscar tarefa')
     reply.status(500).send({ message: 'Erro ao buscar tarefa', success: false })
   }
 }

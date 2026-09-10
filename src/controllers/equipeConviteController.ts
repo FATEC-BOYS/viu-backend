@@ -77,7 +77,7 @@ export async function aceitarEquipeConvitePorIdHandler(request: FastifyRequest, 
     const equipe = await aceitarEquipeConvitePorId(conviteId, usuario.id)
     reply.send({ data: equipe, message: 'Convite aceito. Você agora é membro da equipe.', success: true })
   } catch (error: any) {
-    request.log.error({ erro: error, requestId: request.id }, 'Erro ao aceitar convite de equipe por id')
+    request.log.error({ err: error, requestId: request.id }, 'Erro ao aceitar convite de equipe por id')
     responderErroDeConvite(error, reply, 'Erro ao aceitar convite')
   }
 }
@@ -90,7 +90,7 @@ export async function recusarEquipeConvitePorIdHandler(request: FastifyRequest, 
     await recusarEquipeConvitePorId(conviteId, usuario.id)
     reply.send({ message: 'Convite recusado.', success: true })
   } catch (error: any) {
-    request.log.error({ erro: error, requestId: request.id }, 'Erro ao recusar convite de equipe por id')
+    request.log.error({ err: error, requestId: request.id }, 'Erro ao recusar convite de equipe por id')
     responderErroDeConvite(error, reply, 'Erro ao recusar convite')
   }
 }
@@ -146,7 +146,7 @@ export async function listarEquipeConvitesPendentesHandler(request: FastifyReque
     const convites = await listarEquipeConvitesPendentes(usuario.id)
     reply.send({ data: convites, success: true })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao listar convites')
+    request.log.error({ err: erro }, 'Erro ao listar convites')
     reply.status(500).send({ message: 'Erro ao listar convites', success: false })
   }
 }
@@ -161,7 +161,7 @@ export async function getEquipeConviteByTokenHandler(request: FastifyRequest, re
     }
     reply.send({ data: convite, success: true })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao buscar convite')
+    request.log.error({ err: erro }, 'Erro ao buscar convite')
     reply.status(500).send({ message: 'Erro ao buscar convite', success: false })
   }
 }

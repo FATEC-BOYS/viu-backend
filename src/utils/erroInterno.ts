@@ -20,6 +20,14 @@ export function erroInterno(
   erro: unknown,
   mensagem: string,
 ): void {
-  request.log.error({ erro }, mensagem)
+  /**
+   * A chave tem que ser `err`: `message` e `stack` de um `Error` não são
+   * enumeráveis, e o Pino só aplica o serializador de erro nessa chave. Sob
+   * qualquer outro nome — `erro`, que era a convenção daqui — o log sai
+   * `"erro":{}` e a causa se perde exatamente como quando não havia log
+   * nenhum. Erros de biblioteca (AWS, Prisma) enganam, porque têm campos
+   * próprios enumeráveis e aparecem mesmo assim.
+   */
+  request.log.error({ err: erro }, mensagem)
   reply.status(500).send({ message: mensagem, success: false })
 }

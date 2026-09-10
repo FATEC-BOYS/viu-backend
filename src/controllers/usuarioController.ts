@@ -24,7 +24,7 @@ export async function listUsuarios(request: FastifyRequest, reply: FastifyReply)
       success: true,
     })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao buscar usuários')
+    request.log.error({ err: erro }, 'Erro ao buscar usuários')
     reply.status(500).send({ message: 'Erro ao buscar usuários', success: false })
   }
 }
@@ -39,7 +39,7 @@ export async function getUsuarioById(request: FastifyRequest, reply: FastifyRepl
     }
     reply.send({ data: usuario, success: true })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao buscar usuário')
+    request.log.error({ err: erro }, 'Erro ao buscar usuário')
     reply.status(500).send({ message: 'Erro ao buscar usuário', success: false })
   }
 }
@@ -57,7 +57,7 @@ export async function createUsuario(request: FastifyRequest, reply: FastifyReply
       reply.status(400).send({ message: error.message, success: false })
       return
     }
-    request.log.error({ erro: error }, 'Falha inesperada ao criar usuário')
+    request.log.error({ err: error }, 'Falha inesperada ao criar usuário')
     reply.status(500).send({ message: 'Erro ao criar usuário', success: false })
   }
 }
@@ -133,7 +133,7 @@ export async function loginUsuario(request: FastifyRequest, reply: FastifyReply)
     // adivinhação em produção: dava para ver a requisição falhando e não o
     // motivo. A mensagem ao usuário continua genérica de propósito; quem
     // precisa do detalhe é quem lê o log.
-    request.log.error({ erro: error }, 'Falha inesperada no login')
+    request.log.error({ err: error }, 'Falha inesperada no login')
     reply.status(500).send({ message: 'Erro no login', success: false })
   }
 }
@@ -153,7 +153,7 @@ export async function getCurrentUser(request: FastifyRequest, reply: FastifyRepl
     }
     reply.send({ data: usuario, success: true })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao obter dados do usuário')
+    request.log.error({ err: erro }, 'Erro ao obter dados do usuário')
     reply.status(500).send({ message: 'Erro ao obter dados do usuário', success: false })
   }
 }
@@ -193,7 +193,7 @@ export async function uploadAvatar(request: FastifyRequest, reply: FastifyReply)
       success: true,
     })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao fazer upload do avatar')
+    request.log.error({ err: erro }, 'Erro ao fazer upload do avatar')
     reply.status(500).send({ message: 'Erro ao fazer upload do avatar', success: false })
   }
 }
@@ -207,7 +207,7 @@ export async function buscarUsuarios(request: FastifyRequest, reply: FastifyRepl
     const data = await usuarioService.buscarUsuarios(q, Number(limit))
     reply.send({ data, success: true })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao buscar usuários')
+    request.log.error({ err: erro }, 'Erro ao buscar usuários')
     reply.status(500).send({ message: 'Erro ao buscar usuários', success: false })
   }
 }
@@ -217,7 +217,7 @@ export async function statsOverview(request: FastifyRequest, reply: FastifyReply
     const data = await usuarioService.statsOverview()
     reply.send({ data, success: true })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao buscar estatísticas')
+    request.log.error({ err: erro }, 'Erro ao buscar estatísticas')
     reply.status(500).send({ message: 'Erro ao buscar estatísticas', success: false })
   }
 }

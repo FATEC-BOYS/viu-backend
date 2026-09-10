@@ -6,7 +6,7 @@ export async function getResumoAdmin(request: FastifyRequest, reply: FastifyRepl
     const resumo = await obterResumoAdmin()
     reply.send({ data: resumo, success: true })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao montar o resumo do admin')
+    request.log.error({ err: erro }, 'Erro ao montar o resumo do admin')
     reply.status(500).send({ message: 'Erro ao carregar o resumo', success: false })
   }
 }

@@ -59,7 +59,7 @@ export async function listArtes(request: FastifyRequest, reply: FastifyReply): P
       success: true,
     })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao listar artes')
+    request.log.error({ err: erro }, 'Erro ao listar artes')
     reply.status(500).send({ message: 'Erro ao listar artes', success: false })
   }
 }
@@ -102,7 +102,7 @@ export async function getArteById(request: FastifyRequest, reply: FastifyReply):
       success: true,
     })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao buscar arte')
+    request.log.error({ err: erro }, 'Erro ao buscar arte')
     reply.status(500).send({ message: 'Erro ao buscar arte', success: false })
   }
 }
@@ -162,7 +162,7 @@ export async function uploadAndCreateArte(request: FastifyRequest, reply: Fastif
     // Sem esta linha o upload falhava e o log registrava apenas
     // `{"res":{"statusCode":500}}` — a causa (R2 fora do ar, credencial
     // errada, banco recusando) morria aqui e o diagnóstico virava adivinhação.
-    request.log.error({ erro: error }, 'Falha no upload da arte')
+    request.log.error({ err: error }, 'Falha no upload da arte')
     reply.status(500).send({ message: 'Erro ao criar arte', success: false })
   }
 }

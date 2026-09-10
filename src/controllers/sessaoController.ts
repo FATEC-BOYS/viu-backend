@@ -37,7 +37,7 @@ export async function listSessoes(
     const sessoes = await sessaoService.listSessoes(params)
     reply.send({ data: sessoes, success: true })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao listar sessões')
+    request.log.error({ err: erro }, 'Erro ao listar sessões')
     reply.status(500).send({ message: 'Erro ao listar sessões', success: false })
   }
 }
@@ -84,7 +84,7 @@ export async function revokeOtherSessoes(
     const result = await sessaoService.revokeOtherSessoes(usuario.id, currentToken)
     reply.send({ message: `${result.count} sessão(ões) revogada(s)`, data: { count: result.count }, success: true })
   } catch (erro) {
-    request.log.error({ erro }, 'Erro ao revogar sessões')
+    request.log.error({ err: erro }, 'Erro ao revogar sessões')
     reply.status(500).send({ message: 'Erro ao revogar sessões', success: false })
   }
 }
