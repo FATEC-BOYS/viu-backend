@@ -91,11 +91,23 @@ export async function validateCuidParam(
     })
   }
 
-  // Valida formato CUID (começa com 'c', tem 25 caracteres, alfanumérico)
+  // Formato do banco: 'c' seguido de 24 hexadecimais.
   const cuidRegex = /^c[a-z0-9]{24}$/i
-  if (!cuidRegex.test(id)) {
+  /**
+   * UUID também passa, e não por gosto: as artes criadas pelo upload até aqui
+   * nasceram com `randomUUID()` (já corrigido em `novoId`, mas as linhas
+   * antigas continuam no banco). Sem aceitar este formato, essas artes ficam
+   * impossíveis de abrir, editar ou até excluir — a pessoa não tem como se
+   * livrar do que já subiu.
+   *
+   * Continua sendo uma lista curta de dois formatos conhecidos, não "qualquer
+   * coisa": o propósito deste middleware é recusar lixo cedo, e nenhum dos
+   * dois é lixo.
+   */
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!cuidRegex.test(id) && !uuidRegex.test(id)) {
     return reply.status(400).send({
-      message: 'ID inválido. Deve ser um CUID válido.',
+      message: 'ID inválido.',
       success: false,
     })
   }
