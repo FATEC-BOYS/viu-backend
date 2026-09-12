@@ -160,6 +160,17 @@ export class LinkService {
       })),
     )
 
-    return { somenteLeitura: link.somenteLeitura, acessos: link.acessos + 1, arte: { ...arte, arquivo_url }, feedbacks: feedbacksComUrl }
+    // `previewUrl` é o nome que o frontend lê para a imagem da arte — mesma
+    // convenção de arteController e aprovacaoController. Esta rota emitia só
+    // `arquivo_url`, então o viewer caía no `?? arte.arquivo`, que é a chave
+    // crua do bucket e não carrega em `<img>`: a arte aparecia em toda tela
+    // logada e quebrava justamente no link público, que é para onde o cliente
+    // vai. `arquivo_url` fica porque a tela de feedbacks ainda o consome.
+    return {
+      somenteLeitura: link.somenteLeitura,
+      acessos: link.acessos + 1,
+      arte: { ...arte, arquivo_url, previewUrl: arquivo_url },
+      feedbacks: feedbacksComUrl,
+    }
   }
 }
