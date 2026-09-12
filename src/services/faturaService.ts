@@ -6,6 +6,34 @@ import { notificacaoService } from './notificacaoService.js'
 
 const TAXA_PADRAO = 0.10
 
+/**
+ * Os campos formatados que a interface lê.
+ *
+ * Isto vivia inline dentro de `listarFaturas`, e `getFaturaById` devolvia a
+ * linha crua do Prisma. As duas rotas descrevem a mesma fatura, mas só uma
+ * trazia `valorFormatado`, `taxaPlataformaFormatada` e
+ * `valorLiquidoDesignerFormatado` — e a tela de detalhe, que lê esses campos,
+ * desenhava "Valor total", "Taxa plataforma" e "Designer recebe" em branco.
+ *
+ * Uma função só, usada pelas duas, para não voltar a divergir.
+ */
+function comValoresFormatados<T extends {
+  valor: number
+  taxaPlataforma: number
+  valorLiquidoDesigner: number
+  dataVencimento: Date | null
+  dataPagamento: Date | null
+}>(f: T) {
+  return {
+    ...f,
+    valorFormatado: formatCurrency(f.valor),
+    taxaPlataformaFormatada: formatCurrency(f.taxaPlataforma),
+    valorLiquidoDesignerFormatado: formatCurrency(f.valorLiquidoDesigner),
+    dataVencimentoFormatada: f.dataVencimento ? formatDate(f.dataVencimento) : null,
+    dataPagamentoFormatada: f.dataPagamento ? formatDate(f.dataPagamento) : null,
+  }
+}
+
 export class FaturaService {
   async criarFatura(
     projetoId: string,
@@ -143,14 +171,7 @@ export class FaturaService {
       orderBy: { criadoEm: 'desc' },
     })
 
-    return faturas.map((f) => ({
-      ...f,
-      valorFormatado: formatCurrency(f.valor),
-      taxaPlataformaFormatada: formatCurrency(f.taxaPlataforma),
-      valorLiquidoDesignerFormatado: formatCurrency(f.valorLiquidoDesigner),
-      dataVencimentoFormatada: f.dataVencimento ? formatDate(f.dataVencimento) : null,
-      dataPagamentoFormatada: f.dataPagamento ? formatDate(f.dataPagamento) : null,
-    }))
+    return faturas.map(comValoresFormatados)
   }
 
   async getFaturaById(id: string, requesterId: string, isAdmin: boolean) {
@@ -167,7 +188,7 @@ export class FaturaService {
     if (!isAdmin && fatura.clienteId !== requesterId && fatura.designerId !== requesterId) {
       throw new Error('Acesso negado')
     }
-    return fatura
+    return comValoresFormatados(fatura)
   }
 
   async cancelarFatura(id: string, requesterId: string) {
