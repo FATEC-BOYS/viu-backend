@@ -6,6 +6,7 @@ import { getAccessibleProjectIds } from '../utils/projectAccess.js'
 import { novoId } from '../utils/ids.js'
 import prisma from '../database/client.js'
 import { erroInterno } from '../utils/erroInterno.js'
+import { licencaDoProjeto } from '../services/licencaService.js'
 
 const arteService = new ArteService()
 const notificacaoService = new NotificacaoService()
@@ -73,21 +74,24 @@ export async function getArteById(request: FastifyRequest, reply: FastifyReply):
       return
     }
 
-    // Block download for clients with an unpaid fatura (CDC art. 49)
-    const usuario = (request as any).usuario
-    if (usuario?.tipo === 'CLIENTE') {
-      const faturasPendentes = await prisma.fatura.count({
-        where: { projetoId: arte.projetoId, clienteId: usuario.id, status: 'PENDENTE' },
-      })
-      if (faturasPendentes > 0) {
-        reply.status(402).send({
-          message: 'Pagamento pendente. Quite a fatura do projeto para acessar os arquivos.',
-          success: false,
-        })
-        return
-      }
-    }
-
+    /*
+     * Aqui havia um 402 para cliente com fatura PENDENTE. Saiu por três
+     * motivos, em ordem de peso:
+     *
+     *  - barrava o detalhe inteiro, não o "download" que o comentário anunciava:
+     *    preview e feedbacks iam junto, então o cliente não conseguia nem ver o
+     *    trabalho para decidir pagar;
+     *  - `getPreviewByToken` nunca teve a checagem, então o mesmo cliente via
+     *    tudo pelo link que o designer mandou. O bloqueio não retinha nada —
+     *    só piorava a experiência de quem entrava pela porta da frente;
+     *  - era punição sem aviso: a pessoa clicava e levava erro, sem nada antes
+     *    dizendo que faltava pagar.
+     *
+     * No lugar entra informação: `licenca`, logo abaixo, diz na própria peça se
+     * o uso está licenciado (cláusula 7.1 do anexo). Reter o arquivo final é
+     * outra conversa, e fica para quando for decidida — reter a visualização
+     * nunca foi o mesmo que reter a entrega.
+     */
     const arquivo_url = await signPath(arte.arquivo)
     const feedbacksComUrl = await Promise.all(
       (arte.feedbacks || []).map(async (fb: any) => ({
@@ -97,8 +101,15 @@ export async function getArteById(request: FastifyRequest, reply: FastifyReply):
     )
     // `previewUrl` é o nome que o frontend lê; `arquivo_url` fica porque a
     // tela de feedbacks ainda o consome para o áudio.
+    /*
+     * A licença de uso, vinda das faturas do projeto — cláusula 7.1 do anexo.
+     * A peça carrega o próprio estado: quem for usá-la vê se pode, em vez de
+     * descobrir na discussão depois.
+     */
+    const licenca = await licencaDoProjeto(arte.projetoId)
+
     reply.send({
-      data: { ...arte, arquivo_url, previewUrl: arquivo_url, feedbacks: feedbacksComUrl },
+      data: { ...arte, arquivo_url, previewUrl: arquivo_url, licenca, feedbacks: feedbacksComUrl },
       success: true,
     })
   } catch (erro) {
