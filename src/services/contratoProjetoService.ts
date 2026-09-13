@@ -7,6 +7,7 @@ import {
   type DadosAnexo,
 } from '../templates/anexoRevisao.js'
 import { camposFaltantes } from './termosProjetoService.js'
+import { env } from '../config/env.js'
 
 /**
  * O anexo de revisão congelado — o documento que as partes aceitam.
@@ -20,6 +21,13 @@ import { camposFaltantes } from './termosProjetoService.js'
 export const TERMOS_INCOMPLETOS = 'Os termos do projeto ainda não estão completos'
 export const SEM_CONTRATO_VIGENTE = 'Este projeto não tem contrato vigente'
 
+/** O que a tela mostra e o que o portão recusa, quando ligado. */
+export interface PendenciaContrato {
+  /** `true` só quando `EXIGIR_CONTRATO_PROJETO` está ligado E há pendência. */
+  bloqueia: boolean
+  mensagem: string
+  faltam: string[]
+}
 
 /** sha256 hexadecimal do texto — a prova de que ele não mudou depois. */
 export function hashDoTexto(texto: string): string {
@@ -301,6 +309,34 @@ export class ContratoProjetoService {
       jaAceitei: !!usuarioId && aceitaram.includes(usuarioId),
     }
   }
+}
+
+/**
+ * O que falta de contrato para o projeto poder ser faturado.
+ *
+ * Uma função só para os dois usos — o aviso da tela e a recusa do portão —
+ * porque duas listas separadas divergem, e divergirem aqui significa a tela
+ * dizer "pode cobrar" enquanto o backend recusa.
+ *
+ * `bloqueia` depende de `EXIGIR_CONTRATO_PROJETO`. Com o flag desligado a
+ * pendência continua sendo calculada e devolvida: é assim que se informa antes
+ * de bloquear, em vez de ligar o bloqueio num dia e descobrir no suporte que
+ * ninguém mais consegue cobrar.
+ */
+export async function pendenciaDeContrato(projetoId: string): Promise<PendenciaContrato | null> {
+  const estado = await contratoProjetoService.estadoDeAceite(projetoId)
+
+  if (estado.contratoId && estado.faltam.length === 0) return null
+
+  const mensagem = !estado.contratoId
+    ? 'Este projeto ainda não tem contrato gerado. Ele é o que registra o que foi combinado e a quem pertence a peça se a conta não for paga.'
+    : estado.faltam.length === 2
+      ? 'O contrato deste projeto ainda não foi aceito pelo designer nem pelo cliente.'
+      : estado.faltam[0] === 'CLIENTE'
+        ? 'O cliente ainda não aceitou o contrato deste projeto.'
+        : 'O designer ainda não aceitou o contrato deste projeto.'
+
+  return { bloqueia: env.EXIGIR_CONTRATO_PROJETO, mensagem, faltam: estado.faltam }
 }
 
 export const contratoProjetoService = new ContratoProjetoService()

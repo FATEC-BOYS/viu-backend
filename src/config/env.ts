@@ -56,6 +56,22 @@ const envSchema = z.object({
     .default('false')
     .transform((v) => v === 'true'),
   /**
+   * Impede gerar fatura sem contrato vigente aceito pelas duas partes.
+   *
+   * Desligado por padrão, e pelo mesmo motivo do `EXIGIR_EMAIL_VERIFICADO`:
+   * ligado antes de os projetos existentes terem contrato, ninguém consegue
+   * cobrar e a causa não aparece em lugar nenhum. Com ele desligado o backend
+   * cria a fatura e devolve `avisoContrato` junto, que é o que a tela mostra —
+   * informar primeiro, bloquear quando a base estiver pronta.
+   *
+   * `z.enum` e não `z.coerce.boolean()`: aquele transformaria a string "false"
+   * em `true`, e o flag nasceria ligado justamente onde se quer ele desligado.
+   */
+  EXIGIR_CONTRATO_PROJETO: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+  /**
    * Teto de quem não tem assinatura. Sem isto o plano "free" é ilimitado —
    * `requirePlanLimit` só olhava assinatura ativa, e usuário novo não tem
    * nenhuma.
