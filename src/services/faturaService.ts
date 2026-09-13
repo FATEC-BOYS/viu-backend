@@ -34,6 +34,30 @@ function comValoresFormatados<T extends {
   }
 }
 
+/**
+ * Uma frase só para as duas defesas.
+ *
+ * A checagem no código e o índice no banco recusam a mesma coisa, e quem está
+ * do outro lado não precisa saber qual das duas pegou: o controller casa
+ * `/ja existe/` e devolve 409 nos dois casos.
+ */
+const FATURA_ATIVA_EXISTENTE = 'Já existe uma fatura ativa para este projeto'
+
+/**
+ * Cria a fatura convertendo a violação do índice único na mesma recusa de
+ * negócio. Perder a corrida não é erro de servidor — é a regra funcionando.
+ */
+async function criarOuRecusarDuplicata(args: Parameters<typeof prisma.fatura.create>[0]) {
+  try {
+    return await prisma.fatura.create(args)
+  } catch (erro: any) {
+    if (erro?.code === 'P2002' && String(erro?.meta?.target ?? '').includes('faturas_uma_ativa_por_projeto')) {
+      throw new Error(FATURA_ATIVA_EXISTENTE)
+    }
+    throw erro
+  }
+}
+
 export class FaturaService {
   async criarFatura(
     projetoId: string,
@@ -50,10 +74,19 @@ export class FaturaService {
       throw new Error('Apenas o designer do projeto pode criar faturas')
     }
 
+    /*
+     * A checagem continua porque é ela que dá a mensagem boa no caso comum —
+     * a pessoa clica, já existe fatura, e lê o motivo. O que ela NÃO faz é
+     * garantir a regra: entre este `findFirst` e o `create` lá embaixo cabe
+     * outra requisição inteira. Duas simultâneas leem "não existe" as duas e
+     * inserem as duas. Quem garante é o índice parcial
+     * `faturas_uma_ativa_por_projeto`, no banco; aqui embaixo o P2002 dele é
+     * traduzido de volta para esta mesma frase.
+     */
     const faturaExistente = await prisma.fatura.findFirst({
       where: { projetoId, status: { in: ['PENDENTE', 'PAGA'] } },
     })
-    if (faturaExistente) throw new Error('Já existe uma fatura ativa para este projeto')
+    if (faturaExistente) throw new Error(FATURA_ATIVA_EXISTENTE)
 
     const assinaturaDesigner = await prisma.assinatura.findFirst({
       where: { usuarioId: projeto.designerId, status: 'ATIVA' },
@@ -63,7 +96,7 @@ export class FaturaService {
     const taxaValor = Math.round(projeto.orcamento * taxaPercentual)
     const valorLiquido = projeto.orcamento - taxaValor
 
-    const fatura = await prisma.fatura.create({
+    const fatura = await criarOuRecusarDuplicata({
       data: {
         projetoId,
         clienteId: projeto.clienteId,
@@ -89,7 +122,14 @@ export class FaturaService {
       `Uma fatura de ${formatCurrency(projeto.orcamento)} foi gerada para o projeto "${projeto.nome}". Acesse para realizar o pagamento.`,
     )
 
-    return fatura
+    /*
+     * Pelo formatador, como as outras duas rotas da mesma entidade.
+     * `listarFaturas` e `getFaturaById` já passavam por aqui; esta ficou de
+     * fora e devolvia a linha crua do Prisma, então quem criava uma fatura
+     * recebia `valorFormatado` e `valorLiquidoDesignerFormatado` indefinidos —
+     * e a tela que mostrasse o resultado da criação ficaria em branco.
+     */
+    return comValoresFormatados(fatura)
   }
 
   async pagarFaturaComPix(faturaId: string, usuarioId: string, cpf: string) {

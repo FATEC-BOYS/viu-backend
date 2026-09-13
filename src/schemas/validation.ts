@@ -408,3 +408,39 @@ export const AtualizarPapelSchema = z.object({
 export const VincularProjetoSchema = z.object({
   projetoId: z.string().cuid('ID de projeto inválido'),
 })
+
+/**
+ * Plano de assinatura.
+ *
+ * `createPlanoHandler` mandava `request.body as any` direto para o Prisma. O
+ * campo que mais assusta é `taxaPlataforma`: é uma fração (0.10 = 10%) e vai
+ * crua para `faturaService`, que calcula quanto o designer recebe. Digitar 10
+ * em vez de 0.10 faria a plataforma reter 1000% — e o valor líquido do
+ * designer ficaria negativo, em toda fatura nova.
+ */
+export const PlanoSchema = z.object({
+  nome: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
+  tipo: z.enum(['DESIGNER', 'CLIENTE'], {
+    required_error: 'Tipo deve ser DESIGNER ou CLIENTE',
+  }),
+  // Centavos, como todo dinheiro no schema. 0 = plano gratuito, que ativa na
+  // hora sem passar pelo Mercado Pago.
+  precoMensal: z.number().int('Preço deve ser em centavos').min(0, 'Preço não pode ser negativo'),
+  precoAnual: z.number().int('Preço deve ser em centavos').min(0).nullable().optional(),
+  taxaPlataforma: z
+    .number()
+    .min(0, 'A taxa não pode ser negativa')
+    .max(1, 'A taxa é uma fração: 0,10 significa 10%')
+    .optional(),
+  limitesProjetos: z.number().int().min(0).nullable().optional(),
+  limitesArtes: z.number().int().min(0).nullable().optional(),
+  limitesStorageMb: z.number().int().min(0).nullable().optional(),
+  descricao: z.string().nullable().optional(),
+  ativo: z.boolean().optional(),
+})
+
+/** Na edição tudo é opcional, mas mandar um corpo vazio não é uma edição. */
+export const PlanoUpdateSchema = PlanoSchema.partial().refine(
+  (d) => Object.keys(d).length > 0,
+  { message: 'Pelo menos um campo deve ser fornecido para atualização' },
+)
