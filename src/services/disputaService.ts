@@ -4,6 +4,7 @@ import {
   estadosNaoTerminais,
   DISPUTA_TRANSITIONS,
 } from '../utils/stateMachine.js'
+import { estornarFatura, ResultadoEstorno } from './estornoService.js'
 
 export type DisputaTipo = 'CALOTE' | 'ENTREGA_INCOMPLETA' | 'FRAUDE' | 'OUTRO'
 export type DisputaStatus = 'ABERTA' | 'EM_ANALISE' | 'RESOLVIDA_DESIGNER' | 'RESOLVIDA_CLIENTE' | 'ESCALADA'
@@ -125,7 +126,32 @@ export class DisputaService {
      */
     const terminou = !AINDA_EM_DISPUTA.includes(data.status)
 
-    return prisma.disputa.update({
+    /*
+     * Decidir pelo cliente é devolver o dinheiro — e antes disto não devolvia.
+     *
+     * O saldo do designer é `Σ fatura.valorLiquidoDesigner (PAGA) − saques −
+     * Σ saldoBloqueado`. Resolver zerava o bloqueio e deixava a fatura PAGA,
+     * então a parcela voltava para a soma: julgar A FAVOR DO CLIENTE pagava o
+     * designer. A tela dizia uma coisa e o extrato fazia o contrário.
+     *
+     * O estorno vem ANTES da escrita da resolução, e de propósito. Se o
+     * gateway recusar, o erro sobe e a disputa continua em aberto — melhor do
+     * que uma disputa marcada "resolvida a favor do cliente" com o dinheiro
+     * ainda no saldo do designer, que é um acerto que ninguém mais vai
+     * procurar.
+     *
+     * Disputa sem `faturaId` não tem o que estornar: é reclamação sobre
+     * entrega antes de haver cobrança, e continua sendo resolvível.
+     */
+    let estorno: ResultadoEstorno | null = null
+    if (data.status === 'RESOLVIDA_CLIENTE' && disputa.faturaId) {
+      estorno = await estornarFatura(
+        disputa.faturaId,
+        `Disputa resolvida a favor do cliente: ${data.resolucao}`,
+      )
+    }
+
+    const atualizada = await prisma.disputa.update({
       where: { id },
       data: {
         status: data.status,
@@ -138,6 +164,15 @@ export class DisputaService {
         projeto: { select: { id: true, nome: true } },
       },
     })
+
+    /*
+     * O resultado do estorno viaja junto porque a tela precisa dizer o que
+     * aconteceu com o dinheiro. `viaGateway: false` significa fatura marcada
+     * paga sem passar pelo Mercado Pago: os livros acertaram, mas alguém tem
+     * que mover o valor à mão — e quem arbitrou é quem precisa saber disso,
+     * não um log que ninguém lê.
+     */
+    return { ...atualizada, estorno }
   }
 
   async moverParaAnalise(id: string) {

@@ -1,4 +1,4 @@
-import { MercadoPagoConfig, Payment, PreApproval } from 'mercadopago'
+import { MercadoPagoConfig, Payment, PaymentRefund, PreApproval } from 'mercadopago'
 import { createHmac } from 'crypto'
 import { env } from '../config/env.js'
 
@@ -9,6 +9,17 @@ const client = new MercadoPagoConfig({
 
 export const mpPayment = new Payment(client)
 export const mpPreApproval = new PreApproval(client)
+
+/**
+ * Estorno. Existe porque a arbitragem precisa devolver dinheiro ao cliente, e
+ * até aqui o VIU só sabia receber: o único caminho de estorno era alguém abrir
+ * o painel do Mercado Pago à mão, e o webhook `refunded` chegar depois.
+ *
+ * `total()` e não `create({ amount })`: devolver só a parte líquida do designer
+ * deixaria a taxa da plataforma com o VIU numa transação que foi desfeita —
+ * lucro sobre um trabalho que a arbitragem julgou não entregue.
+ */
+export const mpRefund = new PaymentRefund(client)
 
 /**
  * Valida a assinatura do webhook do MercadoPago usando HMAC-SHA256.

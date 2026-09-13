@@ -116,3 +116,17 @@ export function assertValidTransition(
     )
   }
 }
+
+/**
+ * Os estados a partir dos quais se pode chegar a `destino`.
+ *
+ * Serve para perguntar "esta linha ainda pode ser estornada?" sem repetir
+ * `['PAGA']` à mão em cada arquivo que estorna. É a mesma razão de
+ * `estadosNaoTerminais`: lista copiada sai de sincronia, e aqui o efeito de
+ * errar é estornar duas vezes — ou não estornar.
+ */
+export function estadosQueLevamA(transitions: TransitionMap, destino: string): string[] {
+  return Object.entries(transitions)
+    .filter(([, permitidos]) => permitidos.includes(destino))
+    .map(([estado]) => estado)
+}

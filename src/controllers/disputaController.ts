@@ -99,6 +99,24 @@ export async function resolverDisputa(request: FastifyRequest, reply: FastifyRep
     const disputa = await disputaService.resolverDisputa(id, { resolucao, status })
     reply.send({ data: disputa, success: true })
   } catch (error: any) {
+    /*
+     * O estorno é parte de resolver a favor do cliente, então as recusas dele
+     * chegam aqui. Separadas por quem precisa agir:
+     *
+     *  - 502: o Mercado Pago recusou. A disputa continua em aberto e quem
+     *    arbitrou pode tentar de novo — devolver 500 esconderia justamente o
+     *    motivo que diz se adianta tentar.
+     *  - 409: não há o que estornar (fatura cancelada, ou nunca paga). É
+     *    conflito de estado, não erro de quem clicou.
+     */
+    if (error.message.includes('recusou o estorno')) {
+      reply.status(502).send({ message: error.message, success: false })
+      return
+    }
+    if (error.message.includes('Não há o que estornar')) {
+      reply.status(409).send({ message: error.message, success: false })
+      return
+    }
     if (error.message.includes('não encontrada') || error.message.includes('inválido') || error.message.includes('já foi resolvida')) {
       reply.status(400).send({ message: error.message, success: false })
       return

@@ -5,7 +5,43 @@ import { assertValidTransition, FATURA_TRANSITIONS } from '../utils/stateMachine
 import { notificacaoService } from './notificacaoService.js'
 import { pendenciaDeContrato } from './contratoProjetoService.js'
 
+/**
+ * Último recurso, quando não há NENHUM plano gratuito de designer cadastrado.
+ *
+ * Não dá para apagar: sem ela, um banco sem planos deixaria de conseguir emitir
+ * fatura — pior do que cobrar a taxa base. Mas ela deixou de ser o caminho
+ * normal: a migration `20260913050000_planos_designer` cadastra o Gratuito, e é
+ * de lá que a taxa passa a sair.
+ */
 const TAXA_PADRAO = 0.10
+
+/**
+ * Quanto a plataforma retém deste designer.
+ *
+ * Quem não assina nada ESTÁ no plano gratuito — a ausência de assinatura é o
+ * plano, não a ausência de plano. Antes disto o código lia a taxa do banco só
+ * para quem assinava e caía numa constante para todo o resto; como ninguém
+ * assina no beta, a taxa de toda fatura vinha do código, e mudá-la exigia
+ * deploy. Agora a linha do Gratuito responde pelos dois casos, e a tela de
+ * administração de planos passa a valer para valer.
+ */
+async function taxaDoDesigner(designerId: string): Promise<number> {
+  const assinatura = await prisma.assinatura.findFirst({
+    where: { usuarioId: designerId, status: 'ATIVA' },
+    include: { plano: { select: { taxaPlataforma: true } } },
+  })
+  if (assinatura) return assinatura.plano.taxaPlataforma
+
+  const gratuito = await prisma.plano.findFirst({
+    where: { tipo: 'DESIGNER', ativo: true, precoMensal: 0 },
+    // O mais antigo: se houver mais de um gratuito, o primeiro cadastrado é o
+    // que já estava valendo. Sem ordem explícita o Postgres pode devolver
+    // outro a cada consulta, e a taxa da fatura mudaria sozinha.
+    orderBy: { criadoEm: 'asc' },
+    select: { taxaPlataforma: true },
+  })
+  return gratuito?.taxaPlataforma ?? TAXA_PADRAO
+}
 
 /**
  * Os campos formatados que a interface lê.
@@ -129,11 +165,7 @@ export class FaturaService {
     const avisoContrato = await pendenciaDeContrato(projetoId)
     if (avisoContrato?.bloqueia) throw new Error(avisoContrato.mensagem)
 
-    const assinaturaDesigner = await prisma.assinatura.findFirst({
-      where: { usuarioId: projeto.designerId, status: 'ATIVA' },
-      include: { plano: true },
-    })
-    const taxaPercentual = assinaturaDesigner?.plano.taxaPlataforma ?? TAXA_PADRAO
+    const taxaPercentual = await taxaDoDesigner(projeto.designerId)
     const taxaValor = Math.round(projeto.orcamento * taxaPercentual)
     const valorLiquido = projeto.orcamento - taxaValor
 

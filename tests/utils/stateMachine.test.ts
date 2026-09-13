@@ -10,6 +10,7 @@ import {
   SAQUE_TRANSITIONS,
   DISPUTA_TRANSITIONS,
   estadosNaoTerminais,
+  estadosQueLevamA,
 } from '../../src/utils/stateMachine.js'
 
 function ok(label: string, map: Record<string, string[]>, from: string, to: string) {
@@ -162,5 +163,41 @@ describe('estadosNaoTerminais', () => {
     expect(estadosNaoTerminais(SAQUE_TRANSITIONS).sort()).toEqual(
       ['PROCESSANDO', 'SOLICITADO'],
     )
+  })
+})
+
+
+/**
+ * `estadosQueLevamA` responde "de onde dá para chegar aqui?".
+ *
+ * Serve ao estorno: em vez de `['PAGA']` escrito à mão em cada arquivo que
+ * estorna, a lista sai do mapa. Copiada, ela sai de sincronia no primeiro
+ * estado novo — e o efeito de errar é estornar duas vezes, ou nenhuma.
+ */
+describe('estadosQueLevamA', () => {
+  it('acha a origem única do estorno de fatura', () => {
+    expect(estadosQueLevamA(FATURA_TRANSITIONS, 'ESTORNADA')).toEqual(['PAGA'])
+  })
+
+  it('não inclui o próprio destino — estornar o estornado não é transição', () => {
+    expect(estadosQueLevamA(FATURA_TRANSITIONS, 'ESTORNADA')).not.toContain('ESTORNADA')
+  })
+
+  it('destino sem nenhuma origem devolve lista vazia, não erro', () => {
+    expect(estadosQueLevamA(FATURA_TRANSITIONS, 'INEXISTENTE')).toEqual([])
+  })
+
+  it('acha todas as origens quando há mais de uma', () => {
+    expect(estadosQueLevamA(DISPUTA_TRANSITIONS, 'RESOLVIDA_CLIENTE').sort()).toEqual(
+      ['ABERTA', 'EM_ANALISE', 'ESCALADA'],
+    )
+  })
+
+  /*
+   * Invariante que amarra o estorno à máquina de estados: se alguém tornar uma
+   * fatura CANCELADA estornável sem pensar no dinheiro, este teste cai.
+   */
+  it('fatura cancelada não é estornável', () => {
+    expect(estadosQueLevamA(FATURA_TRANSITIONS, 'ESTORNADA')).not.toContain('CANCELADA')
   })
 })
