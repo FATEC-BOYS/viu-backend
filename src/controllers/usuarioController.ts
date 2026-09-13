@@ -174,7 +174,23 @@ export async function getCurrentUser(request: FastifyRequest, reply: FastifyRepl
       reply.status(404).send({ message: 'Usuário não encontrado', success: false })
       return
     }
-    reply.send({ data: usuario, success: true })
+
+    /*
+     * Quando a sessão é uma impersonação, `/auth/me` diz isso — com o NOME do
+     * admin que está dentro, não só o id.
+     *
+     * É a única rota que toda tela consulta, e por isso o único lugar de onde a
+     * faixa de aviso pode nascer sem cada página lembrar de perguntar. O nome
+     * vem junto porque um id na faixa não avisa ninguém de nada.
+     */
+    const impersonadoPorId = (request as any).usuario?.impersonadoPor ?? null
+    const impersonacao = impersonadoPorId
+      ? await usuarioService.getUsuarioById(impersonadoPorId).then((a) =>
+          a ? { adminId: a.id, adminNome: a.nome, adminEmail: a.email } : null,
+        )
+      : null
+
+    reply.send({ data: { ...usuario, impersonacao }, success: true })
   } catch (erro) {
     request.log.error({ err: erro }, 'Erro ao obter dados do usuário')
     reply.status(500).send({ message: 'Erro ao obter dados do usuário', success: false })

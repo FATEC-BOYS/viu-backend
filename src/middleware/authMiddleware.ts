@@ -8,6 +8,15 @@ import { erroInterno } from '../utils/erroInterno.js'
 const METODOS_SEGUROS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
 /**
+ * As únicas rotas que uma sessão de impersonação pode chamar com método não
+ * seguro: as duas que servem para SAIR dela.
+ *
+ * Sem esta exceção o admin entraria e não conseguiria voltar, porque a saída é
+ * um POST — e a alternativa, fazê-la GET, seria mudar estado por navegação.
+ */
+const SAIDAS_DA_IMPERSONACAO = new Set(['/admin/impersonar/sair', '/auth/logout'])
+
+/**
  * Requisição que só pode ter partido do nosso app.
  *
  * Cookie é enviado pelo navegador automaticamente, inclusive quando quem
@@ -65,7 +74,7 @@ export async function authenticate(
     // Verify session is still active (enables token revocation via DELETE /sessoes/:id)
     const sessao = await prisma.sessao.findFirst({
       where: { token, ativo: true, expiresAt: { gt: new Date() } },
-      select: { id: true },
+      select: { id: true, impersonadoPorId: true },
     })
     if (!sessao) {
       reply.status(401).send({ message: 'Sessão inválida ou revogada', success: false })
@@ -77,6 +86,36 @@ export async function authenticate(
       email: payload['email'] as string,
       nome: payload['nome'] as string,
       tipo: payload['tipo'] as string,
+      // Quem está realmente dentro, quando isto é uma impersonação. Sai da
+      // linha da sessão e não de uma claim do JWT: assim revogar no banco tem
+      // efeito imediato, e não existem duas fontes para o mesmo fato.
+      impersonadoPor: sessao.impersonadoPorId ?? null,
+    }
+
+    /*
+     * IMPERSONAÇÃO É SOMENTE LEITURA, e a regra mora aqui — no lugar por onde
+     * toda rota autenticada passa — em vez de numa lista de rotas protegidas.
+     *
+     * A diferença importa: com lista de proteção, a rota criada mês que vem
+     * nasce escrevível e ninguém percebe. Negando por padrão, ela nasce
+     * bloqueada e quem precisar liberar tem que dizer isso em voz alta.
+     *
+     * O que está em jogo é o valor probatório do produto inteiro: aceite,
+     * aprovação e feedback carimbado só provam alguma coisa enquanto tiverem
+     * sido escritos pela pessoa a quem estão atribuídos.
+     */
+    if (
+      sessao.impersonadoPorId &&
+      !METODOS_SEGUROS.has(request.method) &&
+      !SAIDAS_DA_IMPERSONACAO.has(request.url.split('?')[0] ?? '')
+    ) {
+      reply.status(403).send({
+        message:
+          'Você está vendo esta conta como administrador. O acesso é somente leitura — saia da conta para agir em nome próprio.',
+        success: false,
+        impersonacao: true,
+      })
+      return
     }
   } catch (error) {
     request.log?.error(error)

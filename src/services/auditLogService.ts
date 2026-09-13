@@ -32,6 +32,10 @@ export type AuditAction =
   | 'PASSWORD_CHANGE'
   | 'PASSWORD_RESET'
   | 'VIEW_SENSITIVE_DATA'
+  // Admin entrando e saindo da conta de outra pessoa. Duas ações e não uma
+  // porque a pergunta que se faz depois é "por quanto tempo ele ficou lá".
+  | 'IMPERSONATE_START'
+  | 'IMPERSONATE_END'
   // Financeiro
   | 'PAGAMENTO_PROCESSADO'
   | 'SAQUE_SOLICITADO'
