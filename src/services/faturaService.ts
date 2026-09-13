@@ -3,6 +3,7 @@ import { mpPayment } from './mercadoPagoService.js'
 import { formatCurrency, formatDate } from '../utils/formatters.js'
 import { assertValidTransition, FATURA_TRANSITIONS } from '../utils/stateMachine.js'
 import { notificacaoService } from './notificacaoService.js'
+import { pendenciaDeContrato } from './contratoProjetoService.js'
 
 const TAXA_PADRAO = 0.10
 
@@ -116,6 +117,18 @@ export class FaturaService {
     })
     if (faturaExistente) throw new Error(FATURA_ATIVA_EXISTENTE)
 
+    /*
+     * O contrato do projeto — cláusula 7.1 e seguintes do anexo.
+     *
+     * Com `EXIGIR_CONTRATO_PROJETO` desligado (o padrão), isto não impede nada:
+     * a pendência é calculada e viaja de volta em `avisoContrato`, e a tela
+     * mostra. Ligar o bloqueio de uma vez, com os projetos existentes sem
+     * contrato, deixaria todo mundo sem conseguir cobrar e sem ver o motivo —
+     * mesmo raciocínio de `EXIGIR_EMAIL_VERIFICADO`.
+     */
+    const avisoContrato = await pendenciaDeContrato(projetoId)
+    if (avisoContrato?.bloqueia) throw new Error(avisoContrato.mensagem)
+
     const assinaturaDesigner = await prisma.assinatura.findFirst({
       where: { usuarioId: projeto.designerId, status: 'ATIVA' },
       include: { plano: true },
@@ -157,7 +170,13 @@ export class FaturaService {
      * recebia `valorFormatado` e `valorLiquidoDesignerFormatado` indefinidos —
      * e a tela que mostrasse o resultado da criação ficaria em branco.
      */
-    return comValoresFormatados(fatura)
+    /*
+     * `avisoContrato` sai junto da fatura, e não numa rota separada, porque é
+     * sobre esta criação: a pessoa acabou de cobrar um projeto cujo contrato
+     * ninguém aceitou, e é agora que ela precisa saber. Uma consulta à parte
+     * seria outra requisição para dizer o que esta já sabe.
+     */
+    return { ...comValoresFormatados(fatura), avisoContrato }
   }
 
   async pagarFaturaComPix(faturaId: string, usuarioId: string, cpf: string) {

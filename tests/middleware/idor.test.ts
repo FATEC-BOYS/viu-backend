@@ -232,14 +232,21 @@ describe('registrarAceite — controle de acesso', () => {
     await registrarAceite(req, reply)
 
     expect(reply.statusCode).toBe(404)
-    expect(prisma.aceiteContratual.upsert).not.toHaveBeenCalled()
+    expect(prisma.aceiteContratual.create).not.toHaveBeenCalled()
   })
 
   it('cliente do projeto consegue registrar aceite', async () => {
     vi.mocked(prisma.projeto.findUnique).mockResolvedValue({
       designerId: 'd1', clienteId: 'c1',
     } as any)
-    vi.mocked(prisma.aceiteContratual.upsert).mockResolvedValue({ id: 'ac1' } as any)
+    /*
+     * `create` e não `upsert`: o serviço fazia `upsert` com `update`, o que
+     * sobrescrevia a linha a cada aceite e apagava a prova do anterior. Aceite
+     * é fato histórico — acumula, não atualiza. O que este teste verifica
+     * continua sendo o controle de acesso; só o mecanismo mudou.
+     */
+    vi.mocked(prisma.aceiteContratual.findFirst).mockResolvedValue(null as any)
+    vi.mocked(prisma.aceiteContratual.create).mockResolvedValue({ id: 'ac1' } as any)
 
     const req: any = {
       usuario: { id: 'c1', tipo: 'CLIENTE' },
@@ -251,7 +258,9 @@ describe('registrarAceite — controle de acesso', () => {
     await registrarAceite(req, reply)
 
     expect(reply.statusCode).toBe(201)
-    expect(prisma.aceiteContratual.upsert).toHaveBeenCalled()
+    expect(prisma.aceiteContratual.create).toHaveBeenCalled()
+    // E o upsert não pode voltar: era ele que destruía o histórico.
+    expect(prisma.aceiteContratual.upsert).not.toHaveBeenCalled()
   })
 
   it('ADMIN registra aceite independente de participação', async () => {
