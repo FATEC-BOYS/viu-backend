@@ -53,6 +53,29 @@ export const StatusArte = {
 
 export type StatusArte = typeof StatusArte[keyof typeof StatusArte];
 
+/**
+ * Cláusula 7.2 do anexo de revisão — até quando a licença de uso vale.
+ *
+ * Dois valores e não uma data anulável: com data só, `null` teria que
+ * significar "indeterminado" e "ninguém respondeu ainda" ao mesmo tempo, e é o
+ * segundo que o aviso de termos incompletos precisa enxergar.
+ */
+export const LicencaPrazo = {
+  INDETERMINADO: 'INDETERMINADO',
+  ATE_DATA: 'ATE_DATA',
+} as const;
+
+export type LicencaPrazo = typeof LicencaPrazo[keyof typeof LicencaPrazo];
+
+/** Cláusula 7.2 — o destino dos arquivos editáveis, que é a briga mais comum. */
+export const ArquivosFonte = {
+  NAO_INCLUSOS: 'NAO_INCLUSOS',
+  INCLUSOS_APOS_QUITACAO: 'INCLUSOS_APOS_QUITACAO',
+  TAXA_EXTRA: 'TAXA_EXTRA',
+} as const;
+
+export type ArquivosFonte = typeof ArquivosFonte[keyof typeof ArquivosFonte];
+
 // 💬 Tipos de Feedback
 export const TipoFeedback = {
   TEXTO: 'TEXTO',
@@ -118,6 +141,8 @@ export const TIPOS_USUARIO = Object.values(TipoUsuario);
 export const STATUS_PROJETO = Object.values(StatusProjeto);
 export const TIPOS_ARTE = Object.values(TipoArte);
 export const STATUS_ARTE = Object.values(StatusArte);
+export const LICENCA_PRAZOS = Object.values(LicencaPrazo);
+export const ARQUIVOS_FONTE = Object.values(ArquivosFonte);
 export const TIPOS_FEEDBACK = Object.values(TipoFeedback);
 export const STATUS_APROVACAO = Object.values(StatusAprovacao);
 export const STATUS_TAREFA = Object.values(StatusTarefa);
@@ -155,3 +180,9 @@ export const isValidTipoNotificacao = (tipo: string): tipo is TipoNotificacao =>
 
 export const isValidCanalNotificacao = (canal: string): canal is CanalNotificacao => 
   CANAIS_NOTIFICACAO.includes(canal as CanalNotificacao);
+
+export const isValidLicencaPrazo = (valor: string): valor is LicencaPrazo =>
+  LICENCA_PRAZOS.includes(valor as LicencaPrazo);
+
+export const isValidArquivosFonte = (valor: string): valor is ArquivosFonte =>
+  ARQUIVOS_FONTE.includes(valor as ArquivosFonte);
