@@ -116,7 +116,8 @@ model Projeto {
   aceites  AceiteContratual[]
   disputas Disputa[]
   convites ConviteProjeto[]
-  termos   TermosProjeto?
+  termos    TermosProjeto?
+  contratos ContratoProjeto[]
 
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @default(now()) @updatedAt
@@ -649,22 +650,104 @@ model TermosProjeto {
   @@map("termos_projeto")
 }
 
-model AceiteContratual {
-  id          String  @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
-  termoVersao String  @default("1.0")
-  ip          String?
-  userAgent   String?
-
-  usuarioId String
-  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+/// O anexo de revisão congelado — o documento que as partes aceitaram.
+///
+/// `TermosProjeto` guarda o estado corrente e muda quando as partes
+/// renegociam. Aqui nada muda: `texto` é o que elas leram, palavra por palavra,
+/// e é sobre ele que o `hash` responde. Re-renderizar a partir do projeto
+/// pareceria economia e seria o fim da prova — `Projeto.orcamento` e os termos
+/// vão mudar, e o contrato mudaria junto, em silêncio.
+///
+/// Um aditivo não altera a linha: cria a versão seguinte. A anterior fica
+/// SUBSTITUIDA, intacta, com os aceites dela.
+model ContratoProjeto {
+  id        String  @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
   projetoId String
   projeto   Projeto @relation(fields: [projetoId], references: [id], onDelete: Cascade)
 
+  versao Int
+
+  /// VIGENTE | SUBSTITUIDO. Um projeto tem no máximo um vigente por vez, o que
+  /// o serviço garante ao gerar a versão seguinte.
+  status String @default("VIGENTE")
+
+  /// Texto puro, e não markdown, por prova e não por estilo: o `hash` cobre
+  /// exatamente o que esteve na tela. Com markdown as partes concordariam com
+  /// o documento renderizado enquanto o hash guardaria o código-fonte dele —
+  /// duas coisas diferentes, e a diferença apareceria justamente quando alguém
+  /// contestasse o que aceitou.
+  texto String
+
+  /// sha256 hexadecimal de `texto`.
+  hash String
+
+  /// Tudo que o template consumiu para produzir `texto`: as partes (nome e
+  /// e-mail congelados — `Usuario.nome` muda, o contrato não), o projeto e os
+  /// termos. É o que permite comparar duas versões num aditivo sem interpretar
+  /// prosa.
+  dados Json @db.JsonB
+
+  /// Qual redação gerou este texto, ex.: "anexo-revisao-pi@2". Sobe a cada
+  /// mudança de cláusula; é o que responde "o que exatamente foi aceito".
+  templateVersao String
+
+  /// Se a redação usada já passara por advogado quando este contrato nasceu.
+  /// Fica gravado, e não derivado do template atual, porque a pergunta é sobre
+  /// o momento do aceite — não sobre hoje.
+  revisadoJuridicamente Boolean @default(false)
+
+  aceites  AceiteContratual[]
+  criadoEm DateTime           @default(now())
+
+  @@unique([projetoId, versao])
+  @@index([projetoId, status])
+  @@map("contratos_projeto")
+}
+
+/// O aceite de uma versão específica do contrato.
+///
+/// A unicidade era `[usuarioId, projetoId]` e `registrarAceite` era `upsert`:
+/// aceitar a v2 sobrescrevia a linha da v1 — trocava `termoVersao`, `ip` e
+/// `userAgent` — e a prova de que alguém havia aceitado a redação anterior
+/// deixava de existir. Aceite é fato histórico: acumula, não atualiza. Agora a
+/// chave é `[usuarioId, contratoId]`, e cada versão guarda o próprio aceite.
+model AceiteContratual {
+  id        String  @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
+  ip        String?
+  userAgent String?
+
+  /// O hash do texto que estava na tela naquele clique.
+  ///
+  /// Redundante com `contrato.hash` de propósito: se a linha do contrato for
+  /// alterada depois, o aceite carrega a própria cópia do que foi acordado.
+  hashAceito String?
+
+  /// DESIGNER ou CLIENTE no momento do aceite. Congelado porque o papel da
+  /// pessoa no projeto pode mudar, e a pergunta é quem ela era ao aceitar.
+  papel String?
+
+  usuarioId String
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  /// Anulável só por causa do legado: linhas gravadas antes de existir texto
+  /// congelado não têm contrato a que se referir. Nulo aqui significa "aceite
+  /// anterior ao texto congelado", que é a verdade — melhor do que inventar um
+  /// contrato retroativo para satisfazer a chave estrangeira.
+  contratoId String?
+  contrato   ContratoProjeto? @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+
+  /// Legado. `projetoId` continua porque as linhas antigas dependem dele;
+  /// `termoVersao` era o ponteiro para um documento que nunca existiu.
+  projetoId   String
+  projeto     Projeto @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  termoVersao String  @default("1.0")
+
   criadoEm DateTime @default(now())
 
-  @@unique([usuarioId, projetoId])
+  @@unique([usuarioId, contratoId])
   @@index([usuarioId])
   @@index([projetoId])
+  @@index([contratoId])
   @@map("aceites_contratuais")
 }
 
