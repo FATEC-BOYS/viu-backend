@@ -116,6 +116,7 @@ model Projeto {
   aceites  AceiteContratual[]
   disputas Disputa[]
   convites ConviteProjeto[]
+  termos   TermosProjeto?
 
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @default(now()) @updatedAt
@@ -569,6 +570,64 @@ model Saque {
 }
 
 // ====== PROTEÇÃO LEGAL ======
+
+/// Os termos comerciais que o anexo de revisão renderiza.
+///
+/// Tabela separada de `Projeto`, e não nove colunas lá, por dois motivos
+/// práticos: um aditivo precisa congelar exatamente este conjunto e comparar
+/// duas versões dele — com um objeto coeso isso é um diff, com colunas
+/// espalhadas vira conferência manual; e "termos incompletos", que é o que o
+/// aviso da fatura consulta, passa a ser uma pergunta só.
+///
+/// Todo campo é opcional no banco porque o projeto nasce antes de alguém
+/// combinar os termos. Quem decide se está completo é `termosCompletos()`, em
+/// um lugar só, usada pelo aviso da tela e pelo portão — duas listas separadas
+/// divergiriam no primeiro campo novo.
+model TermosProjeto {
+  id        String  @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
+  projetoId String  @unique
+  projeto   Projeto @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+
+  /// Cláusula 3.1 — rodadas incluídas no valor acordado, POR ENTREGA.
+  ///
+  /// Entrega é cada peça registrada no VIU (cada arte), não o projeto inteiro:
+  /// um projeto com três peças tem este número de rodadas para cada uma. O
+  /// nome do campo fala do projeto porque é onde o valor padrão é definido —
+  /// o que ele governa é a entrega.
+  rodadasIncluidas Int?
+
+  /// Cláusula 4.1 — prazo do cliente para comentar ou aprovar.
+  ///
+  /// Sem efeito automático: a 4.2 ficou na Opção A (sem aprovação tácita), então
+  /// isto é prazo combinado e exibido, nunca gatilho de mudança de estado.
+  prazoRevisaoDiasUteis Int?
+
+  /// Cláusula 7.2 — os limites da licença.
+  ///
+  /// "Peças cobertas" não vira campo: é constante do template ("versões finais
+  /// aprovadas da etapa quitada"), não decisão por projeto.
+  licencaFinalidade String?
+  licencaTerritorio String?
+
+  /// INDETERMINADO | ATE_DATA. Dois campos e não uma data nula significando
+  /// "sem prazo": nulo teria que dizer "indeterminado" e "ninguém respondeu" ao
+  /// mesmo tempo, e é o segundo que o aviso precisa enxergar.
+  licencaPrazo    String?
+  licencaPrazoAte DateTime?
+
+  /// Boolean? e não @default(false) pela mesma razão: com default, "respondeu
+  /// que não" e "não respondeu" ficam idênticos.
+  exclusividade    Boolean?
+  exclusividadeAte DateTime?
+
+  /// NAO_INCLUSOS | INCLUSOS_APOS_QUITACAO | TAXA_EXTRA
+  arquivosFonte String?
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @default(now()) @updatedAt
+
+  @@map("termos_projeto")
+}
 
 model AceiteContratual {
   id          String  @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))

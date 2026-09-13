@@ -444,3 +444,74 @@ export const PlanoUpdateSchema = PlanoSchema.partial().refine(
   (d) => Object.keys(d).length > 0,
   { message: 'Pelo menos um campo deve ser fornecido para atualização' },
 )
+
+// ===== TERMOS DO PROJETO (anexo de revisão, cláusulas 3.1, 4.1 e 7.2) =====
+
+/**
+ * Os termos comerciais que o anexo renderiza.
+ *
+ * Tudo é opcional porque a tela salva aos poucos — combinar prazo hoje e
+ * licença amanhã é o uso normal. O que não pode é salvar uma combinação
+ * incoerente, e é isso que os dois `superRefine` abaixo impedem.
+ *
+ * Note que "opcional" aqui não é o mesmo que "pode ficar assim para sempre":
+ * `termosCompletos()` é quem decide se está pronto para gerar contrato, e ela
+ * exige todos. Um valida a forma, a outra a suficiência.
+ */
+export const TermosProjetoSchema = z
+  .object({
+    // 3.1 — rodadas incluídas. 0 é válido: "nenhuma revisão inclusa" é um
+    // acordo possível, e diferente de não ter combinado.
+    rodadasIncluidas: z.number().int().min(0, 'Não pode ser negativo').max(99).nullable().optional(),
+
+    // 4.1 — dias úteis. Sem efeito automático: a 4.2 ficou sem aprovação
+    // tácita, então este número é combinado e exibido, nunca gatilho.
+    prazoRevisaoDiasUteis: z.number().int().min(1, 'Mínimo de 1 dia').max(365).nullable().optional(),
+
+    licencaFinalidade: z.string().trim().min(3, 'Descreva onde a peça pode ser usada').max(500).nullable().optional(),
+    licencaTerritorio: z.string().trim().min(2, 'Informe o território').max(200).nullable().optional(),
+
+    licencaPrazo: z.enum(['INDETERMINADO', 'ATE_DATA']).nullable().optional(),
+    licencaPrazoAte: z.string().datetime({ offset: true }).nullable().optional(),
+
+    exclusividade: z.boolean().nullable().optional(),
+    exclusividadeAte: z.string().datetime({ offset: true }).nullable().optional(),
+
+    arquivosFonte: z
+      .enum(['NAO_INCLUSOS', 'INCLUSOS_APOS_QUITACAO', 'TAXA_EXTRA'])
+      .nullable()
+      .optional(),
+  })
+  .superRefine((dados, ctx) => {
+    // Prazo "até uma data" sem a data é a cláusula 7.2 dizendo "vale até ___".
+    if (dados.licencaPrazo === 'ATE_DATA' && !dados.licencaPrazoAte) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['licencaPrazoAte'],
+        message: 'Informe até quando a licença vale',
+      })
+    }
+    // E a data sem o prazo deixaria a interface mostrando um valor que o
+    // contrato não menciona.
+    if (dados.licencaPrazo === 'INDETERMINADO' && dados.licencaPrazoAte) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['licencaPrazoAte'],
+        message: 'Licença por prazo indeterminado não tem data de fim',
+      })
+    }
+    if (dados.exclusividade === true && !dados.exclusividadeAte) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['exclusividadeAte'],
+        message: 'Exclusividade precisa de prazo — exclusividade eterna é cessão, não licença',
+      })
+    }
+    if (dados.exclusividade !== true && dados.exclusividadeAte) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['exclusividadeAte'],
+        message: 'Só faz sentido com exclusividade marcada',
+      })
+    }
+  })
