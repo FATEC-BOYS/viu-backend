@@ -1,6 +1,7 @@
 import { prisma } from '../database/client.js'
 import { signPath } from '../utils/storage.js'
 import crypto from 'crypto'
+import { licencaDoProjeto } from './licencaService.js'
 
 export class LinkService {
   private generateToken(length = 24): string {
@@ -139,7 +140,7 @@ export class LinkService {
     const arte = await prisma.arte.findUnique({
       where: { id: link.arteId! },
       include: {
-        projeto: { select: { nome: true } },
+        projeto: { select: { id: true, nome: true } },
         autor: { select: { nome: true } },
       },
     })
@@ -166,10 +167,19 @@ export class LinkService {
     // crua do bucket e não carrega em `<img>`: a arte aparecia em toda tela
     // logada e quebrava justamente no link público, que é para onde o cliente
     // vai. `arquivo_url` fica porque a tela de feedbacks ainda o consome.
+    /*
+     * A licença vai junto porque é aqui que ela importa: quem abre o link é
+     * quem vai usar a peça, e a cláusula 7.1 diz que o uso só é licenciado
+     * depois da quitação. Sem isto, o cliente baixa a arte sem nada informando
+     * que ela ainda não é dele — e descobre depois, na discussão.
+     */
+    const licenca = await licencaDoProjeto(arte.projetoId)
+
     return {
       somenteLeitura: link.somenteLeitura,
       acessos: link.acessos + 1,
       arte: { ...arte, arquivo_url, previewUrl: arquivo_url },
+      licenca,
       feedbacks: feedbacksComUrl,
     }
   }
