@@ -44,6 +44,13 @@ export async function criarFaturaHandler(
       [/nao encontrado/, 404],
       [/ja existe/, 409],
       [/nao possui orcamento/, 422],
+      /*
+       * O portão do contrato (EXIGIR_CONTRATO_PROJETO). 422 pelo mesmo motivo
+       * do orçamento: o pedido está correto, falta um pré-requisito do projeto.
+       * A tela usa a distinção para mandar a pessoa gerar ou aceitar o contrato
+       * em vez de procurar erro no que ela enviou.
+       */
+      [/contrato/, 422],
     ]
     for (const [padrao, status] of situacao) {
       if (padrao.test(motivo)) {
