@@ -11,6 +11,7 @@ import {
   isValidStatusTarefa, isValidPrioridade, isValidTipoNotificacao,
   isValidCanalNotificacao,
 } from '../../src/types/enums.js'
+import { ARTE_TRANSITIONS } from '../../src/utils/stateMachine.js'
 
 describe('Enums - constantes', () => {
   it('TipoUsuario deve conter DESIGNER, CLIENTE e ADMIN', () => {
@@ -28,7 +29,31 @@ describe('Enums - constantes', () => {
   })
 
   it('StatusArte deve conter todos os status', () => {
-    expect(STATUS_ARTE).toEqual(['EM_ANALISE', 'APROVADO', 'REJEITADO', 'REVISAO'])
+    // `REVISAO` saiu: não era chave nem destino em `ARTE_TRANSITIONS`, então
+    // arte que chegasse lá não saía mais — `assertValidTransition` respondia
+    // "Status desconhecido para Arte" a qualquer mudança.
+    expect(STATUS_ARTE).toEqual(['EM_ANALISE', 'APROVADO', 'REJEITADO'])
+  })
+
+  /*
+   * O invariante que faltava, e cuja ausência deixou `REVISAO` existir por
+   * tempo indeterminado: a lista de status e a máquina de estados descrevem a
+   * mesma coisa, e um status que a máquina não conhece é uma arte travada —
+   * `assertValidTransition` lê `transitions[from]`, acha `undefined` e recusa
+   * tudo. Este teste é o que teria denunciado aquilo no dia em que apareceu.
+   */
+  it('todo status de arte é conhecido pela máquina de estados', () => {
+    const conhecidos = Object.keys(ARTE_TRANSITIONS)
+    expect([...STATUS_ARTE].sort()).toEqual(conhecidos.sort())
+  })
+
+  it('nenhum status de arte é um beco sem saída inesperado', () => {
+    // APROVADO é terminal de propósito — arte aprovada não volta atrás. Os
+    // demais precisam ter para onde ir, senão travam quem chegar neles.
+    for (const status of STATUS_ARTE) {
+      if (status === 'APROVADO') continue
+      expect(ARTE_TRANSITIONS[status].length).toBeGreaterThan(0)
+    }
   })
 
   it('TipoFeedback deve conter TEXTO, AUDIO e POSICIONAL', () => {

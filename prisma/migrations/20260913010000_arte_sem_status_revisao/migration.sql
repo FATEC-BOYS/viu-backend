@@ -1,0 +1,23 @@
+-- `REVISAO` nunca foi um estado de verdade para Arte.
+--
+-- `ARTE_TRANSITIONS` (src/utils/stateMachine.ts) é EM_ANALISE → APROVADO |
+-- REJEITADO, e REJEITADO → EM_ANALISE. `REVISAO` não aparece nem como chave nem
+-- como destino: nada entra nele por caminho válido e, o que importa aqui, nada
+-- sai. Uma arte que chegasse lá — a seed gravava uma, e `createArte` aceita
+-- status direto sem validar transição — travava de vez, com
+-- `assertValidTransition` respondendo "Status desconhecido para Arte: REVISAO"
+-- a qualquer tentativa de aprovar, recusar ou reenviar.
+--
+-- Enquanto isso o `EditArteDialog` oferecia "Em revisão" num select, então a
+-- interface convidava a pessoa a colocar a arte num beco sem saída e o backend
+-- recusava com 400 — o pior dos dois mundos.
+--
+-- Destino REJEITADO e não EM_ANALISE de propósito: é o estado de onde se volta
+-- para EM_ANALISE com uma versão nova, que é exatamente o que "em revisão"
+-- queria dizer. Mandar direto para EM_ANALISE apagaria a informação de que
+-- alguém havia pedido mudança.
+--
+-- Sem cláusula de rollback: o estado de origem não tinha saída, então voltar
+-- para ele seria recriar o travamento.
+
+UPDATE "artes" SET "status" = 'REJEITADO' WHERE "status" = 'REVISAO';

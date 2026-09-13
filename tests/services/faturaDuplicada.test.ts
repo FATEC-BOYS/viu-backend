@@ -58,6 +58,24 @@ describe('uma fatura ativa por projeto', () => {
     projetoOk()
     const violacao: any = new Error('Unique constraint failed')
     violacao.code = 'P2002'
+    // A forma que o Postgres realmente produz, conferida contra banco de
+    // verdade em tests/concorrencia/fatura-duplicada.test.ts: `meta.target` é a
+    // lista de CAMPOS do índice, não o nome dele. Este teste já existiu com
+    // `target: 'faturas_uma_ativa_por_projeto'` e passava — confirmando a
+    // suposição de quem o escreveu enquanto a tradução, em produção, nunca
+    // disparava e a P2002 chegava crua na tela como 500.
+    violacao.meta = { modelName: 'Fatura', target: ['projetoId'] }
+    db.fatura.create.mockRejectedValue(violacao)
+
+    await expect(service.criarFatura(PROJETO, DESIGNER)).rejects.toThrow(
+      'Já existe uma fatura ativa para este projeto',
+    )
+  })
+
+  it('aceita também o nome do índice, caso o driver passe a mandá-lo', async () => {
+    projetoOk()
+    const violacao: any = new Error('Unique constraint failed')
+    violacao.code = 'P2002'
     violacao.meta = { target: 'faturas_uma_ativa_por_projeto' }
     db.fatura.create.mockRejectedValue(violacao)
 
@@ -79,7 +97,7 @@ describe('uma fatura ativa por projeto', () => {
     projetoOk()
     const outroIndice: any = new Error('Unique constraint failed')
     outroIndice.code = 'P2002'
-    outroIndice.meta = { target: 'pagamentos_faturaId_key' }
+    outroIndice.meta = { modelName: 'Pagamento', target: ['faturaId'] }
     db.fatura.create.mockRejectedValue(outroIndice)
 
     await expect(service.criarFatura(PROJETO, DESIGNER)).rejects.toThrow('Unique constraint failed')
