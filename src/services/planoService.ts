@@ -2,9 +2,16 @@ import prisma from '../database/client.js'
 import { formatCurrency } from '../utils/formatters.js'
 
 export class PlanoService {
-  async listPlanos(tipo?: string) {
+  /**
+   * `incluirInativos` existe para a tela de administração.
+   *
+   * A listagem sempre escondeu plano inativo — certo para quem vai assinar,
+   * errado para quem administra: desativar um plano o tirava da própria tela
+   * que o desativou, e não havia como reativá-lo. Porta de mão única.
+   */
+  async listPlanos(tipo?: string, incluirInativos = false) {
     const planos = await prisma.plano.findMany({
-      where: { ativo: true, ...(tipo && { tipo }) },
+      where: { ...(incluirInativos ? {} : { ativo: true }), ...(tipo && { tipo }) },
       orderBy: [{ tipo: 'asc' }, { precoMensal: 'asc' }],
     })
     return planos.map((p) => ({
@@ -23,12 +30,13 @@ export class PlanoService {
     nome: string
     tipo: string
     precoMensal: number
-    precoAnual?: number
+    precoAnual?: number | null
     taxaPlataforma?: number
-    limitesProjetos?: number
-    limitesArtes?: number
-    limitesStorageMb?: number
-    descricao?: string
+    limitesProjetos?: number | null
+    limitesArtes?: number | null
+    limitesStorageMb?: number | null
+    descricao?: string | null
+    ativo?: boolean
   }) {
     return prisma.plano.create({ data })
   }
@@ -42,7 +50,8 @@ export class PlanoService {
 
 const planoService = new PlanoService()
 
-export const listPlanos = (tipo?: string) => planoService.listPlanos(tipo)
+export const listPlanos = (tipo?: string, incluirInativos?: boolean) =>
+  planoService.listPlanos(tipo, incluirInativos)
 export const getPlanoById = (id: string) => planoService.getPlanoById(id)
 export const createPlano = (data: Parameters<PlanoService['createPlano']>[0]) =>
   planoService.createPlano(data)

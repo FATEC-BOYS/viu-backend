@@ -13,6 +13,25 @@ export async function listPlanosHandler(request: FastifyRequest, reply: FastifyR
   }
 }
 
+/**
+ * A lista do administrador, com os inativos.
+ *
+ * Não é `GET /planos?incluirInativos=true` porque aquela rota é pública — sem
+ * sessão, não há como saber quem pergunta, e uma autenticação "opcional" que
+ * degrada em silêncio é o tipo de coisa que depois vira vazamento. Rota
+ * separada, `requireRole('ADMIN')` na porta, intenção explícita.
+ */
+export async function listPlanosAdminHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  try {
+    const { tipo } = (request.query || {}) as any
+    const planos = await listPlanos(tipo, true)
+    reply.send({ data: planos, success: true })
+  } catch (erro) {
+    request.log.error({ err: erro }, 'Erro ao buscar planos (admin)')
+    reply.status(500).send({ message: 'Erro ao buscar planos', success: false })
+  }
+}
+
 export async function getPlanoHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
     const { id } = request.params as { id: string }
