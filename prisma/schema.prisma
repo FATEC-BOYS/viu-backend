@@ -48,6 +48,17 @@ model Usuario {
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @default(now()) @updatedAt
 
+  /// Quando a conta foi excluída a pedido do titular (LGPD Art. 18 IV).
+  ///
+  /// Preenchido significa "excluída"; nulo com `ativo: false` significa apenas
+  /// desativada. Sem esta coluna os dois casos eram indistinguíveis — ficava só
+  /// `ativo: false`, que não diz nem o que aconteceu nem quando.
+  ///
+  /// A data em si NÃO é dado pessoal do titular: é registro do atendimento ao
+  /// pedido dele, e é o que permite demonstrar depois que a exclusão aconteceu
+  /// e em que momento. Some com o resto se a linha for apagada de vez.
+  excluidoEm DateTime?
+
   projetosDesigner Projeto[]       @relation("ProjetoDesigner")
   projetosCliente  Projeto[]       @relation("ProjetoCliente")
   artes            Arte[]          @relation("ArteAutor")
@@ -92,6 +103,7 @@ model Usuario {
   @@index([tipo])
   @@index([ativo])
   @@index([criadoEm])
+  @@index([excluidoEm])
   @@map("usuarios")
 }
 

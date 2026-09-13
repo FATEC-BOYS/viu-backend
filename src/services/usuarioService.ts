@@ -86,6 +86,14 @@ export class UsuarioService {
           tipo: true,
           ativo: true,
           criadoEm: true,
+          /*
+           * O que sobra de uma conta excluída, e é o que o painel mostra: a
+           * data do pedido, o tipo, quando entrou, e o volume que ficou para
+           * trás. Nada disso é PII — nome, e-mail, telefone e avatar já foram
+           * anonimizados, e é por isso que estes campos podem continuar
+           * visíveis.
+           */
+          excluidoEm: true,
           _count: {
             select: {
               projetosDesigner: true,
@@ -231,6 +239,10 @@ export class UsuarioService {
         where: { id },
         data: {
           ativo: false,
+          // A data do atendimento ao pedido. Sem ela ficava só `ativo: false`,
+          // que não distingue conta excluída de conta desativada nem diz
+          // quando — e é justamente o que o painel precisa mostrar depois.
+          excluidoEm: new Date(),
           nome: 'Usuário Removido',
           email: `deleted+${id}@removed.viu.app`,
           telefone: null,
