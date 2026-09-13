@@ -9,6 +9,7 @@ vi.mock('../../src/database/client.js', async () => {
 vi.mock('../../src/services/mercadoPagoService.js', () => ({
   mpPayment: { get: vi.fn() },
   mpPreApproval: {},
+  mpRefund: { total: vi.fn() },
   validateMpWebhookSignature: vi.fn().mockReturnValue(true),
 }))
 
@@ -73,13 +74,55 @@ describe('PagamentoService.handleWebhookPagamento', () => {
     } as any)
     vi.mocked(prisma.pagamento.update).mockResolvedValue({} as any)
     vi.mocked(prisma.fatura.findUnique).mockResolvedValue({
-      status: 'PAGA', valorLiquidoDesigner: 5000, designerId: 'd2',
+      valorLiquidoDesigner: 5000, designerId: 'd2',
     } as any)
-    vi.mocked(prisma.$transaction).mockResolvedValue([{}, {}] as any)
+    /*
+     * A transação roda de verdade. Antes o teste trocava `$transaction` por um
+     * valor pronto e checava só que ela tinha sido chamada — passava com
+     * qualquer conteúdo dentro, inclusive nenhum. O nome do teste fala de um
+     * lançamento DEBITO; é ele que precisa ser verificado.
+     */
+    vi.mocked(prisma.$transaction).mockImplementation(async (arg: any) =>
+      typeof arg === 'function' ? arg(prisma) : Promise.all(arg),
+    )
+    vi.mocked(prisma.fatura.updateMany).mockResolvedValue({ count: 1 } as any)
+    vi.mocked(prisma.pagamento.updateMany).mockResolvedValue({ count: 1 } as any)
 
     await service.handleWebhookPagamento('995')
 
-    expect(prisma.$transaction).toHaveBeenCalled()
+    expect(prisma.fatura.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: 'ESTORNADA' } }),
+    )
+    expect(prisma.ledgerEntry.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        tipo: 'DEBITO',
+        valor: 5000,
+        referencia: 'estorno-fatura:fat2',
+        designerId: 'd2',
+      }),
+    })
+  })
+
+  it('webhook chegando depois da arbitragem não debita o designer de novo', async () => {
+    // O estorno tem dois disparadores agora. Sem o compare-and-set, o segundo a
+    // chegar criaria um segundo DEBITO pelo mesmo dinheiro.
+    vi.mocked(mpPayment.get).mockResolvedValue({ id: 994, status: 'refunded' } as any)
+    vi.mocked(prisma.pagamento.findUnique).mockResolvedValue({
+      id: 'pag4', mpPaymentId: '994', status: 'APROVADO', faturaId: 'fat3',
+    } as any)
+    vi.mocked(prisma.pagamento.update).mockResolvedValue({} as any)
+    vi.mocked(prisma.fatura.findUnique).mockResolvedValue({
+      valorLiquidoDesigner: 5000, designerId: 'd2',
+    } as any)
+    vi.mocked(prisma.$transaction).mockImplementation(async (arg: any) =>
+      typeof arg === 'function' ? arg(prisma) : Promise.all(arg),
+    )
+    // Zero linhas afetadas: a fatura já estava ESTORNADA.
+    vi.mocked(prisma.fatura.updateMany).mockResolvedValue({ count: 0 } as any)
+
+    await service.handleWebhookPagamento('994')
+
+    expect(prisma.ledgerEntry.create).not.toHaveBeenCalled()
   })
 })
 

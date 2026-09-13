@@ -3,6 +3,7 @@ import { mpPayment } from './mercadoPagoService.js'
 import { formatCurrency, formatDate } from '../utils/formatters.js'
 import { PAGAMENTO_TRANSITIONS, FATURA_TRANSITIONS } from '../utils/stateMachine.js'
 import { notificacaoService } from './notificacaoService.js'
+import { aplicarEstornoNosLivros } from './estornoService.js'
 
 const MP_PAYMENT_STATUS_MAP: Record<string, string> = {
   pending: 'PENDENTE',
@@ -72,28 +73,16 @@ export class PagamentoService {
     }
 
     if (status === 'ESTORNADO' && pagamento.faturaId) {
-      const fatura = await prisma.fatura.findUnique({
-        where: { id: pagamento.faturaId },
-        select: { status: true, valorLiquidoDesigner: true, designerId: true },
-      })
-      if (fatura && (FATURA_TRANSITIONS[fatura.status] ?? []).includes('ESTORNADA')) {
-        await prisma.$transaction([
-          prisma.fatura.update({
-            where: { id: pagamento.faturaId },
-            data: { status: 'ESTORNADA' },
-          }),
-          // Ledger: estorno reverte o crédito anterior (referência distinguível do crédito)
-          prisma.ledgerEntry.create({
-            data: {
-              tipo: 'DEBITO',
-              valor: fatura.valorLiquidoDesigner,
-              descricao: 'Estorno de fatura',
-              referencia: `estorno-fatura:${pagamento.faturaId}`,
-              designerId: fatura.designerId,
-            },
-          }),
-        ])
-      }
+      /*
+       * A escrita mora em `aplicarEstornoNosLivros`, não aqui.
+       *
+       * A arbitragem também estorna agora, e duas cópias da mesma rotina
+       * divergiriam na primeira mudança — com o efeito de debitar o designer
+       * duas vezes, ou nenhuma. A função é idempotente por compare-and-set:
+       * este webhook chegando depois de a arbitragem já ter estornado não
+       * escreve nada.
+       */
+      await aplicarEstornoNosLivros(pagamento.faturaId, 'Estorno de fatura')
     }
   }
 
