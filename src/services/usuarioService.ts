@@ -2,6 +2,7 @@ import prisma from '../database/client.js'
 import bcrypt from 'bcryptjs'
 import { SignJWT } from 'jose'
 import { getJWTSecret, env } from '../config/env.js'
+import { parseJwtExpiry } from '../utils/jwt.js'
 import { randomUUID, randomBytes } from 'crypto'
 import { assinarAvatar } from '../utils/storage.js'
 
@@ -12,15 +13,6 @@ export interface ListUsuariosParams {
   limit?: number
   tipo?: string
   ativo?: string | boolean
-}
-
-function parseJwtExpiry(expiry: string): Date {
-  const match = expiry.match(/^(\d+)([smhd])$/)
-  if (!match || !match[1] || !match[2]) return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-  const value = parseInt(match[1], 10)
-  const unit = match[2] as 's' | 'm' | 'h' | 'd'
-  const multipliers = { s: 1000, m: 60000, h: 3600000, d: 86400000 } as const
-  return new Date(Date.now() + value * (multipliers[unit] ?? 86400000))
 }
 
 export class UsuarioService {
