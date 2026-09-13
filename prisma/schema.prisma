@@ -68,6 +68,7 @@ model Usuario {
   faturasComoDesigner Fatura[]     @relation("FaturasDesigner")
 
   aceites         AceiteContratual[]
+  aceitesTermos   AceiteTermos[]
   disputasAbertas Disputa[]          @relation("DisputasAbertas")
 
   linksCompartilhados LinkCompartilhado[] @relation("LinksCriador")
@@ -934,4 +935,44 @@ model VinculoCliente {
   @@index([clienteId])
   @@index([rompidoEm])
   @@map("vinculos_cliente")
+}
+
+/// O aceite dos TERMOS DA PLATAFORMA — VIU ↔ usuário.
+///
+/// Separado de `AceiteContratual` de propósito, e não por capricho de
+/// modelagem: são dois documentos com partes diferentes. `AceiteContratual`
+/// exige `projetoId`, porque o anexo de revisão rege UM projeto entre designer
+/// e cliente. Os termos da plataforma não têm projeto — reger a relação com o
+/// VIU é o que eles fazem — e enfiá-los na outra tabela reproduziria
+/// exatamente a confusão que este modelo existe para desfazer: o produto
+/// gravava aceite de termos na criação do projeto, apontando para um
+/// `termoVersao: "1.0"` que não existia em lugar nenhum.
+model AceiteTermos {
+  id String @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
+
+  /// A versão do texto aceito, ex. "termos-plataforma@1". Responde O QUE a
+  /// pessoa aceitou; sem isto o registro só prova que ela clicou.
+  versao String
+
+  /// O sha256 do texto naquele clique. Redundante com o arquivo no repositório
+  /// de propósito: se a redação da mesma versão for alterada por engano, o
+  /// aceite carrega a própria cópia do que foi lido.
+  hash String
+
+  /// Onde e com o quê — Lei 14.063/20. Anuláveis porque proxy e cliente nem
+  /// sempre informam, e um aceite sem IP continua sendo um aceite.
+  ip        String?
+  userAgent String?
+
+  usuarioId String
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  criadoEm DateTime @default(now())
+
+  /// Aceitar a mesma versão duas vezes não duplica: um clique repetido no
+  /// cadastro, ou um reenvio de formulário, é o mesmo fato. Versão NOVA gera
+  /// linha nova, e a anterior fica — aceite é histórico, não se atualiza.
+  @@unique([usuarioId, versao])
+  @@index([usuarioId])
+  @@map("aceites_termos")
 }

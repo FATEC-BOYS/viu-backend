@@ -53,6 +53,30 @@ export async function restringirCriacaoACliente(
   }
 }
 
+/**
+ * O cadastro público não passa sem aceitar os termos.
+ *
+ * A checagem é de rota e não de schema porque o mesmo schema valida `POST
+ * /usuarios` — o designer cadastrando o cliente dele —, onde o cliente não
+ * está presente para aceitar. Aceite marcado por outra pessoa é pior do que
+ * aceite ausente: parece prova e não é.
+ *
+ * Recusa com 400 e a razão em texto: é erro de quem chamou, e o formulário
+ * precisa dizer o que faltou marcar.
+ */
+export async function exigirAceiteDosTermos(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  const { aceiteTermos } = (request.body ?? {}) as { aceiteTermos?: boolean }
+  if (aceiteTermos !== true) {
+    reply.status(400).send({
+      message: 'É preciso aceitar os termos de uso e o aviso de privacidade para criar a conta.',
+      success: false,
+    })
+  }
+}
+
 export async function validateUpdateUsuario(
   request: FastifyRequest,
   reply: FastifyReply,

@@ -84,7 +84,7 @@ describe('com o portão desligado — o padrão', () => {
     semContrato()
     const f: any = await service.criarFatura(PROJETO, DESIGNER)
     expect(f.avisoContrato.bloqueia).toBe(false)
-    expect(f.avisoContrato.mensagem).toMatch(/ainda não tem contrato gerado/i)
+    expect(f.avisoContrato.mensagem).toMatch(/ainda não tem o resumo do combinado gerado/i)
   })
 
   it('o aviso nomeia quem falta aceitar, não "alguém"', async () => {
@@ -108,7 +108,7 @@ describe('com o portão ligado', () => {
 
   it('recusa sem contrato, explicando o motivo', async () => {
     semContrato()
-    await expect(service.criarFatura(PROJETO, DESIGNER)).rejects.toThrow(/contrato gerado/i)
+    await expect(service.criarFatura(PROJETO, DESIGNER)).rejects.toThrow(/resumo do combinado gerado/i)
     expect(db.fatura.create).not.toHaveBeenCalled()
   })
 
@@ -133,12 +133,23 @@ describe('com o portão ligado', () => {
   })
 
   /*
-   * A mensagem precisa conter "contrato" porque é assim que o controller a
-   * mapeia para 422 — sem isso ela cairia no 500 genérico e a pessoa nunca
-   * descobriria que falta aceitar o contrato.
+   * O erro carrega um CÓDIGO, e é por ele que o controller devolve 422.
+   *
+   * Antes o mapeamento casava `/contrato/` na mensagem, e este teste checava a
+   * palavra. Parecia inofensivo até a copy mudar: renomear "contrato" para
+   * "resumo do combinado" fez toda fatura barrada pelo portão devolver 500, e
+   * a tela deixou de saber que bastava gerar ou aceitar o documento. Texto de
+   * interface não pode decidir código HTTP — por isso a asserção passou a ser
+   * sobre o código, que não muda quando alguém melhora uma frase.
    */
-  it('a mensagem contém a palavra que o controller usa para devolver 422', async () => {
+  it('o erro carrega o código que o controller usa para devolver 422', async () => {
     semContrato()
-    await expect(service.criarFatura(PROJETO, DESIGNER)).rejects.toThrow(/contrato/i)
+    const erro: any = await service.criarFatura(PROJETO, DESIGNER).catch((e) => e)
+    expect(erro.codigo).toBe('CONTRATO_PENDENTE')
+  })
+
+  it('a mensagem explica o que fazer, sem carregar o status nas costas', async () => {
+    semContrato()
+    await expect(service.criarFatura(PROJETO, DESIGNER)).rejects.toThrow(/resumo do combinado/i)
   })
 })

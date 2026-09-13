@@ -14,6 +14,7 @@ import {
 } from '../controllers/usuarioController.js'
 import {
   validateCreateUsuario,
+  exigirAceiteDosTermos,
   validateUpdateUsuario,
   validateLogin,
   restringirCriacaoACliente,
@@ -50,7 +51,7 @@ export async function usuariosRoutes(fastify: FastifyInstance) {
   // Única porta pública de cadastro. O limite por hora e o teto diário vivem
   // no middleware porque precisam valer para o conjunto, não por rota.
   fastify.post('/auth/register', {
-    preHandler: [limitarRegistroPublico, verificarCaptchaDoCadastro, validateCreateUsuario],
+    preHandler: [limitarRegistroPublico, verificarCaptchaDoCadastro, validateCreateUsuario, exigirAceiteDosTermos],
   }, createUsuario)
 
   fastify.post('/auth/login', {

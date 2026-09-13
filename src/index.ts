@@ -22,6 +22,7 @@ import { authRoutes } from './routes/auth.js'
 import { adminRoutes } from './routes/admin.js'
 import { planosRoutes } from './routes/planos.js'
 import { termosProjetoRoutes } from './routes/termosProjeto.js'
+import { termosPlataformaRoutes } from './routes/termosPlataforma.js'
 import { contratoProjetoRoutes } from './routes/contratoProjeto.js'
 import { assinaturasRoutes } from './routes/assinaturas.js'
 import { faturasRoutes } from './routes/faturas.js'
@@ -185,6 +186,7 @@ export async function buildServer() {
   await app.register(adminRoutes)
   await app.register(planosRoutes)
   await app.register(termosProjetoRoutes)
+  await app.register(termosPlataformaRoutes)
   await app.register(contratoProjetoRoutes)
   await app.register(assinaturasRoutes)
   await app.register(faturasRoutes)

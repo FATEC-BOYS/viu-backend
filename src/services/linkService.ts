@@ -1,7 +1,7 @@
 import { prisma } from '../database/client.js'
 import { signPath } from '../utils/storage.js'
 import crypto from 'crypto'
-import { licencaDoProjeto } from './licencaService.js'
+import { licencaDoProjeto, licencaPublica } from './licencaService.js'
 
 export class LinkService {
   private generateToken(length = 24): string {
@@ -173,7 +173,13 @@ export class LinkService {
      * depois da quitação. Sem isto, o cliente baixa a arte sem nada informando
      * que ela ainda não é dele — e descobre depois, na discussão.
      */
-    const licenca = await licencaDoProjeto(arte.projetoId)
+    /*
+     * Reduzida antes de sair: esta rota é o link público, e o link é
+     * encaminhado. `licencaPublica` responde "dá para usar esta peça?" sem
+     * contar a data da quitação nem que houve estorno — ver o porquê em
+     * `licencaService`.
+     */
+    const licenca = licencaPublica(await licencaDoProjeto(arte.projetoId))
 
     return {
       somenteLeitura: link.somenteLeitura,

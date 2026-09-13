@@ -44,14 +44,22 @@ export async function criarFaturaHandler(
       [/nao encontrado/, 404],
       [/ja existe/, 409],
       [/nao possui orcamento/, 422],
-      /*
-       * O portão do contrato (EXIGIR_CONTRATO_PROJETO). 422 pelo mesmo motivo
-       * do orçamento: o pedido está correto, falta um pré-requisito do projeto.
-       * A tela usa a distinção para mandar a pessoa gerar ou aceitar o contrato
-       * em vez de procurar erro no que ela enviou.
-       */
-      [/contrato/, 422],
     ]
+
+    /*
+     * O portão do contrato (EXIGIR_CONTRATO_PROJETO). 422 pelo mesmo motivo do
+     * orçamento: o pedido está correto, falta um pré-requisito do projeto. A
+     * tela usa a distinção para mandar a pessoa gerar ou aceitar o documento em
+     * vez de procurar erro no que ela enviou.
+     *
+     * Por código e não por `/contrato/` na mensagem. Com o regex, a redação da
+     * tela decidia o status: trocar a palavra "contrato" por "resumo do
+     * combinado" — mudança de copy — fazia esta resposta virar 500.
+     */
+    if (error?.codigo === 'CONTRATO_PENDENTE') {
+      reply.status(422).send({ message: error.message, success: false })
+      return
+    }
     for (const [padrao, status] of situacao) {
       if (padrao.test(motivo)) {
         reply.status(status).send({ message: error.message, success: false })

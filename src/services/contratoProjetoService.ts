@@ -323,18 +323,36 @@ export class ContratoProjetoService {
  * de bloquear, em vez de ligar o bloqueio num dia e descobrir no suporte que
  * ninguém mais consegue cobrar.
  */
+/**
+ * O erro do portão, reconhecível sem ler a frase.
+ *
+ * O controller mapeava este caso para 422 casando `/contrato/` na MENSAGEM. Ou
+ * seja: a copy da tela decidia o código HTTP. Renomear "contrato" para "resumo
+ * do combinado" — mudança de redação, nada mais — fez toda fatura barrada pelo
+ * portão devolver 500 em vez de 422, e a tela deixaria de saber que bastava
+ * gerar ou aceitar o documento. O teste pegou; o conserto é tirar a decisão de
+ * cima do texto.
+ */
+export class ContratoPendenteError extends Error {
+  readonly codigo = 'CONTRATO_PENDENTE'
+  constructor(mensagem: string) {
+    super(mensagem)
+    this.name = 'ContratoPendenteError'
+  }
+}
+
 export async function pendenciaDeContrato(projetoId: string): Promise<PendenciaContrato | null> {
   const estado = await contratoProjetoService.estadoDeAceite(projetoId)
 
   if (estado.contratoId && estado.faltam.length === 0) return null
 
   const mensagem = !estado.contratoId
-    ? 'Este projeto ainda não tem contrato gerado. Ele é o que registra o que foi combinado e a quem pertence a peça se a conta não for paga.'
+    ? 'Este projeto ainda não tem o resumo do combinado gerado. Ele é o que registra o que foi acertado e a quem pertence a peça se a conta não for paga.'
     : estado.faltam.length === 2
-      ? 'O contrato deste projeto ainda não foi aceito pelo designer nem pelo cliente.'
+      ? 'O resumo do combinado ainda não foi aceito pelo designer nem pelo cliente.'
       : estado.faltam[0] === 'CLIENTE'
-        ? 'O cliente ainda não aceitou o contrato deste projeto.'
-        : 'O designer ainda não aceitou o contrato deste projeto.'
+        ? 'O cliente ainda não aceitou o resumo do combinado.'
+        : 'O designer ainda não aceitou o resumo do combinado.'
 
   return { bloqueia: env.EXIGIR_CONTRATO_PROJETO, mensagem, faltam: estado.faltam }
 }
