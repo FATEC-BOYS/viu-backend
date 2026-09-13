@@ -140,7 +140,9 @@ async function main() {
       tipo: 'IMAGEM',
       tamanho: BigInt(512000),
       versao: 2,
-      status: 'REVISAO',
+      // Era 'REVISAO', um status sem entrada nem saída na máquina de estados:
+      // a arte da seed nascia travada e não aceitava nenhuma mudança.
+      status: 'REJEITADO',
       projetoId: projeto2.id,
       autorId: designer.id,
     },

@@ -44,6 +44,34 @@ function comValoresFormatados<T extends {
 const FATURA_ATIVA_EXISTENTE = 'Já existe uma fatura ativa para este projeto'
 
 /**
+ * O que o Postgres devolve quando o índice parcial recusa a segunda fatura.
+ *
+ * Contra banco de verdade o Prisma preenche `meta.target` com a LISTA DE
+ * CAMPOS do índice — `["projetoId"]` — e não com o nome dele. A primeira
+ * versão deste arquivo procurava por `faturas_uma_ativa_por_projeto` ali
+ * dentro, coisa que nunca aparece, então a P2002 escapava crua e quem perdia
+ * a corrida levava 500 em vez do 409 previsto. O teste contra mock não pegou
+ * porque o mock devolvia o formato que o código esperava, e não o que o
+ * Postgres devolve: um teste assim confirma a suposição de quem o escreveu.
+ *
+ * Aceita as duas formas de propósito. `faturas` não tem nenhuma outra
+ * restrição de unicidade sobre `projetoId` (o `@@index([projetoId])` do schema
+ * não é único), então casar pelo campo não confunde este índice com outro.
+ */
+function eDuplicataDeFaturaAtiva(erro: any): boolean {
+  if (erro?.code !== 'P2002') return false
+
+  const alvo = erro?.meta?.target
+  const campos = Array.isArray(alvo) ? alvo : [alvo]
+
+  return campos.some(
+    (campo) =>
+      typeof campo === 'string' &&
+      (campo === 'projetoId' || campo.includes('faturas_uma_ativa_por_projeto')),
+  )
+}
+
+/**
  * Cria a fatura convertendo a violação do índice único na mesma recusa de
  * negócio. Perder a corrida não é erro de servidor — é a regra funcionando.
  */
@@ -51,7 +79,7 @@ async function criarOuRecusarDuplicata(args: Parameters<typeof prisma.fatura.cre
   try {
     return await prisma.fatura.create(args)
   } catch (erro: any) {
-    if (erro?.code === 'P2002' && String(erro?.meta?.target ?? '').includes('faturas_uma_ativa_por_projeto')) {
+    if (eDuplicataDeFaturaAtiva(erro)) {
       throw new Error(FATURA_ATIVA_EXISTENTE)
     }
     throw erro

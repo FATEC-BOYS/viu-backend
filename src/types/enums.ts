@@ -31,12 +31,24 @@ export const TipoArte = {
 
 export type TipoArte = typeof TipoArte[keyof typeof TipoArte];
 
-// 🎨 Status da Arte
+/**
+ * Status da Arte.
+ *
+ * `REVISAO` saiu daqui. Ele nunca foi um estado de verdade: `ARTE_TRANSITIONS`
+ * não o tinha como chave nem como destino, então nada podia entrar nele por
+ * caminho legítimo e — pior — nada podia sair. Uma arte que chegasse lá (a
+ * seed colocava uma, e `createArte` aceita status direto) travava de vez, com
+ * `assertValidTransition` respondendo "Status desconhecido para Arte" a
+ * qualquer tentativa de mexer. A tela, enquanto isso, oferecia "Em revisão"
+ * num select e levava 400 sempre.
+ *
+ * Revisão não precisava de estado próprio: é `REJEITADO → EM_ANALISE` com uma
+ * versão nova, que é o caminho que a máquina de estados já permite.
+ */
 export const StatusArte = {
   EM_ANALISE: 'EM_ANALISE',
   APROVADO: 'APROVADO',
   REJEITADO: 'REJEITADO',
-  REVISAO: 'REVISAO',
 } as const;
 
 export type StatusArte = typeof StatusArte[keyof typeof StatusArte];

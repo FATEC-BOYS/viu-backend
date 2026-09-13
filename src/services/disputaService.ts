@@ -1,5 +1,9 @@
 import prisma from '../database/client.js'
-import { assertValidTransition, DISPUTA_TRANSITIONS } from '../utils/stateMachine.js'
+import {
+  assertValidTransition,
+  estadosNaoTerminais,
+  DISPUTA_TRANSITIONS,
+} from '../utils/stateMachine.js'
 
 export type DisputaTipo = 'CALOTE' | 'ENTREGA_INCOMPLETA' | 'FRAUDE' | 'OUTRO'
 export type DisputaStatus = 'ABERTA' | 'EM_ANALISE' | 'RESOLVIDA_DESIGNER' | 'RESOLVIDA_CLIENTE' | 'ESCALADA'
@@ -19,6 +23,14 @@ export interface ResolverDisputaInput {
 
 const TIPOS_VALIDOS: DisputaTipo[] = ['CALOTE', 'ENTREGA_INCOMPLETA', 'FRAUDE', 'OUTRO']
 const STATUS_FINAIS: DisputaStatus[] = ['RESOLVIDA_DESIGNER', 'RESOLVIDA_CLIENTE', 'ESCALADA']
+
+/**
+ * Estados em que a disputa ainda está de pé — os mesmos que o `saqueService`
+ * usa para decidir o que não é sacável. Sai da máquina de estados, não de uma
+ * lista à mão, pelo motivo de sempre: lista copiada sai de sincronia e o efeito
+ * de errar aqui é dinheiro liberado no meio de uma disputa.
+ */
+const AINDA_EM_DISPUTA = estadosNaoTerminais(DISPUTA_TRANSITIONS)
 
 export class DisputaService {
   async abrirDisputa(data: AbrirDisputaInput) {
@@ -103,13 +115,23 @@ export class DisputaService {
     if (!disputa) throw new Error('Disputa não encontrada')
     assertValidTransition('Disputa', DISPUTA_TRANSITIONS, disputa.status, data.status)
 
+    /*
+     * `ESCALADA` é um dos status aceitos aqui, mas escalar não é resolver:
+     * a disputa continua de pé e o `saqueService` continua contando esse
+     * estado como bloqueante. Zerar `saldoBloqueado` em toda saída fazia com
+     * que escalar liberasse o dinheiro — a soma passava a ser zero mesmo com
+     * a linha ainda casando o filtro. O bloqueio só cai quando a disputa
+     * realmente termina.
+     */
+    const terminou = !AINDA_EM_DISPUTA.includes(data.status)
+
     return prisma.disputa.update({
       where: { id },
       data: {
         status: data.status,
         resolucao: data.resolucao,
-        resolvidaEm: new Date(),
-        saldoBloqueado: 0, // libera o bloqueio ao resolver
+        resolvidaEm: terminou ? new Date() : null,
+        ...(terminou ? { saldoBloqueado: 0 } : {}),
       },
       include: {
         abertaPor: { select: { id: true, nome: true, email: true } },

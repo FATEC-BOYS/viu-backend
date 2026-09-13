@@ -212,3 +212,100 @@ describe('janela entre abrir disputa e solicitar saque', () => {
     )
   })
 })
+
+describe('escalar não é resolver — o bloqueio tem que sobreviver', () => {
+  /**
+   * `resolverDisputa` aceita três status finais, e um deles é `ESCALADA`.
+   * Mas escalada é disputa que continua de pé: o `saqueService` conta esse
+   * estado entre os bloqueantes justamente porque ninguém decidiu nada ainda.
+   *
+   * O código zerava `saldoBloqueado` em toda saída. O filtro do saldo continuava
+   * casando a linha, só que somando zero — então escalar a disputa liberava o
+   * dinheiro que a disputa existia para segurar. Contra mock isso não aparece:
+   * é a soma de verdade, no banco, que denuncia.
+   */
+  it('escalar mantém o dinheiro travado', async () => {
+    const fatura = await faturaPaga(100_00)
+    const disputa = await disputas.abrirDisputa({
+      tipo: 'CALOTE',
+      descricao: 'cliente diz que não recebeu o arquivo final',
+      abertaPorId: CLIENTE,
+      projetoId: PROJETO,
+      faturaId: fatura.id,
+    })
+
+    await disputas.resolverDisputa(disputa.id, {
+      status: 'ESCALADA',
+      resolucao: 'sem acordo entre as partes, subindo para análise',
+    })
+
+    const { saldo, saldoBloqueado } = await saques.getSaldoDisponivel(DESIGNER)
+    expect(saldoBloqueado).toBe(100_00)
+    expect(saldo).toBe(0)
+
+    await expect(saques.solicitarSaque(DESIGNER, chavePixId, 100_00)).rejects.toThrow(
+      'Saldo insuficiente',
+    )
+  })
+
+  it('escalada não ganha data de resolução — ela não foi resolvida', async () => {
+    const fatura = await faturaPaga(100_00)
+    const disputa = await disputas.abrirDisputa({
+      tipo: 'OUTRO',
+      descricao: 'divergência sobre o escopo entregue',
+      abertaPorId: CLIENTE,
+      projetoId: PROJETO,
+      faturaId: fatura.id,
+    })
+
+    const escalada = await disputas.resolverDisputa(disputa.id, {
+      status: 'ESCALADA',
+      resolucao: 'subindo',
+    })
+
+    expect(escalada.resolvidaEm).toBeNull()
+  })
+
+  it('resolver de verdade libera o dinheiro — o caso que precisa continuar funcionando', async () => {
+    const fatura = await faturaPaga(100_00)
+    const disputa = await disputas.abrirDisputa({
+      tipo: 'CALOTE',
+      descricao: 'cliente contesta a entrega',
+      abertaPorId: CLIENTE,
+      projetoId: PROJETO,
+      faturaId: fatura.id,
+    })
+
+    await disputas.resolverDisputa(disputa.id, {
+      status: 'RESOLVIDA_DESIGNER',
+      resolucao: 'entrega comprovada pelo histórico de versões',
+    })
+
+    const { saldo, saldoBloqueado } = await saques.getSaldoDisponivel(DESIGNER)
+    expect(saldoBloqueado).toBe(0)
+    expect(saldo).toBe(100_00)
+  })
+
+  it('ainda dá para resolver depois de escalar', async () => {
+    // Se escalar deixasse a disputa sem saída, o dinheiro ficaria preso para
+    // sempre — trocaríamos um vazamento por um bloqueio eterno.
+    const fatura = await faturaPaga(100_00)
+    const disputa = await disputas.abrirDisputa({
+      tipo: 'FRAUDE',
+      descricao: 'suspeita de uso indevido do material',
+      abertaPorId: CLIENTE,
+      projetoId: PROJETO,
+      faturaId: fatura.id,
+    })
+
+    await disputas.resolverDisputa(disputa.id, { status: 'ESCALADA', resolucao: 'subindo' })
+    const resolvida = await disputas.resolverDisputa(disputa.id, {
+      status: 'RESOLVIDA_DESIGNER',
+      resolucao: 'análise concluída em favor do designer',
+    })
+
+    expect(resolvida.resolvidaEm).not.toBeNull()
+    const { saldo } = await saques.getSaldoDisponivel(DESIGNER)
+    expect(saldo).toBe(100_00)
+  })
+})
