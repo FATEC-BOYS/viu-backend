@@ -185,6 +185,25 @@ model Feedback {
   id       String  @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
   conteudo String
   tipo     String  @default("TEXTO")
+
+  /// Sobre qual versão da arte este comentário foi feito.
+  ///
+  /// Número e não FK, pelo mesmo motivo de `Aprovacao.versaoNumero`:
+  /// `createArte` não gera linha em `ArteVersao`, então a v1 de toda arte
+  /// ficaria com FK nula — justamente o caso mais comum.
+  ///
+  /// Existe porque a cláusula 3.2 do anexo define rodada como "o conjunto de
+  /// feedbacks do Cliente sobre uma mesma versão". Sem este campo isso só se
+  /// obtinha por dedução de timestamp, que erra exatamente na hora que vira
+  /// discussão: o comentário escrito enquanto o designer sobe a versão nova é
+  /// atribuído à errada.
+  ///
+  /// Anulável, e o legado fica nulo de propósito. Preencher linha antiga por
+  /// heurística produziria um palpite indistinguível de um registro — e este
+  /// dado existe para servir de prova numa disputa. A tela mostra "sem versão
+  /// registrada" em vez de um número plausível.
+  versaoNumero Int?
+
   arquivo  String?
   posicaoX Float?
   posicaoY Float?
@@ -215,6 +234,7 @@ model Feedback {
   @@index([tipo])
   @@index([parentId])
   @@index([criadoEm])
+  @@index([arteId, versaoNumero])
   @@map("feedbacks")
 }
 

@@ -107,7 +107,14 @@ export class FeedbackService {
     const [arte, autor] = await Promise.all([
       prisma.arte.findUnique({
         where: { id: data.arteId },
-        select: { id: true, nome: true, autorId: true, projeto: { select: { designerId: true, clienteId: true } } },
+        select: {
+          id: true,
+          nome: true,
+          autorId: true,
+          // Para carimbar `versaoNumero` — ver o comentário no `create`.
+          versao: true,
+          projeto: { select: { designerId: true, clienteId: true } },
+        },
       }),
       prisma.usuario.findUnique({ where: { id: data.autorId }, select: { id: true, nome: true } }),
     ])
@@ -131,8 +138,20 @@ export class FeedbackService {
 
     // Com autor incluído: quem cria (inclusive resposta em thread) recebe o
     // mesmo formato que a listagem devolve, e a UI pode inserir direto.
+    /*
+     * A versão é carimbada pelo servidor, a partir da arte, e não aceita do
+     * corpo da requisição.
+     *
+     * Este campo alimenta a contagem de rodadas da cláusula 3.2, que é
+     * argumento em disputa — e um número que a outra parte escolhe não serve
+     * de prova contra ela. O que vale é o que a arte era quando o comentário
+     * chegou.
+     *
+     * O carimbo vem DEPOIS do spread justamente por isso: um `versaoNumero`
+     * que viesse no corpo da requisição seria sobrescrito aqui.
+     */
     const feedback = await prisma.feedback.create({
-      data,
+      data: { ...data, versaoNumero: arte.versao },
       include: { autor: { select: { id: true, nome: true, avatar: true } } },
     })
 
@@ -195,6 +214,9 @@ export class FeedbackService {
         posicaoY: posicaoY ?? null,
         arteId,
         autorId,
+        // Mesmo carimbo do fluxo de texto: comentário em áudio conta rodada
+        // igual, e sem isto a contagem ficaria pela metade.
+        versaoNumero: arte.versao,
       },
       include: {
         autor: { select: { id: true, nome: true, avatar: true } },
