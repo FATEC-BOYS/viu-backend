@@ -156,8 +156,24 @@ export class UsuarioService {
       throw new Error('Email já está em uso')
     }
     const senhaHash = await bcrypt.hash(userData.senha, 10)
+    /*
+     * Campos listados, não `{ ...userData }`.
+     *
+     * O spread mandava para o Prisma tudo que viesse no corpo. Qualquer campo
+     * novo no schema de validação que não fosse coluna quebrava o cadastro
+     * inteiro — foi o que quase aconteceu quando `aceiteTermos` entrou —, e
+     * qualquer campo que POR ACASO fosse coluna entrava sem ninguém decidir:
+     * `ativo`, `tipo` privilegiado, `emailVerificado`. A lista explícita é a
+     * fronteira entre o que o formulário manda e o que o banco aceita.
+     */
     const usuario = await prisma.usuario.create({
-      data: { ...userData, senha: senhaHash },
+      data: {
+        email: userData.email,
+        senha: senhaHash,
+        nome: userData.nome,
+        telefone: userData.telefone,
+        tipo: userData.tipo,
+      },
       select: {
         id: true,
         email: true,

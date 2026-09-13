@@ -53,10 +53,10 @@ export function estadoDaLicenca(faturas: FaturaParaLicenca[]): Licenca {
   }
 
   /*
-   * Estorno devolve o dinheiro e derruba a premissa da 7.1. Não existe rota de
-   * estorno no produto, mas o webhook do Mercado Pago marca ESTORNADA em
-   * `refunded` e `charged_back` — então este caso chega sozinho, e cair no
-   * silêncio de NAO_FATURADO esconderia que o pagamento voltou.
+   * Estorno devolve o dinheiro e derruba a premissa da 7.1. Chega por dois
+   * caminhos: a arbitragem decidindo a favor do cliente (`estornoService`) e o
+   * webhook do Mercado Pago em `refunded` e `charged_back`. Cair no silêncio de
+   * NAO_FATURADO esconderia que o pagamento voltou.
    */
   if (faturas.some((f) => f.status === 'ESTORNADA')) {
     return { estado: 'ESTORNADO', quitadoEm: null }
@@ -78,4 +78,40 @@ export async function licencaDoProjeto(projetoId: string): Promise<Licenca> {
     select: { status: true, dataPagamento: true },
   })
   return estadoDaLicenca(faturas)
+}
+
+
+/**
+ * A licença como ela pode ser mostrada a QUALQUER PESSOA COM O LINK.
+ *
+ * O selo nasceu certo na intenção — fala da licença, não da dívida — e errado
+ * no alcance. No link público ele dizia "Quitado em 13/09/2026", "a licença
+ * começa com a quitação da fatura" e, pior, "o pagamento deste projeto foi
+ * estornado". Link é encaminhado: para o chefe do cliente, para o aprovador
+ * interno, para um fornecedor. Nenhum deles pediu para saber se houve briga de
+ * dinheiro entre designer e cliente, e `ESTORNADO` conta exatamente isso.
+ *
+ * Quem abre o link precisa de uma resposta só: dá para usar esta peça? As duas
+ * maneiras de não poder usar — ninguém pagou ainda, o pagamento voltou — são a
+ * mesma resposta para ele, e a diferença entre elas é assunto das partes.
+ *
+ * A redução acontece aqui e não na tela de propósito. Escondendo no componente,
+ * a data e o estorno continuariam viajando no JSON da rota pública, onde
+ * qualquer um lê — e a próxima tela que consumisse a mesma rota vazaria de
+ * novo.
+ */
+export function licencaPublica(licenca: Licenca): Licenca {
+  switch (licenca.estado) {
+    // Licenciado é licenciado; QUANDO foi quitado é transação, não licença.
+    case 'QUITADO':
+      return { estado: 'QUITADO', quitadoEm: null }
+
+    case 'EM_ABERTO':
+    case 'ESTORNADO':
+      return { estado: 'EM_ABERTO', quitadoEm: null }
+
+    case 'NAO_FATURADO':
+    default:
+      return { estado: 'NAO_FATURADO', quitadoEm: null }
+  }
 }

@@ -48,6 +48,17 @@ export const CreateUsuarioRequestSchema = z.object({
   tipo: z.enum(['DESIGNER', 'CLIENTE'], {
     required_error: 'Tipo deve ser DESIGNER ou CLIENTE'
   }),
+  /*
+   * O aceite dos termos da plataforma. Opcional AQUI e obrigatório na porta
+   * pública, por `exigirAceiteDosTermos`.
+   *
+   * O motivo de não ser obrigatório no schema: ele também valida `POST
+   * /usuarios`, que é o designer cadastrando o cliente dele pelo wizard. O
+   * cliente não está na frente da tela para aceitar nada, e exigir aqui
+   * faria o designer aceitar os termos EM NOME DE OUTRA PESSOA — que é pior
+   * do que não ter aceite, porque pareceria um.
+   */
+  aceiteTermos: z.boolean().optional(),
 });
 
 export const UpdateUsuarioRequestSchema = z.object({

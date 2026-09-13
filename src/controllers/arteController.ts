@@ -7,6 +7,7 @@ import { novoId } from '../utils/ids.js'
 import prisma from '../database/client.js'
 import { erroInterno } from '../utils/erroInterno.js'
 import { licencaDoProjeto } from '../services/licencaService.js'
+import { rodadasDaArte } from '../services/rodadasService.js'
 
 const arteService = new ArteService()
 const notificacaoService = new NotificacaoService()
@@ -108,8 +109,25 @@ export async function getArteById(request: FastifyRequest, reply: FastifyReply):
      */
     const licenca = await licencaDoProjeto(arte.projetoId)
 
+    /*
+     * As rodadas usadas nesta peça — cláusula 3.2. Vai junto da arte porque é
+     * na peça que a conta se resolve: "2 de 3" é sobre esta entrega, não sobre
+     * o projeto somado (3.1).
+     *
+     * Não sai no link público de propósito: quantas revisões o cliente pediu é
+     * assunto das partes, pelo mesmo motivo que a data de quitação saiu de lá.
+     */
+    const rodadas = await rodadasDaArte(arte.id)
+
     reply.send({
-      data: { ...arte, arquivo_url, previewUrl: arquivo_url, licenca, feedbacks: feedbacksComUrl },
+      data: {
+        ...arte,
+        arquivo_url,
+        previewUrl: arquivo_url,
+        licenca,
+        rodadas,
+        feedbacks: feedbacksComUrl,
+      },
       success: true,
     })
   } catch (erro) {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { estadoDaLicenca } from '../../src/services/licencaService.js'
+import { estadoDaLicenca, licencaPublica } from '../../src/services/licencaService.js'
 
 /**
  * A cláusula 7.1 do anexo — "os direitos permanecem do Designer até a quitação
@@ -108,5 +108,54 @@ describe('formatos que o banco devolve', () => {
     expect(estadoDaLicenca([{ status: 'INVENTADO', dataPagamento: null }]).estado).toBe(
       'NAO_FATURADO',
     )
+  })
+})
+
+/**
+ * O selo nasceu certo na intenção e errado no alcance: no link público ele
+ * contava a data da quitação e, pior, que o pagamento tinha sido estornado.
+ *
+ * Link é encaminhado — para o chefe do cliente, para o aprovador interno, para
+ * um fornecedor. Nenhum deles pediu para saber se houve briga de dinheiro.
+ */
+describe('a licença que pode sair no link público', () => {
+  it('não conta QUANDO foi quitado', () => {
+    const dentro = estadoDaLicenca([PAGA()])
+    expect(dentro.quitadoEm).not.toBeNull()
+    expect(licencaPublica(dentro).quitadoEm).toBeNull()
+  })
+
+  it('licenciado continua licenciado — a resposta útil não se perde', () => {
+    expect(licencaPublica(estadoDaLicenca([PAGA()])).estado).toBe('QUITADO')
+  })
+
+  it('estorno não vaza: vira "não licenciado", igual a não ter pago', () => {
+    // As duas maneiras de não poder usar são a mesma resposta para quem abriu o
+    // link; a diferença entre elas é assunto das partes.
+    expect(licencaPublica(estadoDaLicenca([ESTORNADA])).estado).toBe('EM_ABERTO')
+  })
+
+  it('nenhum estado público revela estorno', () => {
+    const todos = [
+      estadoDaLicenca([PAGA()]),
+      estadoDaLicenca([PENDENTE]),
+      estadoDaLicenca([ESTORNADA]),
+      estadoDaLicenca([]),
+    ]
+    for (const l of todos) {
+      expect(licencaPublica(l).estado).not.toBe('ESTORNADO')
+    }
+  })
+
+  it('sem fatura segue sem selo', () => {
+    // Rotular peça não faturada como "não licenciada" seria editorializar.
+    expect(licencaPublica(estadoDaLicenca([])).estado).toBe('NAO_FATURADO')
+  })
+
+  it('nenhuma data sobrevive à redução, em nenhum estado', () => {
+    const todos = [PAGA(), PENDENTE, ESTORNADA].map((f) => estadoDaLicenca([f]))
+    for (const l of todos) {
+      expect(licencaPublica(l).quitadoEm).toBeNull()
+    }
   })
 })

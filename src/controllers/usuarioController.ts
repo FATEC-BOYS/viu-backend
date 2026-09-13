@@ -1,5 +1,6 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { UsuarioService, ListUsuariosParams } from '../services/usuarioService.js'
+import { registrarAceiteTermos } from '../services/termosPlataformaService.js'
 import { sendVerificationEmail } from '../services/emailVerificationService.js'
 import { uploadFile } from '../utils/storage.js'
 import { auditLogService } from '../services/auditLogService.js'
@@ -47,6 +48,28 @@ export async function getUsuarioById(request: FastifyRequest, reply: FastifyRepl
 export async function createUsuario(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
     const usuario = await usuarioService.createUsuario(request.body)
+
+    /*
+     * O aceite dos termos da plataforma, gravado com o texto que estava no ar.
+     *
+     * Aqui e não na criação do projeto: os termos regem a relação com o VIU —
+     * conta, ferramenta, dados —, então o momento é o cadastro. O que havia
+     * antes gravava um aceite no `POST /projetos` apontando para um
+     * `termoVersao: "1.0"` que não existia, no momento errado e sem ninguém
+     * ler de volta.
+     *
+     * Não é fire-and-forget: sem o aceite gravado a conta nasce sem a prova, e
+     * o cadastro público já foi recusado antes daqui se a pessoa não marcou.
+     * Perder a linha em silêncio devolveria o mesmo buraco por outro caminho.
+     */
+    const { aceiteTermos } = (request.body ?? {}) as { aceiteTermos?: boolean }
+    if (aceiteTermos === true) {
+      await registrarAceiteTermos({
+        usuarioId: usuario.id,
+        ip: request.ip ?? request.headers['x-forwarded-for']?.toString().split(',')[0]?.trim(),
+        userAgent: request.headers['user-agent'],
+      })
+    }
 
     // Fire-and-forget — não bloqueia o registro se o email falhar
     sendVerificationEmail(usuario.id, usuario.email).catch(() => {})

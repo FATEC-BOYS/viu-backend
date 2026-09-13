@@ -3,7 +3,7 @@ import { mpPayment } from './mercadoPagoService.js'
 import { formatCurrency, formatDate } from '../utils/formatters.js'
 import { assertValidTransition, FATURA_TRANSITIONS } from '../utils/stateMachine.js'
 import { notificacaoService } from './notificacaoService.js'
-import { pendenciaDeContrato } from './contratoProjetoService.js'
+import { pendenciaDeContrato, ContratoPendenteError } from './contratoProjetoService.js'
 
 /**
  * Último recurso, quando não há NENHUM plano gratuito de designer cadastrado.
@@ -163,7 +163,7 @@ export class FaturaService {
      * mesmo raciocínio de `EXIGIR_EMAIL_VERIFICADO`.
      */
     const avisoContrato = await pendenciaDeContrato(projetoId)
-    if (avisoContrato?.bloqueia) throw new Error(avisoContrato.mensagem)
+    if (avisoContrato?.bloqueia) throw new ContratoPendenteError(avisoContrato.mensagem)
 
     const taxaPercentual = await taxaDoDesigner(projeto.designerId)
     const taxaValor = Math.round(projeto.orcamento * taxaPercentual)

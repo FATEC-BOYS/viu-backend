@@ -1,13 +1,11 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { ProjetoService, ListProjetosParams } from '../services/projetoService.js'
 import { evaluateBriefing } from '../services/evalForgeService.js'
-import { AceiteService } from '../services/aceiteService.js'
 import { isMembroEquipe } from '../services/equipeService.js'
 import { criarConvite } from '../services/conviteService.js'
 import { erroInterno } from '../utils/erroInterno.js'
 
 const projetoService = new ProjetoService()
-const aceiteService = new AceiteService()
 
 /**
  * Valida que o usuário pertence à equipe antes de vinculá-la ao projeto.
@@ -135,17 +133,21 @@ export async function createProjeto(request: FastifyRequest, reply: FastifyReply
       )
     }
 
-    // Record electronic contract acceptance (Lei 14.063/20)
-    if (body.aceiteTermos === true && usuario?.id) {
-      const ip = request.ip ?? request.headers['x-forwarded-for']?.toString().split(',')[0]?.trim()
-      const userAgent = request.headers['user-agent']
-      aceiteService.registrarAceite({
-        usuarioId: usuario.id,
-        projetoId: projeto.id,
-        ip,
-        userAgent,
-      }).catch(() => {})
-    }
+    /*
+     * Aqui havia um aceite gravado na criação do projeto, e ele saiu.
+     *
+     * Ele guardava `termoVersao: "1.0"` apontando para um documento que não
+     * existia em lugar nenhum: provava o clique, não o que a pessoa leu. E no
+     * momento errado — o que rege escopo, rodadas e propriedade intelectual é
+     * o anexo do projeto, que nem existe quando o projeto é criado, e o que
+     * rege a relação com o VIU são os termos da plataforma, aceitos no
+     * cadastro. Nenhuma tela lia a linha de volta.
+     *
+     * Os dois documentos passaram a ter lugar próprio: `contratoProjetoService`
+     * para o anexo, com texto congelado e hash, e `termosPlataformaService`
+     * para os termos, aceitos em `POST /auth/register`. As linhas antigas
+     * ficam onde estão, valendo pelo que sempre significaram.
+     */
 
     reply.status(201).send({ message: 'Projeto criado com sucesso', data: projeto, success: true })
   } catch (error: any) {
