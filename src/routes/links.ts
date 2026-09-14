@@ -10,6 +10,7 @@ import {
   createAudioFeedbackViaLink,
 } from '../controllers/linkController.js'
 import { authenticate } from '../middleware/authMiddleware.js'
+import { chaveDoComentario } from '../utils/rateLimitComentario.js'
 import { validateAudioUpload } from '../middleware/fileUploadMiddleware.js'
 import { requireEmailVerificado } from '../middleware/emailVerificadoMiddleware.js'
 
@@ -32,10 +33,24 @@ export async function linksRoutes(fastify: FastifyInstance) {
     config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
   }, getPreviewByToken)
 
-  fastify.post('/links/:token/feedbacks', { preHandler: [authenticate] }, createFeedbackViaLink)
+  /*
+   * Esta é a porta pública do produto: o link é encaminhável e qualquer um que
+   * o tenha chega até aqui. Escrever, porém, nunca foi liberado pelo token —
+   * `authenticate` vem antes, e o autor sai de `usuario.id`. Faltava o limite
+   * próprio: sem ele valia só o global (compartilhado com toda a API), que é
+   * largo demais para a superfície de escrita mais exposta que temos.
+   *
+   * 20/minuto é o que já vale em `POST /feedbacks`, e de propósito: é a mesma
+   * pessoa escrevendo na mesma arte, mudando só por qual porta entrou. Cobre
+   * quem marca vários pontos seguidos numa peça e não cobre script.
+   */
+  fastify.post('/links/:token/feedbacks', {
+    config: { rateLimit: { max: 20, timeWindow: '1 minute', keyGenerator: chaveDoComentario } },
+    preHandler: [authenticate],
+  }, createFeedbackViaLink)
   fastify.post('/links/:token/feedbacks/audio', {
     // 10 transcrições por hora — chamada cara (OpenAI Whisper)
-    config: { rateLimit: { max: 10, timeWindow: '1 hour' } },
+    config: { rateLimit: { max: 10, timeWindow: '1 hour', keyGenerator: chaveDoComentario } },
     preHandler: [authenticate, validateAudioUpload],
   }, createAudioFeedbackViaLink)
 }
