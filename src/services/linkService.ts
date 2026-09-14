@@ -3,6 +3,33 @@ import { signPath } from '../utils/storage.js'
 import crypto from 'crypto'
 import { licencaDoProjeto, licencaPublica } from './licencaService.js'
 
+/**
+ * Por que este link não abre — em código, não em prosa.
+ *
+ * O controller mapeava a resposta casando pedaços da MENSAGEM em português
+ * ("expirado", "revogado", "Limite"). Texto de erro decide comportamento é o
+ * mesmo defeito que o portão do contrato teve hoje cedo: mudar uma palavra
+ * mudava o código HTTP. Aqui o motivo é o campo.
+ */
+export type MotivoLinkIndisponivel =
+  | 'NAO_ENCONTRADO'
+  | 'REVOGADO'
+  | 'EXPIRADO'
+  | 'LIMITE_ATINGIDO'
+  | 'TIPO_NAO_SUPORTADO'
+
+export class LinkIndisponivelError extends Error {
+  constructor(
+    readonly motivo: MotivoLinkIndisponivel,
+    mensagem: string,
+    /** Quando expirou — só existe em EXPIRADO, e é o que a tela mostra. */
+    readonly expiraEm: Date | null = null,
+  ) {
+    super(mensagem)
+    this.name = 'LinkIndisponivelError'
+  }
+}
+
 export class LinkService {
   private generateToken(length = 24): string {
     return crypto.randomBytes(length).toString('hex')
@@ -58,17 +85,23 @@ export class LinkService {
     tipo: string
     arteId: string | null
   }) {
-    if (link.revogado) throw new Error('Link revogado')
-    if (link.expiraEm && new Date(link.expiraEm) < new Date()) throw new Error('Link expirado')
-    if (link.limiteTentativas !== null && link.acessos >= link.limiteTentativas) {
-      throw new Error('Limite de acessos atingido')
+    if (link.revogado) {
+      throw new LinkIndisponivelError('REVOGADO', 'Link revogado')
     }
-    if (link.tipo !== 'ARTE' || !link.arteId) throw new Error('Tipo de link não suportado')
+    if (link.expiraEm && new Date(link.expiraEm) < new Date()) {
+      throw new LinkIndisponivelError('EXPIRADO', 'Link expirado', new Date(link.expiraEm))
+    }
+    if (link.limiteTentativas !== null && link.acessos >= link.limiteTentativas) {
+      throw new LinkIndisponivelError('LIMITE_ATINGIDO', 'Limite de acessos atingido')
+    }
+    if (link.tipo !== 'ARTE' || !link.arteId) {
+      throw new LinkIndisponivelError('TIPO_NAO_SUPORTADO', 'Tipo de link não suportado')
+    }
   }
 
   async resolveArteIdFromToken(token: string): Promise<string> {
     const link = await prisma.linkCompartilhado.findUnique({ where: { token } })
-    if (!link) throw new Error('Link inválido')
+    if (!link) throw new LinkIndisponivelError('NAO_ENCONTRADO', 'Link inválido')
     this.assertLinkValid(link)
     if (link.somenteLeitura) throw new Error('somenteLeitura')
     return link.arteId!
@@ -126,9 +159,9 @@ export class LinkService {
 
   async getPreviewByToken(token: string) {
     const link = await prisma.linkCompartilhado.findUnique({ where: { token } })
-    if (!link) throw new Error('Link inválido')
+    if (!link) throw new LinkIndisponivelError('NAO_ENCONTRADO', 'Link inválido')
 
-    // All validity checks unified — caller always gets a generic 404
+    // O motivo viaja até a tela. Ver `LinkIndisponivelError`.
     this.assertLinkValid(link)
 
     // Increment access counter (fire-and-forget — counter failure never blocks the response)

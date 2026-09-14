@@ -1,5 +1,5 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
-import { LinkService } from '../services/linkService.js'
+import { LinkIndisponivelError, LinkService } from '../services/linkService.js'
 import { FeedbackService } from '../services/feedbackService.js'
 import { env } from '../config/env.js'
 import { erroInterno } from '../utils/erroInterno.js'
@@ -251,15 +251,31 @@ export async function getPreviewByToken(
     const preview = await linkService.getPreviewByToken(token)
     reply.send({ data: preview, success: true })
   } catch (error: any) {
-    // Always 404 — never reveal whether token exists but is revoked/expired
-    if (
-      error.message.includes('inválido') ||
-      error.message.includes('expirado') ||
-      error.message.includes('revogado') ||
-      error.message.includes('Limite') ||
-      error.message.includes('não encontrad')
-    ) {
-      reply.status(404).send({ message: 'Link não encontrado', success: false })
+    /*
+     * O MOTIVO vai junto — e isto derruba de propósito uma decisão anterior,
+     * que era responder 404 genérico "para nunca revelar se o token existe mas
+     * foi revogado/expirado".
+     *
+     * A preocupação não se sustenta neste formato de token. São 192 bits: não
+     * dá para pescar um. Quem segura um token RECEBEU de alguém, então o
+     * público da revelação é exatamente quem o designer — ou quem encaminhou —
+     * quis que tivesse o link. E "este link expirou" é menos informação do que
+     * um link que funciona entrega.
+     *
+     * Do outro lado da balança estava o cliente abrindo no celular, vendo
+     * página em branco e voltando para o WhatsApp dizendo "não abriu" — sem o
+     * designer saber se foi link errado, vencido ou revogado.
+     *
+     * 410 para o que existiu e acabou; 404 só para o que nunca existiu.
+     */
+    if (error instanceof LinkIndisponivelError) {
+      const status = error.motivo === 'NAO_ENCONTRADO' ? 404 : 410
+      reply.status(status).send({
+        message: error.message,
+        motivo: error.motivo,
+        ...(error.expiraEm ? { expiraEm: error.expiraEm.toISOString() } : {}),
+        success: false,
+      })
       return
     }
     erroInterno(request, reply, error, 'Erro ao buscar preview')
