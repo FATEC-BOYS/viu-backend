@@ -14,6 +14,28 @@ export interface ListAprovacoesParams {
   projetoIds?: string[]
 }
 
+/**
+ * Recusar sem dizer o que mudar não é uma decisão — é silêncio com carimbo.
+ *
+ * O produto inteiro existe para encurtar a volta entre "não gostei" e a
+ * próxima versão. Uma linha REJEITADO sem `comentario` devolve ao designer
+ * exatamente o que ele já tinha antes de pedir a aprovação: nada acionável.
+ *
+ * A regra mora aqui, e não no formulário, porque a tela não é o único caminho
+ * até esta função — `PUT /aprovacoes/:id` aceita chamada direta.
+ */
+export class RecusaSemMotivoError extends Error {
+  readonly codigo = 'RECUSA_SEM_MOTIVO'
+  constructor() {
+    super('Diga o que precisa mudar para recusar esta versão.')
+    this.name = 'RecusaSemMotivoError'
+  }
+}
+
+function motivoAusente(comentario?: string | null): boolean {
+  return !comentario || comentario.trim().length === 0
+}
+
 export class AprovacaoService {
   async listAprovacoes({
     page = 1,
@@ -98,6 +120,10 @@ export class AprovacaoService {
     // Designer cannot approve their own work
     if (arte.autorId === data.aprovadorId) {
       throw new Error('O autor não pode aprovar a própria arte')
+    }
+
+    if (data.status === 'REJEITADO' && motivoAusente(data.comentario)) {
+      throw new RecusaSemMotivoError()
     }
 
     const aprovacao = await prisma.aprovacao.create({
@@ -193,6 +219,14 @@ export class AprovacaoService {
     const allowedUpdate: Record<string, any> = {}
     if (updateData.status !== undefined) {
       assertValidTransition('Aprovação', APROVACAO_TRANSITIONS, existing.status, updateData.status)
+      // `?? existing.comentario`: quem já escreveu o motivo antes de decidir
+      // não precisa reescrevê-lo junto com o status.
+      if (
+        updateData.status === 'REJEITADO' &&
+        motivoAusente(updateData.comentario ?? existing.comentario)
+      ) {
+        throw new RecusaSemMotivoError()
+      }
       allowedUpdate.status = updateData.status
       // Carimba a saída de PENDENTE. É o único momento em que a decisão
       // acontece — a máquina de estados não permite voltar — e sem isto não há

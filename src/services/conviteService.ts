@@ -172,9 +172,27 @@ export class ConviteService {
       data: { status: 'EXPIRADO', respondidoEm: new Date() },
     })
 
+    /*
+     * `select` explícito, e não `include`.
+     *
+     * `include` devolve todos os campos escalares do convite — inclusive
+     * `tokenHash`, que ia inteiro para o navegador. O hash existe justamente
+     * para o token cru NÃO ser guardado: mandá-lo de volta desfaz metade
+     * disso, dá um alvo offline e não serve a nenhuma tela (o tipo que a
+     * interface lê, `ConviteProjeto`, nem tem esse campo).
+     *
+     * O mesmo padrão já valia em `listarConvitesDoProjeto`, logo abaixo;
+     * estas duas consultas é que tinham ficado para trás.
+     */
     return prisma.conviteProjeto.findMany({
       where: { convidadoId: usuarioId, status: 'PENDENTE' },
-      include: {
+      select: {
+        id: true,
+        status: true,
+        expiraEm: true,
+        criadoEm: true,
+        respondidoEm: true,
+        projetoId: true,
         projeto: { select: { id: true, nome: true, descricao: true } },
         convidadoPor: { select: { id: true, nome: true, email: true, tipo: true } },
       },
@@ -184,9 +202,17 @@ export class ConviteService {
 
   async getConviteByToken(rawToken: string) {
     const tokenHash = hashToken(rawToken)
+    // Rota PÚBLICA (`GET /convites/:token`) — quem abre o link do e-mail ainda
+    // não tem sessão. Devolver `tokenHash` aqui era o pior dos dois casos.
     return prisma.conviteProjeto.findUnique({
       where: { tokenHash },
-      include: {
+      select: {
+        id: true,
+        status: true,
+        expiraEm: true,
+        criadoEm: true,
+        respondidoEm: true,
+        projetoId: true,
         projeto: { select: { id: true, nome: true, descricao: true } },
         convidadoPor: { select: { id: true, nome: true, tipo: true } },
         convidado: { select: { id: true, nome: true, tipo: true } },

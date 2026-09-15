@@ -75,6 +75,71 @@ describe('ProjetoService.createProjeto', () => {
     const result = await service.createProjeto({ designerId: '1', clienteId: '2', nome: 'P' })
     expect(result).toBeDefined()
   })
+
+  /**
+   * Ser cliente é posição no projeto, não tipo de conta.
+   *
+   * Enquanto a consulta do cliente exigia `tipo: 'CLIENTE'`, um designer nunca
+   * podia contratar outro designer — e a saída de quem precisava era abrir uma
+   * segunda conta com outro e-mail. A mesma pessoa, duas contas, a fila dela
+   * partida ao meio.
+   */
+  describe('quem pode ocupar a posição de cliente', () => {
+    it('não filtra o cliente por tipo de conta', async () => {
+      vi.mocked(prisma.usuario.findUnique)
+        .mockResolvedValueOnce({ id: 'd1' } as any)
+        .mockResolvedValueOnce({ id: 'd2' } as any)
+      vi.mocked(prisma.projeto.create).mockResolvedValue({
+        id: 'p1', orcamento: null, prazo: null, criadoEm: new Date(),
+      } as any)
+
+      // Designer contratando outro designer: o cliente aqui é conta DESIGNER.
+      await service.createProjeto({ designerId: 'd1', clienteId: 'd2', nome: 'Marca do estúdio' })
+
+      const [, chamadaDoCliente] = vi.mocked(prisma.usuario.findUnique).mock.calls
+      expect((chamadaDoCliente[0] as any).where).toEqual({ id: 'd2', ativo: true })
+      expect((chamadaDoCliente[0] as any).where.tipo).toBeUndefined()
+    })
+
+    it('continua exigindo que o designer seja designer', async () => {
+      vi.mocked(prisma.usuario.findUnique)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ id: 'c1' } as any)
+
+      await expect(service.createProjeto({ designerId: 'x', clienteId: 'c1' }))
+        .rejects.toThrow('Designer não encontrado ou inativo')
+
+      const [chamadaDoDesigner] = vi.mocked(prisma.usuario.findUnique).mock.calls
+      expect((chamadaDoDesigner[0] as any).where.tipo).toBe('DESIGNER')
+    })
+
+    it('conta inativa (ou excluída) não ocupa a posição', async () => {
+      // `deactivateUsuario` desliga e carimba `excluidoEm` na mesma transação,
+      // então `ativo: true` já cobre os dois casos.
+      vi.mocked(prisma.usuario.findUnique)
+        .mockResolvedValueOnce({ id: 'd1' } as any)
+        .mockResolvedValueOnce(null)
+
+      await expect(service.createProjeto({ designerId: 'd1', clienteId: 'sumido' }))
+        .rejects.toThrow('Cliente não encontrado ou inativo')
+
+      const [, chamadaDoCliente] = vi.mocked(prisma.usuario.findUnique).mock.calls
+      expect((chamadaDoCliente[0] as any).where.ativo).toBe(true)
+    })
+
+    /*
+     * Guarda NOVA: antes ela era acidental. Exigir tipos opostos nos dois lados
+     * tornava impossível os dois ids serem o mesmo; soltando o tipo do cliente,
+     * o caso passa a ser alcançável.
+     */
+    it('ninguém é cliente do próprio projeto', async () => {
+      await expect(service.createProjeto({ designerId: 'd1', clienteId: 'd1', nome: 'P' }))
+        .rejects.toMatchObject({ codigo: 'CLIENTE_INVALIDO' })
+
+      expect(prisma.usuario.findUnique).not.toHaveBeenCalled()
+      expect(prisma.projeto.create).not.toHaveBeenCalled()
+    })
+  })
 })
 
 describe('ProjetoService.updateProjeto', () => {

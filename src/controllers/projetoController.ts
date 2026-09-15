@@ -151,6 +151,10 @@ export async function createProjeto(request: FastifyRequest, reply: FastifyReply
 
     reply.status(201).send({ message: 'Projeto criado com sucesso', data: projeto, success: true })
   } catch (error: any) {
+    if (error?.codigo === 'CLIENTE_INVALIDO') {
+      reply.status(400).send({ message: error.message, codigo: error.codigo, success: false })
+      return
+    }
     if (error.message.includes('não encontrado') || error.message.includes('inativo')) {
       reply.status(400).send({ message: error.message, success: false })
       return

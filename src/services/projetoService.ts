@@ -35,6 +35,22 @@ export interface ListProjetosParams {
 /**
  * Serviço responsável por operações relacionadas a projetos.
  */
+/**
+ * O cliente escolhido não serve para este projeto — e o motivo não é "não
+ * existe".
+ *
+ * Erro com `codigo` em vez de frase: o controller mapeia status por
+ * `includes('não encontrado')`, e o dia em que alguém reescrever a mensagem
+ * o 400 vira 500 sem ninguém perceber. Já aconteceu aqui com o contrato.
+ */
+export class ClienteInvalidoError extends Error {
+  readonly codigo = 'CLIENTE_INVALIDO'
+  constructor(mensagem: string) {
+    super(mensagem)
+    this.name = 'ClienteInvalidoError'
+  }
+}
+
 export class ProjetoService {
   async listProjetos({
     page = 1,
@@ -200,13 +216,44 @@ export class ProjetoService {
    * @throws Error caso o designer ou o cliente não exista ou esteja inativo.
    */
   async createProjeto(projetoData: any) {
-    // Verificar se designer e cliente existem e estão ativos
+    /*
+     * Ninguém é cliente de si mesmo.
+     *
+     * Esta guarda é nova porque antes ela era acidental: exigir `tipo:
+     * 'DESIGNER'` de um lado e `tipo: 'CLIENTE'` do outro tornava impossível
+     * que os dois ids fossem o mesmo. Ao soltar o tipo do cliente, o caso
+     * passa a ser alcançável — e um projeto onde a pessoa se aprova sozinha
+     * quebra a única coisa que o VIU promete: duas partes, uma decidindo
+     * sobre o trabalho da outra.
+     */
+    if (projetoData.designerId === projetoData.clienteId) {
+      throw new ClienteInvalidoError('Você não pode ser o cliente do próprio projeto.')
+    }
+
     const [designer, cliente] = await Promise.all([
       prisma.usuario.findUnique({
         where: { id: projetoData.designerId, tipo: 'DESIGNER', ativo: true },
       }),
+      /*
+       * Sem `tipo: 'CLIENTE'`.
+       *
+       * Ser cliente é POSIÇÃO NESTE PROJETO, não tipo de conta. Enquanto a
+       * consulta exigia o tipo, um designer nunca podia contratar outro
+       * designer — e freelancer contrata freelancer o tempo todo. A conta
+       * carrega um `tipo` só, então "ser designer" bloqueava "ser cliente"
+       * para sempre, e a saída de quem precisava era abrir uma segunda conta
+       * com outro e-mail.
+       *
+       * O que fica exigido é o que importa de verdade: a conta existe e está
+       * ativa. `ativo: false` já cobre conta excluída — `deactivateUsuario`
+       * desliga e carimba `excluidoEm` na mesma transação.
+       *
+       * Isto não abre o projeto para qualquer um: quem é convidado recebe
+       * convite e o projeto nasce em RASCUNHO, virando EM_ANDAMENTO só quando
+       * a outra parte aceita.
+       */
       prisma.usuario.findUnique({
-        where: { id: projetoData.clienteId, tipo: 'CLIENTE', ativo: true },
+        where: { id: projetoData.clienteId, ativo: true },
       }),
     ])
 
