@@ -22,6 +22,7 @@ import {
   restringirCriacaoACliente,
 } from '../middleware/usuarioMiddleware.js'
 import { authenticate } from '../middleware/authMiddleware.js'
+import { recusarCadastroHandler } from '../controllers/recusaCadastroController.js'
 import { requireOwnership, requireRole } from '../middleware/authorizationMiddleware.js'
 import { validatePagination, validateCuidParam } from '../middleware/validationMiddleware.js'
 import {
@@ -71,6 +72,17 @@ export async function usuariosRoutes(fastify: FastifyInstance) {
   fastify.post('/auth/register', {
     preHandler: [limitarRegistroPublico, verificarCaptchaDoCadastro, validateCreateUsuario, exigirAceiteDosTermos],
   }, createUsuario)
+
+  /*
+   * Pública: quem foi cadastrado sem pedir não tem senha, e exigir conta para
+   * poder sair seria exigir que a pessoa aceite o cadastro para recusá-lo.
+   * Quem autentica é o token do e-mail. Limite apertado porque o token é
+   * sorteado de 32 bytes — ninguém acerta por tentativa, e o teto só barra
+   * quem tenta.
+   */
+  fastify.post('/conta/recusar-cadastro', {
+    config: { rateLimit: { max: 10, timeWindow: '15 minutes' } },
+  }, recusarCadastroHandler)
 
   fastify.post('/auth/login', {
     // Teto por IP a cada 15 min — bloqueia brute-force sem prejudicar usuário

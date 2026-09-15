@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import { Resend } from 'resend'
 import { prisma } from '../database/client.js'
 import { env } from '../config/env.js'
+import { criarTokenDeRecusa } from './recusaCadastroService.js'
 
 const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null
 
@@ -75,9 +76,18 @@ export async function sendAvisoDeContaCriadaPorTerceiro(
   const link = `${env.FRONTEND_URL}/verificar-email?token=${rawToken}`
   const definirSenha = `${env.FRONTEND_URL}/recuperar?email=${encodeURIComponent(email)}`
 
+  /*
+   * O "não fui eu" é botão, não pedido de resposta.
+   *
+   * Caixa de entrada de suporte não escala e não é resposta de LGPD: o direito
+   * da pessoa não pode depender de alguém do outro lado ler e apagar à mão.
+   */
+  const tokenDeRecusa = await criarTokenDeRecusa(usuarioId)
+  const naoFuiEu = `${env.FRONTEND_URL}/recusar-cadastro?token=${tokenDeRecusa}`
+
   if (!resend) {
     console.info(
-      `[CONTA CRIADA POR TERCEIRO] ${quemAdicionou.nome} cadastrou ${email} — link: ${link}`,
+      `[CONTA CRIADA POR TERCEIRO] ${quemAdicionou.nome} cadastrou ${email} — entrar: ${link} | não fui eu: ${naoFuiEu}`,
     )
     return
   }
@@ -95,8 +105,9 @@ export async function sendAvisoDeContaCriadaPorTerceiro(
       <p>Você ainda não tem senha. Para acessar:</p>
       <p><a href="${link}">Confirmar meu e-mail</a> e depois <a href="${definirSenha}">definir minha senha</a>.</p>
       <p>
-        Não conhece ${quemAdicionou.nome} ou não quer essa conta? Responda este e-mail
-        e nós removemos os seus dados.
+        Não conhece ${quemAdicionou.nome} ou não quer essa conta?
+        <a href="${naoFuiEu}">Não fui eu — remover meus dados</a>.
+        O link vale por 7 dias.
       </p>
     `,
   })
