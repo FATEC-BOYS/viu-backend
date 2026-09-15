@@ -1,7 +1,10 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { UsuarioService, ListUsuariosParams } from '../services/usuarioService.js'
 import { registrarAceiteTermos } from '../services/termosPlataformaService.js'
-import { sendVerificationEmail } from '../services/emailVerificationService.js'
+import {
+  sendVerificationEmail,
+  sendAvisoDeContaCriadaPorTerceiro,
+} from '../services/emailVerificationService.js'
 import { uploadFile } from '../utils/storage.js'
 import { auditLogService } from '../services/auditLogService.js'
 import { definirCookiesDeSessao } from '../utils/authCookies.js'
@@ -45,6 +48,53 @@ export async function getUsuarioById(request: FastifyRequest, reply: FastifyRepl
   }
 }
 
+/**
+ * Quem é o cliente deste projeto? Devolve o id — criando a conta só se não
+ * houver nenhuma com aquele e-mail.
+ */
+export async function resolverClienteHandler(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  try {
+    const usuarioQueChamou = (request as any).usuario
+    const body = request.body as { email: string; nome: string; telefone?: string }
+    const { usuario, jaExistia } = await usuarioService.resolverCliente(body)
+
+    /*
+     * Ninguém é cadastrado em silêncio.
+     *
+     * O envio vivia só no handler de `createUsuario`, e esta rota chama o
+     * serviço direto — então a conta nascia sem que a pessoa recebesse nada.
+     * Era pior que o e-mail errado: era e-mail nenhum.
+     *
+     * Só para conta NOVA: quem já tinha conta não precisa ser avisado de um
+     * cadastro que não aconteceu. O que ela recebe é o convite do projeto,
+     * quando houver.
+     */
+    if (!jaExistia) {
+      sendAvisoDeContaCriadaPorTerceiro(usuario.id, usuario.email, {
+        nome: usuarioQueChamou?.nome ?? 'Um designer',
+        email: usuarioQueChamou?.email ?? '',
+      }).catch((err) => request.log.error({ err }, 'Falha ao avisar cliente cadastrado por terceiro'))
+    }
+
+    reply.status(jaExistia ? 200 : 201).send({
+      message: jaExistia
+        ? 'Esta pessoa já tem conta no VIU.'
+        : 'Cliente cadastrado com sucesso.',
+      data: { ...usuario, jaExistia },
+      success: true,
+    })
+  } catch (error: any) {
+    if (error?.codigo === 'CONTA_INDISPONIVEL') {
+      reply.status(409).send({ message: error.message, codigo: error.codigo, success: false })
+      return
+    }
+    erroInterno(request, reply, error, 'Erro ao localizar o cliente')
+  }
+}
+
 export async function createUsuario(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
     const usuario = await usuarioService.createUsuario(request.body)
@@ -76,8 +126,14 @@ export async function createUsuario(request: FastifyRequest, reply: FastifyReply
 
     reply.status(201).send({ message: 'Usuário criado com sucesso. Verifique seu e-mail para ativar a conta.', data: usuario, success: true })
   } catch (error: any) {
-    if (error.message.includes('Email já está em uso')) {
-      reply.status(400).send({ message: error.message, success: false })
+    if (error?.codigo === 'EMAIL_EM_USO' || error.message.includes('Email já está em uso')) {
+      /*
+       * O `codigo` vai junto porque a tela de cadastro precisa distinguir este
+       * caso: é o único com um próximo passo — entrar, ou definir a senha de
+       * uma conta que alguém criou para a pessoa. Sem ele, o front teria que
+       * casar a frase, e frase é copy.
+       */
+      reply.status(400).send({ message: error.message, codigo: 'EMAIL_EM_USO', success: false })
       return
     }
     request.log.error({ err: error }, 'Falha inesperada ao criar usuário')

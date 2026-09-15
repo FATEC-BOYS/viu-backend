@@ -40,6 +40,20 @@ const strongPasswordSchema = z
 
 // ===== SCHEMAS DE USUÁRIO =====
 
+/**
+ * O designer apontando quem é o cliente do projeto.
+ *
+ * Sem `senha` — o backend gera a temporária quando precisa criar a conta, e
+ * quem cadastra não escolhe credencial de outra pessoa. Sem `tipo` — a rota
+ * só resolve cliente, então deixar o campo aberto seria oferecer uma escolha
+ * que não existe.
+ */
+export const ResolverClienteRequestSchema = z.object({
+  email: z.string().email('Email inválido'),
+  nome: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
+  telefone: z.string().optional(),
+});
+
 export const CreateUsuarioRequestSchema = z.object({
   email: z.string().email('Email inválido'),
   senha: strongPasswordSchema,
@@ -339,6 +353,7 @@ export const UserIdParamSchema = z.object({
 
 // ===== TIPOS INFERIDOS =====
 
+export type ResolverClienteRequest = z.infer<typeof ResolverClienteRequestSchema>;
 export type CreateUsuarioRequest = z.infer<typeof CreateUsuarioRequestSchema>;
 export type UpdateUsuarioRequest = z.infer<typeof UpdateUsuarioRequestSchema>;
 export type LoginRequest = z.infer<typeof LoginRequestSchema>;

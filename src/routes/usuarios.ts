@@ -4,6 +4,7 @@ import {
   listUsuarios,
   getUsuarioById,
   createUsuario,
+  resolverClienteHandler,
   updateUsuario,
   deactivateUsuario,
   loginUsuario,
@@ -14,6 +15,7 @@ import {
 } from '../controllers/usuarioController.js'
 import {
   validateCreateUsuario,
+  validateResolverCliente,
   exigirAceiteDosTermos,
   validateUpdateUsuario,
   validateLogin,
@@ -47,6 +49,22 @@ export async function usuariosRoutes(fastify: FastifyInstance) {
   fastify.post('/usuarios', {
     preHandler: [authenticate, restringirCriacaoACliente, limitarCriacaoDeCliente, validateCreateUsuario],
   }, createUsuario)
+
+  /*
+   * "Quem é o cliente deste projeto?" — a pergunta que o wizard faz de fato.
+   *
+   * Rota própria, e não mudança em `POST /usuarios`: aquele handler é
+   * compartilhado com `/auth/register`, e o cadastro público TEM que continuar
+   * recusando e-mail repetido. Resolver por lá abriria um caminho para tomar
+   * conta alheia.
+   *
+   * Mesmo balde de `POST /usuarios` (`CLIENTES_MAX_HORA`, por designer): é ele
+   * que limita quantos e-mails alguém pode testar para descobrir quem tem
+   * conta no VIU.
+   */
+  fastify.post('/clientes', {
+    preHandler: [authenticate, limitarCriacaoDeCliente, validateResolverCliente],
+  }, resolverClienteHandler)
 
   // Única porta pública de cadastro. O limite por hora e o teto diário vivem
   // no middleware porque precisam valer para o conjunto, não por rota.

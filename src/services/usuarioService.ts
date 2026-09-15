@@ -15,6 +15,39 @@ export interface ListUsuariosParams {
   ativo?: string | boolean
 }
 
+/**
+ * A conta existe mas não pode participar — desativada ou excluída.
+ *
+ * Erro tipado, não frase: quem lê é o controller, para escolher o status. A
+ * mensagem é copy e vai mudar.
+ */
+/**
+ * Já existe conta com este e-mail.
+ *
+ * Tipado porque a tela precisa DISTINGUIR este caso dos outros erros de
+ * cadastro: é o único em que existe um próximo passo, e ele não é "tente de
+ * novo". Acontece bastante com quem nunca pediu conta — o designer cadastrou
+ * o cliente, e meses depois o cliente tenta se cadastrar sozinho.
+ *
+ * A frase fica igual de propósito: o controller ainda a usa para escolher o
+ * 400, e trocar as duas coisas ao mesmo tempo é como um 422 vira 500 calado.
+ */
+export class EmailEmUsoError extends Error {
+  readonly codigo = 'EMAIL_EM_USO'
+  constructor() {
+    super('Email já está em uso')
+    this.name = 'EmailEmUsoError'
+  }
+}
+
+export class ContaIndisponivelError extends Error {
+  readonly codigo = 'CONTA_INDISPONIVEL'
+  constructor() {
+    super('Esta conta não está mais ativa no VIU.')
+    this.name = 'ContaIndisponivelError'
+  }
+}
+
 export class UsuarioService {
   private async signToken(usuario: {
     id: string
@@ -153,7 +186,7 @@ export class UsuarioService {
       where: { email: userData.email },
     })
     if (existingUser) {
-      throw new Error('Email já está em uso')
+      throw new EmailEmUsoError()
     }
     const senhaHash = await bcrypt.hash(userData.senha, 10)
     /*
@@ -186,6 +219,62 @@ export class UsuarioService {
       },
     })
     return usuario
+  }
+
+  /**
+   * O designer não cria uma conta — ele APONTA uma pessoa.
+   *
+   * O wizard chamava "criar usuário" e batia em "Email já está em uso" sempre
+   * que a pessoa já tinha conta: porque se cadastrou sozinha, ou porque outro
+   * designer já a cadastrara. E não havia saída — `GET /usuarios` é ADMIN-only
+   * e a busca do produto varre projetos e artes, não pessoas. O designer então
+   * inventava um segundo e-mail, e a mesma pessoa ficava com duas contas e a
+   * fila de decisões partida ao meio.
+   *
+   * Aqui a pergunta passa a ser a certa: "quem é `email`?". Se ninguém, cria.
+   *
+   * Isto NÃO coloca ninguém num projeto: quem faz isso é `POST /projetos`, que
+   * nasce em RASCUNHO e dispara convite — a outra parte aceita antes de o
+   * projeto andar. O consentimento continua onde sempre esteve.
+   *
+   * A resposta diz se a conta já existia, e ela precisa dizer: é o que decide
+   * a frase na tela e se o designer pode seguir. Isso revela que aquele e-mail
+   * tem conta no VIU — limitado a `CLIENTES_MAX_HORA` por designer, que é o
+   * mesmo balde que já segurava a criação.
+   */
+  async resolverCliente(dados: { email: string; nome: string; telefone?: string }) {
+    const existente = await prisma.usuario.findUnique({
+      where: { email: dados.email },
+      select: { id: true, nome: true, email: true, ativo: true, excluidoEm: true },
+    })
+
+    if (existente) {
+      if (!existente.ativo || existente.excluidoEm) {
+        throw new ContaIndisponivelError()
+      }
+      // O nome de quem já tem conta é dela, não do formulário: sobrescrever
+      // deixaria um terceiro renomear a conta alheia.
+      return { usuario: { id: existente.id, nome: existente.nome, email: existente.email }, jaExistia: true }
+    }
+
+    /*
+     * Senha temporária gerada AQUI, e não no navegador do designer.
+     *
+     * Antes o wizard sorteava a senha no cliente — quem cadastra escolhendo a
+     * credencial de outra pessoa, ainda que descartável. O caminho de entrada
+     * da pessoa é o "esqueci minha senha", como já era; esta senha só existe
+     * porque a coluna não aceita nulo na criação.
+     */
+    const senha = `Viu@${randomBytes(18).toString('base64url')}`
+    const criado = await this.createUsuario({
+      email: dados.email,
+      nome: dados.nome,
+      telefone: dados.telefone,
+      senha,
+      tipo: 'CLIENTE',
+    })
+
+    return { usuario: { id: criado.id, nome: criado.nome, email: criado.email }, jaExistia: false }
   }
 
   async updateUsuario(id: string, updateData: any) {
