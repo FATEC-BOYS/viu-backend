@@ -70,7 +70,18 @@ export class AprovacaoService {
         skip,
         take: Number(limit),
         include: {
-          arte: { select: { id: true, nome: true, versao: true, projetoId: true, arquivo: true } },
+          arte: {
+            select: {
+              id: true,
+              nome: true,
+              versao: true,
+              projetoId: true,
+              arquivo: true,
+              // O nome do projeto: a fila do cliente mistura trabalhos de
+              // designers diferentes, e "Logo v1" sozinho não diz de qual.
+              projeto: { select: { nome: true } },
+            },
+          },
           aprovador: { select: { id: true, nome: true, avatar: true } },
         },
         orderBy: { criadoEm: 'desc' },
