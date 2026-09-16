@@ -77,6 +77,10 @@ export async function createAprovacao(request: FastifyRequest, reply: FastifyRep
     const aprovacao = await aprovacaoService.createAprovacao(data)
     reply.status(201).send({ message: 'Aprovação criada com sucesso', data: aprovacao, success: true })
   } catch (error: any) {
+    if (error?.codigo === 'RECUSA_SEM_MOTIVO') {
+      reply.status(422).send({ message: error.message, codigo: error.codigo, success: false })
+      return
+    }
     if (
       error.message.includes('não encontrad') ||
       error.message.includes('Apenas o cliente') ||
@@ -121,6 +125,15 @@ export async function updateAprovacao(request: FastifyRequest, reply: FastifyRep
     const aprovacao = await aprovacaoService.updateAprovacao(id, body, usuario.id)
     reply.send({ message: 'Aprovação atualizada com sucesso', data: aprovacao, success: true })
   } catch (error: any) {
+    /*
+     * Pelo `codigo`, não pelo texto: a frase que a pessoa lê é copy e vai
+     * mudar. Já aconteceu de renomear uma mensagem virar 500 em produção
+     * porque o status dependia de um `includes` — não de novo.
+     */
+    if (error?.codigo === 'RECUSA_SEM_MOTIVO') {
+      reply.status(422).send({ message: error.message, codigo: error.codigo, success: false })
+      return
+    }
     // Transição barrada pela máquina de estados é erro de quem chamou, não do
     // servidor — devolvia 500 e mascarava a causa.
     if (error.message.includes('é terminal') || error.message.includes('Transição inválida')) {

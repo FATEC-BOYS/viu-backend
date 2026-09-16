@@ -10,6 +10,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import {
   CreateUsuarioRequestSchema,
+  ResolverClienteRequestSchema,
   UpdateUsuarioRequestSchema,
   LoginRequestSchema,
 } from '../schemas/validation.js'
@@ -22,6 +23,22 @@ export async function validateCreateUsuario(
     const resultado = CreateUsuarioRequestSchema.parse(request.body)
     // eslint-disable-next-line no-param-reassign
     request.body = resultado
+  } catch (error: any) {
+    reply.status(400).send({
+      message: 'Dados inválidos',
+      errors: error.errors,
+      success: false,
+    })
+  }
+}
+
+export async function validateResolverCliente(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  try {
+    // eslint-disable-next-line no-param-reassign
+    request.body = ResolverClienteRequestSchema.parse(request.body)
   } catch (error: any) {
     reply.status(400).send({
       message: 'Dados inválidos',

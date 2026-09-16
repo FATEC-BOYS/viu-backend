@@ -45,6 +45,17 @@ model Usuario {
   passwordResetToken     String?   @unique
   passwordResetExpiresAt DateTime?
 
+  /// "Não fui eu" — para quem foi cadastrado por um designer sem ter pedido.
+  ///
+  /// Token próprio, e não o de verificação de e-mail: são ações opostas
+  /// disparadas pelo mesmo e-mail, e compartilhar o segredo faria confirmar a
+  /// conta e recusá-la usarem a mesma chave.
+  ///
+  /// Guardamos o hash — o token cru só existe no e-mail, como no convite e no
+  /// reset de senha.
+  recusaCadastroToken     String?   @unique
+  recusaCadastroExpiraEm  DateTime?
+
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @default(now()) @updatedAt
 

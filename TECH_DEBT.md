@@ -226,3 +226,24 @@ Estorno depois de saque concluído deixa o saldo negativo. O cálculo registra
 corretamente e novos saques ficam bloqueados (`valor > saldo` com saldo
 negativo), mas nada notifica ninguém e a dívida é absorvida em silêncio pela
 receita seguinte. É a opção D da análise de integridade financeira.
+
+### Conta de cliente criada por terceiro (convite sem conta)
+
+Quando o designer cadastra o cliente pelo wizard, a conta nasce sem que a
+pessoa tenha pedido: nome, e-mail e telefone gravados por decisão de outro.
+O beta mitiga isso com transparência e saída — e-mail dizendo quem cadastrou e
+por quê, e o botão "não fui eu" que desativa sozinho quando não há atividade.
+
+O desenho limpo é outro: **não criar conta nenhuma até o aceite**. Uma tabela
+`ConviteCliente` (nome, e-mail, designer, projeto opcional) guardaria a
+intenção, e a conta só existiria quando a pessoa clicasse.
+
+O que segura isso hoje é `Projeto.clienteId`, que é obrigatório e tem FK para
+`usuarios`: sem conta não há projeto, e sem projeto o designer não sobe arte.
+Afrouxar exige `clienteId` anulável (ou um conceito de "cliente provisório") e
+revisão de tudo que hoje assume as duas pontas presentes — acesso, faturas,
+aprovações, disputas.
+
+É a troca entre o cadastro por terceiro e a velocidade que o produto vende ao
+designer. Fica fora do beta por isso, e não por ser difícil: reavaliar quando
+o volume de reclamações ou a exigência de LGPD pedir.

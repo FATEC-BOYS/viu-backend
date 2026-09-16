@@ -4,6 +4,7 @@ import {
   listUsuarios,
   getUsuarioById,
   createUsuario,
+  resolverClienteHandler,
   updateUsuario,
   deactivateUsuario,
   loginUsuario,
@@ -14,12 +15,14 @@ import {
 } from '../controllers/usuarioController.js'
 import {
   validateCreateUsuario,
+  validateResolverCliente,
   exigirAceiteDosTermos,
   validateUpdateUsuario,
   validateLogin,
   restringirCriacaoACliente,
 } from '../middleware/usuarioMiddleware.js'
 import { authenticate } from '../middleware/authMiddleware.js'
+import { recusarCadastroHandler } from '../controllers/recusaCadastroController.js'
 import { requireOwnership, requireRole } from '../middleware/authorizationMiddleware.js'
 import { validatePagination, validateCuidParam } from '../middleware/validationMiddleware.js'
 import {
@@ -48,11 +51,38 @@ export async function usuariosRoutes(fastify: FastifyInstance) {
     preHandler: [authenticate, restringirCriacaoACliente, limitarCriacaoDeCliente, validateCreateUsuario],
   }, createUsuario)
 
+  /*
+   * "Quem é o cliente deste projeto?" — a pergunta que o wizard faz de fato.
+   *
+   * Rota própria, e não mudança em `POST /usuarios`: aquele handler é
+   * compartilhado com `/auth/register`, e o cadastro público TEM que continuar
+   * recusando e-mail repetido. Resolver por lá abriria um caminho para tomar
+   * conta alheia.
+   *
+   * Mesmo balde de `POST /usuarios` (`CLIENTES_MAX_HORA`, por designer): é ele
+   * que limita quantos e-mails alguém pode testar para descobrir quem tem
+   * conta no VIU.
+   */
+  fastify.post('/clientes', {
+    preHandler: [authenticate, limitarCriacaoDeCliente, validateResolverCliente],
+  }, resolverClienteHandler)
+
   // Única porta pública de cadastro. O limite por hora e o teto diário vivem
   // no middleware porque precisam valer para o conjunto, não por rota.
   fastify.post('/auth/register', {
     preHandler: [limitarRegistroPublico, verificarCaptchaDoCadastro, validateCreateUsuario, exigirAceiteDosTermos],
   }, createUsuario)
+
+  /*
+   * Pública: quem foi cadastrado sem pedir não tem senha, e exigir conta para
+   * poder sair seria exigir que a pessoa aceite o cadastro para recusá-lo.
+   * Quem autentica é o token do e-mail. Limite apertado porque o token é
+   * sorteado de 32 bytes — ninguém acerta por tentativa, e o teto só barra
+   * quem tenta.
+   */
+  fastify.post('/conta/recusar-cadastro', {
+    config: { rateLimit: { max: 10, timeWindow: '15 minutes' } },
+  }, recusarCadastroHandler)
 
   fastify.post('/auth/login', {
     // Teto por IP a cada 15 min — bloqueia brute-force sem prejudicar usuário

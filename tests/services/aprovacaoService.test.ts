@@ -164,4 +164,76 @@ describe('solicitarAprovacao', () => {
       expect.objectContaining({ data: expect.objectContaining({ usuarioId: 'c1' }) }),
     )
   })
+  /**
+   * Recusar em silêncio devolve ao designer o que ele já tinha: nada para
+   * fazer. A regra é do serviço porque `PUT /aprovacoes/:id` é alcançável sem
+   * passar pelo formulário.
+   */
+  describe('a recusa precisa dizer o que mudar', () => {
+    const PENDENTE = {
+      id: 'a1', status: 'PENDENTE', aprovadorId: 'c1', comentario: null,
+      arte: { projeto: { clienteId: 'c1' } },
+    }
+
+    it('updateAprovacao recusa REJEITADO sem motivo', async () => {
+      vi.mocked(prisma.aprovacao.findUnique).mockResolvedValue(PENDENTE as any)
+
+      await expect(
+        service.updateAprovacao('a1', { status: 'REJEITADO' }, 'c1'),
+      ).rejects.toMatchObject({ codigo: 'RECUSA_SEM_MOTIVO' })
+
+      expect(prisma.aprovacao.update).not.toHaveBeenCalled()
+    })
+
+    it('updateAprovacao trata comentário só de espaços como ausente', async () => {
+      vi.mocked(prisma.aprovacao.findUnique).mockResolvedValue(PENDENTE as any)
+
+      await expect(
+        service.updateAprovacao('a1', { status: 'REJEITADO', comentario: '   ' }, 'c1'),
+      ).rejects.toMatchObject({ codigo: 'RECUSA_SEM_MOTIVO' })
+    })
+
+    it('updateAprovacao aceita a recusa quando vem com motivo', async () => {
+      vi.mocked(prisma.aprovacao.findUnique).mockResolvedValue(PENDENTE as any)
+      vi.mocked(prisma.aprovacao.update).mockResolvedValue({ id: 'a1' } as any)
+
+      await service.updateAprovacao('a1', { status: 'REJEITADO', comentario: 'o logo está esticado' }, 'c1')
+
+      const [argumentos] = vi.mocked(prisma.aprovacao.update).mock.calls[0] as [any]
+      expect(argumentos.data.status).toBe('REJEITADO')
+      expect(argumentos.data.comentario).toBe('o logo está esticado')
+    })
+
+    it('updateAprovacao aproveita o motivo já escrito antes da decisão', async () => {
+      vi.mocked(prisma.aprovacao.findUnique).mockResolvedValue({
+        ...PENDENTE, comentario: 'faltou o contraste do texto',
+      } as any)
+      vi.mocked(prisma.aprovacao.update).mockResolvedValue({ id: 'a1' } as any)
+
+      await service.updateAprovacao('a1', { status: 'REJEITADO' }, 'c1')
+
+      expect(prisma.aprovacao.update).toHaveBeenCalled()
+    })
+
+    it('aprovar continua sem exigir comentário — quem gostou não deve nada', async () => {
+      vi.mocked(prisma.aprovacao.findUnique).mockResolvedValue(PENDENTE as any)
+      vi.mocked(prisma.aprovacao.update).mockResolvedValue({ id: 'a1' } as any)
+
+      await service.updateAprovacao('a1', { status: 'APROVADO' }, 'c1')
+
+      expect(prisma.aprovacao.update).toHaveBeenCalled()
+    })
+
+    it('createAprovacao aplica a mesma regra', async () => {
+      vi.mocked(prisma.arte.findUnique).mockResolvedValue({
+        id: '1', autorId: 'd1', versao: 2, projeto: { clienteId: 'c1', designerId: 'd1' },
+      } as any)
+
+      await expect(
+        service.createAprovacao({ arteId: '1', status: 'REJEITADO', aprovadorId: 'c1' }),
+      ).rejects.toMatchObject({ codigo: 'RECUSA_SEM_MOTIVO' })
+
+      expect(prisma.aprovacao.create).not.toHaveBeenCalled()
+    })
+  })
 })

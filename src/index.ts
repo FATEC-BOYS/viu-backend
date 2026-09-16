@@ -35,6 +35,7 @@ import { convitesRoutes } from './routes/convites.js'
 import { equipeConvitesRoutes } from './routes/equipeConvites.js'
 import { arteVersoesRoutes } from './routes/arteVersoes.js'
 import { buscaRoutes } from './routes/busca.js'
+import { funilRoutes } from './routes/funil.js'
 import { vinculosRoutes } from "./routes/vinculos.js"
 import { uploadRoutes } from './routes/upload.js'
 import { setupErrorHandler } from './middleware/errorHandlerMiddleware.js'
@@ -171,6 +172,7 @@ export async function buildServer() {
     timestamp: new Date().toISOString(),
   }))
 
+  await app.register(funilRoutes)
   await app.register(projetosRoutes)
   await app.register(usuariosRoutes)
   await app.register(artesRoutes)
