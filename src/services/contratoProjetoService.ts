@@ -110,6 +110,42 @@ export class ContratoProjetoService {
     })
   }
 
+  /**
+   * Se o contrato vigente ainda descreve os termos de hoje.
+   *
+   * Nada impede o designer de mudar os termos depois que as duas partes
+   * aceitaram — e nada, até agora, dizia que isso tinha acontecido. A tela
+   * seguia afirmando "Combinado e aceito pelas duas partes. Pode cobrar."
+   * sobre um documento que descreve outro acordo. Neste produto esse documento
+   * é o que decide de quem é a peça se a conta não for paga; afirmar aceite
+   * sobre a versão errada é o pior tipo de mentira que uma tela pode contar.
+   *
+   * Só o servidor consegue responder: é preciso renderizar o anexo a partir
+   * dos termos atuais e comparar o hash com o do vigente. O frontend não tem o
+   * template nem os dados, e não deveria tentar.
+   *
+   * A data de geração entra no texto (`Gerado em: …`), então a renderização de
+   * conferência usa o `criadoEm` do próprio contrato — assim a única diferença
+   * possível vem do que foi combinado, que é o que se quer medir.
+   */
+  async desatualizado(projetoId: string, vigente: { hash: string; criadoEm: Date }): Promise<boolean> {
+    const projeto = await prisma.projeto.findUnique({
+      where: { id: projetoId },
+      include: PROJETO_PARA_CONTRATO,
+    })
+    if (!projeto) return false
+
+    /*
+     * Termos incompletos não contam como desatualizado: o anexo nem seria
+     * gerado assim (`gerar` recusa), e marcar o contrato como vencido porque
+     * alguém apagou um campo mandaria a pessoa regerar para um erro.
+     */
+    if (camposFaltantes(projeto.termos).length > 0) return false
+
+    const textoDeHoje = renderizarAnexo(montarDados(projeto, vigente.criadoEm))
+    return hashDoTexto(textoDeHoje) !== vigente.hash
+  }
+
   /** Todas as versões, da mais nova para a mais antiga. */
   async historico(projetoId: string) {
     return prisma.contratoProjeto.findMany({
