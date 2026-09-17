@@ -64,7 +64,25 @@ export class ArteService {
             select: { id: true, nome: true, avatar: true },
           },
           projeto: {
-            select: { id: true, nome: true },
+            select: {
+              id: true,
+              nome: true,
+              /*
+               * O cliente do projeto vai junto.
+               *
+               * Sem ele, três coisas na tela de Artes ficavam mortas: todo
+               * cartão dizia "Cliente: —", o filtro "Todos Clientes" nascia
+               * sempre vazio (a lista é montada a partir destes nomes) e a
+               * busca prometia "arte, projeto, cliente ou autor" sem nunca
+               * poder casar um cliente. O frontend já lia
+               * `projeto.cliente.nome`; era o servidor que não mandava.
+               *
+               * `select` explícito, não `include`: o cliente é um usuário, e
+               * `include` traria a linha inteira — senha, tokens e o resto —
+               * para uma listagem que só precisa do nome.
+               */
+              cliente: { select: { id: true, nome: true } },
+            },
           },
           _count: {
             select: { feedbacks: true, aprovacoes: true },
