@@ -41,6 +41,40 @@ export function hashDoTexto(texto: string): string {
  * exatamente a mesma coisa: se a prévia usasse outro caminho, a pessoa poderia
  * aceitar um texto diferente do que leu.
  */
+/**
+ * Serialização estável, para dois objetos iguais darem a mesma string.
+ *
+ * O JSONB do Postgres não preserva a ordem das chaves — ele reordena por
+ * tamanho e depois por byte. Um `JSON.stringify` cru compararia o que voltou
+ * do banco com o que acabou de ser montado e acharia diferença onde não há.
+ */
+function canonico(valor: unknown): string {
+  if (valor === null || typeof valor !== 'object') return JSON.stringify(valor) ?? 'null'
+  if (Array.isArray(valor)) return `[${valor.map(canonico).join(',')}]`
+  const obj = valor as Record<string, unknown>
+  return `{${Object.keys(obj)
+    .sort()
+    .map((k) => `${JSON.stringify(k)}:${canonico(obj[k])}`)
+    .join(',')}}`
+}
+
+/**
+ * Dois snapshots descrevem o mesmo acordo?
+ *
+ * `geradoEm` fica de fora: ele diz quando o documento foi impresso, não o que
+ * foi combinado. Mantê-lo na conta faria toda conferência depender de relógio
+ * — e um contrato gerado um segundo antes da meia-noite em UTC apareceria como
+ * desatualizado no segundo seguinte.
+ */
+export function mesmoAcordo(a: unknown, b: unknown): boolean {
+  const semData = (v: unknown) => {
+    if (v === null || typeof v !== 'object' || Array.isArray(v)) return v
+    const { geradoEm: _ignorado, ...resto } = v as Record<string, unknown>
+    return resto
+  }
+  return canonico(semData(a)) === canonico(semData(b))
+}
+
 export function montarDados(projeto: {
   id: string
   nome: string
@@ -117,18 +151,25 @@ export class ContratoProjetoService {
    * aceitaram — e nada, até agora, dizia que isso tinha acontecido. A tela
    * seguia afirmando "Combinado e aceito pelas duas partes. Pode cobrar."
    * sobre um documento que descreve outro acordo. Neste produto esse documento
-   * é o que decide de quem é a peça se a conta não for paga; afirmar aceite
-   * sobre a versão errada é o pior tipo de mentira que uma tela pode contar.
+   * é o que decide de quem é a peça se a conta não for paga.
    *
-   * Só o servidor consegue responder: é preciso renderizar o anexo a partir
-   * dos termos atuais e comparar o hash com o do vigente. O frontend não tem o
-   * template nem os dados, e não deveria tentar.
+   * A comparação é dos DADOS, não do texto.
    *
-   * A data de geração entra no texto (`Gerado em: …`), então a renderização de
-   * conferência usa o `criadoEm` do próprio contrato — assim a única diferença
-   * possível vem do que foi combinado, que é o que se quer medir.
+   * A primeira versão disto renderizava o anexo de novo e comparava o hash com
+   * o do vigente — e estava errada de duas formas. A redação do template vai
+   * mudar (é o que `TEMPLATE_VERSAO` e `revisadoJuridicamente` existem para
+   * acompanhar): no dia em que mudar, todo contrato do produto passaria a se
+   * declarar desatualizado sem nada ter sido combinado de novo, e o aviso mais
+   * sério da tela viraria ruído em massa. E o texto carrega `Gerado em: …`, o
+   * que amarrava a conferência a uma data e abria uma janela para um contrato
+   * recém-criado nascer velho na virada do dia em UTC.
+   *
+   * `ContratoProjeto.dados` existe exatamente para isto, e o comentário dele
+   * no schema já dizia: "é o que permite comparar duas versões sem interpretar
+   * prosa". Comparando os dados, mudar a redação não mexe em nada e mudar um
+   * termo aparece na hora.
    */
-  async desatualizado(projetoId: string, vigente: { hash: string; criadoEm: Date }): Promise<boolean> {
+  async desatualizado(projetoId: string, vigente: { dados: unknown }): Promise<boolean> {
     const projeto = await prisma.projeto.findUnique({
       where: { id: projetoId },
       include: PROJETO_PARA_CONTRATO,
@@ -142,8 +183,9 @@ export class ContratoProjetoService {
      */
     if (camposFaltantes(projeto.termos).length > 0) return false
 
-    const textoDeHoje = renderizarAnexo(montarDados(projeto, vigente.criadoEm))
-    return hashDoTexto(textoDeHoje) !== vigente.hash
+    // `new Date()` só para satisfazer a assinatura: `mesmoAcordo` descarta o
+    // carimbo de geração antes de comparar.
+    return !mesmoAcordo(vigente.dados, montarDados(projeto, new Date()))
   }
 
   /** Todas as versões, da mais nova para a mais antiga. */
