@@ -35,14 +35,36 @@ describe('uploadFile', () => {
     expect(erro.codigo).toBe('ARMAZENAMENTO_INDISPONIVEL')
   })
 
-  it('preserva a causa original, que é o que o log precisa', async () => {
+  it('preserva a causa original no `cause` do padrão', async () => {
     // Credencial errada e bucket fora do ar chegam aqui iguais; só a causa
     // distingue, e é ela que alguém vai ler às três da manhã.
+    //
+    // Tem que ser `cause`, não uma propriedade nossa: o serializador de erro
+    // do Pino trata `cause` recursivamente, e uma propriedade qualquer ele só
+    // espalha — com `message` e `stack` não enumeráveis, a causa sairia no log
+    // como `{}`, que é exatamente o problema que este embrulho existe para
+    // resolver.
     const causa = new Error('The AWS Access Key Id you provided does not exist')
     send.mockRejectedValue(causa)
 
     const erro = await uploadFile('k', Buffer.from('x'), 'image/png').catch((e) => e)
 
-    expect(erro.causa).toBe(causa)
+    expect(erro.cause).toBe(causa)
+  })
+
+  it('e a causa sobrevive à serialização do log', async () => {
+    /*
+     * O teste que prova o ponto: `JSON.stringify` de um Error dá `{}` porque
+     * `message` e `stack` não são enumeráveis. O serializador do Pino sabe
+     * disso e trata `cause`; uma propriedade nossa ele trataria como dado
+     * comum, e a informação sumiria.
+     */
+    const causa = new Error('connect ECONNREFUSED')
+    send.mockRejectedValue(causa)
+
+    const erro = await uploadFile('k', Buffer.from('x'), 'image/png').catch((e) => e)
+
+    expect(JSON.stringify(erro.cause)).toBe('{}')
+    expect((erro.cause as Error).message).toBe('connect ECONNREFUSED')
   })
 })

@@ -15,8 +15,19 @@ import { r2, R2_BUCKET } from '../storage.js'
  */
 export class ArmazenamentoIndisponivelError extends Error {
   readonly codigo = 'ARMAZENAMENTO_INDISPONIVEL'
-  constructor(readonly causa: unknown) {
-    super('O arquivo não chegou ao armazenamento.')
+  constructor(causa: unknown) {
+    /*
+     * `cause` do padrão, e não uma propriedade nossa.
+     *
+     * A primeira versão guardava o original em `this.causa`, e isso anulava o
+     * motivo de existir deste embrulho: o serializador de erro do Pino trata
+     * `cause` recursivamente, mas uma propriedade qualquer ele só espalha — e
+     * `message` e `stack` de um Error não são enumeráveis, então a causa saía
+     * no log como `{}`. Ficava o mesmo problema de antes, com uma classe a
+     * mais: credencial errada e bucket fora do ar indistinguíveis para quem
+     * abre o log às três da manhã.
+     */
+    super('O arquivo não chegou ao armazenamento.', { cause: causa })
     this.name = 'ArmazenamentoIndisponivelError'
   }
 }
