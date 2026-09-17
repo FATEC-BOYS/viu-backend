@@ -10,6 +10,7 @@ import { prisma } from '../../src/database/client.js'
 import {
   ContratoProjetoService,
   hashDoTexto,
+  mesmoAcordo,
   montarDados,
   TERMOS_INCOMPLETOS,
 } from '../../src/services/contratoProjetoService.js'
@@ -292,78 +293,83 @@ describe('o hash', () => {
  * o que decide de quem é a peça se a conta não for paga.
  */
 describe('contrato desatualizado', () => {
-  const CRIADO_EM = new Date('2026-09-01T12:00:00.000Z')
+  const GERADO_EM = new Date('2026-09-01T12:00:00.000Z')
 
-  /** O hash que o anexo teria com os termos de `PROJETO_COMPLETO`. */
-  function hashCombinado(termos = TERMOS) {
-    const dados = montarDados({ ...PROJETO_COMPLETO, termos } as any, CRIADO_EM)
-    return hashDoTexto(renderizarAnexo(dados))
+  /** O snapshot que o contrato guardaria com estes termos. */
+  function snapshot(extra: Record<string, unknown> = {}, geradoEm = GERADO_EM) {
+    return montarDados({ ...PROJETO_COMPLETO, ...extra } as any, geradoEm)
   }
 
   it('com os termos intocados, o vigente continua valendo', async () => {
     db.projeto.findUnique.mockResolvedValue(PROJETO_COMPLETO)
-    const velho = await service.desatualizado(PROJETO, {
-      hash: hashCombinado(),
-      criadoEm: CRIADO_EM,
-    })
-    expect(velho).toBe(false)
+    expect(await service.desatualizado(PROJETO, { dados: snapshot() })).toBe(false)
   })
 
   it('mudar um termo depois de gerado marca o vigente como velho', async () => {
-    // O contrato guarda o hash do texto ANTIGO; o projeto já tem o novo termo.
-    const hashDoQueFoiAceito = hashCombinado()
+    const aceito = snapshot()
     db.projeto.findUnique.mockResolvedValue({
       ...PROJETO_COMPLETO,
       termos: { ...TERMOS, licencaTerritorio: 'Mundial' },
     })
-
-    const velho = await service.desatualizado(PROJETO, {
-      hash: hashDoQueFoiAceito,
-      criadoEm: CRIADO_EM,
-    })
-    expect(velho).toBe(true)
+    expect(await service.desatualizado(PROJETO, { dados: aceito })).toBe(true)
   })
 
   it('mudar o orçamento também conta — ele está no anexo', async () => {
-    const hashDoQueFoiAceito = hashCombinado()
+    const aceito = snapshot()
     db.projeto.findUnique.mockResolvedValue({ ...PROJETO_COMPLETO, orcamento: 2_000_000 })
-
-    expect(
-      await service.desatualizado(PROJETO, { hash: hashDoQueFoiAceito, criadoEm: CRIADO_EM }),
-    ).toBe(true)
+    expect(await service.desatualizado(PROJETO, { dados: aceito })).toBe(true)
   })
 
   it('apagar um termo NÃO marca como velho', async () => {
     /*
      * Com termo faltando o anexo nem seria gerado — `gerar` recusa com
      * TERMOS_INCOMPLETOS. Marcar velho aqui mandaria a pessoa regerar para
-     * receber um erro, e a saída seria preencher de volta, não gerar.
+     * receber um erro, e a saída dela é preencher de volta, não gerar.
      */
     db.projeto.findUnique.mockResolvedValue({
       ...PROJETO_COMPLETO,
       termos: { ...TERMOS, licencaTerritorio: null },
     })
-
-    expect(
-      await service.desatualizado(PROJETO, { hash: hashCombinado(), criadoEm: CRIADO_EM }),
-    ).toBe(false)
+    expect(await service.desatualizado(PROJETO, { dados: snapshot() })).toBe(false)
   })
 
   it('a data de geração não conta como mudança', async () => {
     /*
-     * "Gerado em: …" está no texto. Se a conferência renderizasse com a data de
-     * hoje, todo contrato nasceria velho no dia seguinte — e a tela pediria
-     * para regerar um documento que ninguém mexeu.
+     * A primeira versão disto comparava o TEXTO, que carrega "Gerado em: …" —
+     * e amarrava a conferência a uma data. Um contrato gerado um segundo antes
+     * da meia-noite em UTC apareceria desatualizado no segundo seguinte, sem
+     * nada ter sido combinado de novo.
      */
     db.projeto.findUnique.mockResolvedValue(PROJETO_COMPLETO)
-    const ontem = new Date('2020-01-01T00:00:00.000Z')
-    const dados = montarDados(PROJETO_COMPLETO as any, ontem)
+    const outroDia = new Date('2020-01-01T23:59:59.000Z')
+    expect(await service.desatualizado(PROJETO, { dados: snapshot({}, outroDia) })).toBe(false)
+  })
 
-    expect(
-      await service.desatualizado(PROJETO, {
-        hash: hashDoTexto(renderizarAnexo(dados)),
-        criadoEm: ontem,
-      }),
-    ).toBe(false)
+  it('mudar a REDAÇÃO do template não desatualiza contrato nenhum', async () => {
+    /*
+     * O caso que a comparação por texto quebrava em massa. A redação vai mudar
+     * — é o que `TEMPLATE_VERSAO` e `revisadoJuridicamente` existem para
+     * acompanhar. Comparando o texto renderizado, no dia da revisão jurídica
+     * TODO contrato do produto passaria a se declarar desatualizado, e o aviso
+     * mais sério da tela viraria ruído em massa.
+     *
+     * Aqui o teste não mexe no template: prova a propriedade que torna isso
+     * impossível — dois snapshots iguais são o mesmo acordo, e o texto não
+     * entra na conta.
+     */
+    db.projeto.findUnique.mockResolvedValue(PROJETO_COMPLETO)
+    const aceito = snapshot()
+    expect(await service.desatualizado(PROJETO, { dados: aceito })).toBe(false)
+    // E a comparação de fato ignora tudo que não seja o acordo:
+    expect(mesmoAcordo(aceito, { ...aceito, geradoEm: 'qualquer coisa' })).toBe(true)
+  })
+
+  it('a ordem das chaves não conta — o JSONB devolve reordenado', async () => {
+    // O Postgres reordena as chaves do JSONB por tamanho e byte. Um
+    // `JSON.stringify` cru acharia diferença entre o que voltou do banco e o
+    // que acabou de ser montado.
+    const a = snapshot() as any
+    const reordenado = Object.fromEntries(Object.keys(a).reverse().map((k) => [k, a[k]]))
+    expect(mesmoAcordo(a, reordenado)).toBe(true)
   })
 })

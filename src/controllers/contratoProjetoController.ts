@@ -63,7 +63,7 @@ export async function getContratoVigenteHandler(
      * a tela já trata "sem contrato" como passo próprio.
      */
     const desatualizado = contrato
-      ? await contratoProjetoService.desatualizado(projetoId, contrato)
+      ? await contratoProjetoService.desatualizado(projetoId, { dados: contrato.dados })
       : false
 
     reply.send({
