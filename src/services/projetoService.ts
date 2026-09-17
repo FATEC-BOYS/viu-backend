@@ -115,9 +115,35 @@ export class ProjetoService {
       prisma.projeto.count({ where }),
     ])
 
+    /*
+     * Quantas artes já foram aprovadas, por projeto.
+     *
+     * A barra de progresso da tela de Projetos lia `metricas.aprovadas` e
+     * `metricas.totalArtes` — um objeto que NUNCA existiu nesta resposta. O
+     * cast `(p as any)` no cartão desligou justamente a checagem que teria
+     * pegado isso, e a barra nasceu vazia em todo projeto, para sempre.
+     *
+     * Um `groupBy` e não um `_count` filtrado: o `_count` já traz o total de
+     * artes, e a mesma relação não pode aparecer duas vezes ali com filtros
+     * diferentes. Uma consulta a mais, sem N+1.
+     */
+    const aprovadasPorProjeto = new Map<string, number>()
+    if (projetos.length > 0) {
+      const grupos = await prisma.arte.groupBy({
+        by: ['projetoId'],
+        where: { projetoId: { in: projetos.map((p: any) => p.id) }, status: 'APROVADO' },
+        _count: { _all: true },
+      })
+      for (const g of grupos) aprovadasPorProjeto.set(g.projetoId, g._count._all)
+    }
+
     // Formatar dados
     const projetosFormatados = projetos.map((projeto: any) => ({
       ...projeto,
+      metricas: {
+        totalArtes: projeto._count?.artes ?? 0,
+        aprovadas: aprovadasPorProjeto.get(projeto.id) ?? 0,
+      },
       orcamentoFormatado: projeto.orcamento
         ? formatCurrency(projeto.orcamento)
         : null,
