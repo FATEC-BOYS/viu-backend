@@ -2,14 +2,39 @@ import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from '@aws-sd
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { r2, R2_BUCKET } from '../storage.js'
 
+/**
+ * O arquivo não chegou ao armazenamento.
+ *
+ * Existe para separar esta falha das outras que podem acontecer ao criar uma
+ * arte. Quem chamava colapsava tudo num 500 "Erro ao criar arte", e as saídas
+ * de quem lê são opostas: armazenamento fora do ar se resolve tentando de novo
+ * daqui a pouco, e nada foi criado no caminho; erro ao gravar a arte no banco,
+ * não.
+ *
+ * Pelo `codigo` e não pelo texto — a frase que a pessoa lê é copy e vai mudar.
+ */
+export class ArmazenamentoIndisponivelError extends Error {
+  readonly codigo = 'ARMAZENAMENTO_INDISPONIVEL'
+  constructor(readonly causa: unknown) {
+    super('O arquivo não chegou ao armazenamento.')
+    this.name = 'ArmazenamentoIndisponivelError'
+  }
+}
+
 export async function uploadFile(
   key: string,
   body: Buffer,
   contentType: string,
 ): Promise<string> {
-  await r2.send(
-    new PutObjectCommand({ Bucket: R2_BUCKET, Key: key, Body: body, ContentType: contentType }),
-  )
+  try {
+    await r2.send(
+      new PutObjectCommand({ Bucket: R2_BUCKET, Key: key, Body: body, ContentType: contentType }),
+    )
+  } catch (erro) {
+    // A causa original vai junto: é ela que o log precisa para distinguir
+    // credencial errada de bucket fora do ar.
+    throw new ArmazenamentoIndisponivelError(erro)
+  }
   return key
 }
 

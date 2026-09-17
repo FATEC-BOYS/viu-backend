@@ -192,6 +192,28 @@ export async function uploadAndCreateArte(request: FastifyRequest, reply: Fastif
     // `{"res":{"statusCode":500}}` — a causa (R2 fora do ar, credencial
     // errada, banco recusando) morria aqui e o diagnóstico virava adivinhação.
     request.log.error({ err: error }, 'Falha no upload da arte')
+
+    /*
+     * O arquivo não chegou ao armazenamento é um caso à parte.
+     *
+     * O log já distinguia os motivos; a resposta não — tudo virava 500 "Erro
+     * ao criar arte", e quem estava do outro lado não tinha como saber se
+     * devia tentar de novo, trocar o arquivo ou parar. São saídas opostas.
+     *
+     * 503 e não 500: é indisponibilidade, e o cliente pode repetir. E dizer
+     * que nada foi criado importa — sem isso a pessoa fica sem saber se subir
+     * de novo vai duplicar a arte.
+     */
+    if (error?.codigo === 'ARMAZENAMENTO_INDISPONIVEL') {
+      reply.status(503).send({
+        message:
+          'O arquivo não chegou ao armazenamento e nada foi criado. Tente de novo em instantes — se continuar, o problema é nosso, não do seu arquivo.',
+        codigo: error.codigo,
+        success: false,
+      })
+      return
+    }
+
     reply.status(500).send({ message: 'Erro ao criar arte', success: false })
   }
 }
