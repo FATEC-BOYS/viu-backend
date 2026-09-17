@@ -51,10 +51,26 @@ export async function getContratoVigenteHandler(
      */
     const termos = await prisma.termosProjeto.findUnique({ where: { projetoId } })
 
+    /*
+     * Os termos mudaram depois de o contrato ser gerado?
+     *
+     * Sem esta resposta a tela afirmava "Combinado e aceito pelas duas partes"
+     * sobre um documento que descreve outro acordo — e é esse documento que
+     * decide de quem é a peça se a conta não for paga. Só aqui dá para saber:
+     * exige o template e os dados do projeto.
+     *
+     * `false` quando não há contrato: não existe documento para estar velho, e
+     * a tela já trata "sem contrato" como passo próprio.
+     */
+    const desatualizado = contrato
+      ? await contratoProjetoService.desatualizado(projetoId, contrato)
+      : false
+
     reply.send({
       data: contrato,
       aceite,
       termosFaltantes: camposFaltantes(termos),
+      desatualizado,
       success: true,
     })
   } catch (erro) {

@@ -282,3 +282,88 @@ describe('o hash', () => {
     expect(hashDoTexto('x')).toMatch(/^[0-9a-f]{64}$/)
   })
 })
+
+/**
+ * Mudar os termos depois do aceite.
+ *
+ * Nada impede o designer de fazer isso, e nada dizia que tinha acontecido: a
+ * tela seguia afirmando "Combinado e aceito pelas duas partes. Pode cobrar."
+ * sobre um documento que descreve outro acordo. Neste produto esse documento é
+ * o que decide de quem é a peça se a conta não for paga.
+ */
+describe('contrato desatualizado', () => {
+  const CRIADO_EM = new Date('2026-09-01T12:00:00.000Z')
+
+  /** O hash que o anexo teria com os termos de `PROJETO_COMPLETO`. */
+  function hashCombinado(termos = TERMOS) {
+    const dados = montarDados({ ...PROJETO_COMPLETO, termos } as any, CRIADO_EM)
+    return hashDoTexto(renderizarAnexo(dados))
+  }
+
+  it('com os termos intocados, o vigente continua valendo', async () => {
+    db.projeto.findUnique.mockResolvedValue(PROJETO_COMPLETO)
+    const velho = await service.desatualizado(PROJETO, {
+      hash: hashCombinado(),
+      criadoEm: CRIADO_EM,
+    })
+    expect(velho).toBe(false)
+  })
+
+  it('mudar um termo depois de gerado marca o vigente como velho', async () => {
+    // O contrato guarda o hash do texto ANTIGO; o projeto já tem o novo termo.
+    const hashDoQueFoiAceito = hashCombinado()
+    db.projeto.findUnique.mockResolvedValue({
+      ...PROJETO_COMPLETO,
+      termos: { ...TERMOS, licencaTerritorio: 'Mundial' },
+    })
+
+    const velho = await service.desatualizado(PROJETO, {
+      hash: hashDoQueFoiAceito,
+      criadoEm: CRIADO_EM,
+    })
+    expect(velho).toBe(true)
+  })
+
+  it('mudar o orçamento também conta — ele está no anexo', async () => {
+    const hashDoQueFoiAceito = hashCombinado()
+    db.projeto.findUnique.mockResolvedValue({ ...PROJETO_COMPLETO, orcamento: 2_000_000 })
+
+    expect(
+      await service.desatualizado(PROJETO, { hash: hashDoQueFoiAceito, criadoEm: CRIADO_EM }),
+    ).toBe(true)
+  })
+
+  it('apagar um termo NÃO marca como velho', async () => {
+    /*
+     * Com termo faltando o anexo nem seria gerado — `gerar` recusa com
+     * TERMOS_INCOMPLETOS. Marcar velho aqui mandaria a pessoa regerar para
+     * receber um erro, e a saída seria preencher de volta, não gerar.
+     */
+    db.projeto.findUnique.mockResolvedValue({
+      ...PROJETO_COMPLETO,
+      termos: { ...TERMOS, licencaTerritorio: null },
+    })
+
+    expect(
+      await service.desatualizado(PROJETO, { hash: hashCombinado(), criadoEm: CRIADO_EM }),
+    ).toBe(false)
+  })
+
+  it('a data de geração não conta como mudança', async () => {
+    /*
+     * "Gerado em: …" está no texto. Se a conferência renderizasse com a data de
+     * hoje, todo contrato nasceria velho no dia seguinte — e a tela pediria
+     * para regerar um documento que ninguém mexeu.
+     */
+    db.projeto.findUnique.mockResolvedValue(PROJETO_COMPLETO)
+    const ontem = new Date('2020-01-01T00:00:00.000Z')
+    const dados = montarDados(PROJETO_COMPLETO as any, ontem)
+
+    expect(
+      await service.desatualizado(PROJETO, {
+        hash: hashDoTexto(renderizarAnexo(dados)),
+        criadoEm: ontem,
+      }),
+    ).toBe(false)
+  })
+})
