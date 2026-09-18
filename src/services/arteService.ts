@@ -17,9 +17,50 @@ export interface ListArtesParams {
   projetoId?: string
   projetoIds?: string[] // access-control scope (set by controller for non-admins)
   autorId?: string
+  /** Cliente do projeto a que a arte pertence. */
+  clienteId?: string
   status?: string
   tipo?: string
   search?: string
+  orderBy?: OrdemDeArtes
+}
+
+/**
+ * As ordens que a listagem sabe aplicar.
+ *
+ * A direção vai junto com o campo, e não como parâmetro à parte, porque cada
+ * um destes só tem um sentido útil: ninguém pede "as artes mais antigas
+ * primeiro" tanto quanto pede "as mais recentes", e por nome ou projeto o que
+ * se quer é ordem alfabética. Um par campo+direção dobraria as combinações
+ * para oferecer as que ninguém escolhe.
+ */
+export type OrdemDeArtes = 'criado_em' | 'nome' | 'projeto' | 'versao' | 'tamanho'
+
+/*
+ * Toda ordem termina no `id`, e isso não é detalhe.
+ *
+ * Nenhum destes campos é único — `versao` tem dois ou três valores no produto
+ * inteiro, e `projeto` repete em todas as artes do mesmo projeto. Com empate e
+ * `skip`/`take`, o banco não deve ordem nenhuma entre as linhas empatadas: a
+ * consulta da página 1 e a da página 2 podem desempatar diferente, e aí uma
+ * arte aparece nas duas enquanto outra não aparece em nenhuma.
+ *
+ * Tentei reproduzir localmente — quinze artes com o mesmo `criadoEm`, com e sem
+ * escrita concorrente — e a ordem se manteve: com tabela pequena o plano não
+ * varia. Isso não torna o desempate opcional, torna a falha silenciosa. Ela
+ * depende do plano (varredura paralela, índice diferente, linha reescrita por
+ * um UPDATE), então aparece em produção, com volume, e não na bancada. É o
+ * mesmo acordo implícito que corrigimos no viewer: duas consultas concordando
+ * por uma ordenação que nenhuma das duas declara.
+ *
+ * `id` é único e indexado, então o desempate é de graça.
+ */
+const ORDENS: Record<OrdemDeArtes, any> = {
+  criado_em: [{ criadoEm: 'desc' }, { id: 'asc' }],
+  nome: [{ nome: 'asc' }, { id: 'asc' }],
+  projeto: [{ projeto: { nome: 'asc' } }, { id: 'asc' }],
+  versao: [{ versao: 'desc' }, { id: 'asc' }],
+  tamanho: [{ tamanho: 'desc' }, { id: 'asc' }],
 }
 
 export class ArteService {
@@ -32,9 +73,11 @@ export class ArteService {
     projetoId,
     projetoIds,
     autorId,
+    clienteId,
     status,
     tipo,
     search,
+    orderBy,
   }: ListArtesParams) {
     const skip = (page - 1) * limit
     // projetoId (filtro de quem chama) e projetoIds (escopo de acesso) são
@@ -50,11 +93,14 @@ export class ArteService {
       ...(projetoConditions.length === 1 && projetoConditions[0]),
       ...(projetoConditions.length > 1 && { AND: projetoConditions }),
       ...(autorId && { autorId }),
+      // O cliente não é campo da arte: ele mora no projeto. Filtrar por ele
+      // era o único filtro da tela que não tinha como ser atendido aqui.
+      ...(clienteId && { projeto: { clienteId } }),
       ...(status && { status }),
       ...(tipo && { tipo }),
       ...(search && { nome: { contains: search } }),
     }
-    const [artes, total] = await Promise.all([
+    const [artes, total, porStatus] = await Promise.all([
       prisma.arte.findMany({
         where,
         skip,
@@ -88,11 +134,97 @@ export class ArteService {
             select: { feedbacks: true, aprovacoes: true },
           },
         },
-        orderBy: { criadoEm: 'desc' },
+        // Ordem desconhecida cai na mais recente, que é o padrão da tela.
+        orderBy: (orderBy && ORDENS[orderBy]) ?? ORDENS.criado_em,
       }),
       prisma.arte.count({ where }),
+      /*
+       * As contagens por status do conjunto FILTRADO — não da página.
+       *
+       * A tela somava os status das artes que tinha na mão e escrevia o
+       * resultado ao lado do total. Com uma página só os dois números falavam
+       * do mesmo conjunto e ninguém percebia; com duas, o cabeçalho dizia
+       * "13 itens" e "4 em análise" sobre as mesmas artes.
+       *
+       * Mesmo `where` da listagem, porque é ele que o total descreve.
+       */
+      prisma.arte.groupBy({ by: ['status'], where, _count: { _all: true } }),
     ])
-    return { artes, total }
+    return {
+      artes,
+      total,
+      porStatus: Object.fromEntries(
+        porStatus.map((g: any) => [g.status, g._count._all]),
+      ) as Record<string, number>,
+    }
+  }
+
+  /**
+   * Os valores por que da para filtrar a listagem de artes.
+   *
+   * A tela montava estas listas a partir das artes que já estavam na mão — o
+   * resultado da página atual, que já vem filtrado. Isso se mordia: escolher
+   * um cliente reduzia o resultado, e a lista de clientes passava a ter só
+   * ele, então trocar de cliente exigia limpar tudo antes. Pior: com o filtro
+   * dando zero resultados a lista nascia vazia e o valor escolhido sumia do
+   * próprio campo — filtro aplicado e invisível, que é como se acha que a tela
+   * está mostrando tudo.
+   *
+   * O escopo aqui é o mesmo da listagem (`projetoIds` quando não é admin), e
+   * não o resultado dela: são as opções possíveis, não as presentes.
+   */
+  async facetasDeArtes({ projetoIds }: { projetoIds?: string[] } = {}) {
+    const escopo = projetoIds ? { projetoId: { in: projetoIds } } : {}
+
+    const [projetos, autores, tipos] = await Promise.all([
+      // Só projetos que têm arte: oferecer um projeto vazio é oferecer um
+      // filtro que só pode dar lista vazia.
+      prisma.projeto.findMany({
+        where: {
+          ...(projetoIds && { id: { in: projetoIds } }),
+          artes: { some: {} },
+        },
+        select: { id: true, nome: true, cliente: { select: { id: true, nome: true } } },
+        orderBy: { nome: 'asc' },
+      }),
+      /*
+       * `groupBy` e não `distinct`.
+       *
+       * O `distinct` do Prisma não vira `SELECT DISTINCT`: ele emite um SELECT
+       * sem distinção nenhuma e deduplica em memória, no cliente. Conferido no
+       * SQL emitido pela 6.19 — `SELECT id, "autorId" FROM artes ORDER BY …`,
+       * a tabela inteira, para devolver um autor. Como isto é chamado a cada
+       * carga de /artes, uma conta com milhares de artes traria milhares de
+       * linhas para responder três nomes.
+       *
+       * `groupBy` emite `GROUP BY` de verdade, e aí são tantas linhas quantos
+       * são os valores.
+       */
+      prisma.arte.groupBy({ by: ['autorId'], where: escopo }),
+      prisma.arte.groupBy({ by: ['tipo'], where: escopo, orderBy: { tipo: 'asc' } }),
+    ])
+
+    // Os nomes dos autores, num lote só: o groupBy devolve ids.
+    const nomesDeAutores = autores.length
+      ? await prisma.usuario.findMany({
+          where: { id: { in: autores.map((a) => a.autorId) } },
+          select: { id: true, nome: true },
+          orderBy: { nome: 'asc' },
+        })
+      : []
+
+    // Um cliente com dois projetos apareceria duas vezes.
+    const clientes = new Map<string, { id: string; nome: string }>()
+    for (const p of projetos) {
+      if (p.cliente) clientes.set(p.cliente.id, { id: p.cliente.id, nome: p.cliente.nome })
+    }
+
+    return {
+      projetos: projetos.map((p) => ({ id: p.id, nome: p.nome })),
+      clientes: [...clientes.values()].sort((a, b) => a.nome.localeCompare(b.nome)),
+      autores: nomesDeAutores,
+      tipos: tipos.map((t) => t.tipo).filter(Boolean),
+    }
   }
 
   /**
