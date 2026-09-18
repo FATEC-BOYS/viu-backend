@@ -15,16 +15,18 @@ const notificacaoService = new NotificacaoService()
 export async function listArtes(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
     const usuario = (request as any).usuario
-    const { page = 1, limit = 10, projetoId, autorId, status, tipo, search } =
+    const { page = 1, limit = 10, projetoId, autorId, clienteId, status, tipo, search, orderBy } =
       (request.query || {}) as any
     const params: ListArtesParams = {
       page: Number(page) || 1,
       limit: Number(limit) || 10,
       projetoId: projetoId as string | undefined,
       autorId: autorId as string | undefined,
+      clienteId: clienteId as string | undefined,
       status: status as string | undefined,
       tipo: tipo as string | undefined,
       search: search as string | undefined,
+      orderBy: orderBy as ListArtesParams['orderBy'],
     }
 
     const acessiveis = await getAccessibleProjectIds(usuario.id, usuario.tipo === 'ADMIN')
@@ -38,7 +40,7 @@ export async function listArtes(request: FastifyRequest, reply: FastifyReply): P
       params.projetoIds = acessiveis
     }
 
-    const { artes, total } = await arteService.listArtes(params)
+    const { artes, total, porStatus } = await arteService.listArtes(params)
     /**
      * A lista devolvia só `arquivo`, que é a chave do bucket — e a grade de
      * artes ficava com o ícone de imagem quebrada, porque chave crua no `src`
@@ -58,11 +60,33 @@ export async function listArtes(request: FastifyRequest, reply: FastifyReply): P
     reply.send({
       data: artesComPreview,
       pagination: { page: params.page, limit: params.limit, total, pages: Math.ceil(total / params.limit!) },
+      porStatus,
       success: true,
     })
   } catch (erro) {
     request.log.error({ err: erro }, 'Erro ao listar artes')
     reply.status(500).send({ message: 'Erro ao listar artes', success: false })
+  }
+}
+
+/**
+ * Os valores por que dá para filtrar a listagem — projetos, clientes, autores
+ * e tipos dentro do que esta pessoa alcança.
+ *
+ * Endpoint próprio, e não um bloco na resposta de `/artes`: as facetas não
+ * mudam a cada troca de filtro nem a cada página, então recalculá-las em toda
+ * listagem seria pagar quatro consultas por rolagem para devolver sempre a
+ * mesma coisa.
+ */
+export async function facetasDeArtes(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  try {
+    const usuario = (request as any).usuario
+    const acessiveis = await getAccessibleProjectIds(usuario.id, usuario.tipo === 'ADMIN')
+    const facetas = await arteService.facetasDeArtes({ projetoIds: acessiveis ?? undefined })
+    reply.send({ data: facetas, success: true })
+  } catch (erro) {
+    request.log.error({ err: erro }, 'Erro ao listar facetas de artes')
+    reply.status(500).send({ message: 'Erro ao listar filtros de artes', success: false })
   }
 }
 

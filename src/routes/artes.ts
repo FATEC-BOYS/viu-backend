@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify'
 import {
   listArtes,
+  facetasDeArtes,
   getArteById,
   updateArte,
   deleteArte,
@@ -15,6 +16,10 @@ import { requireEmailVerificado } from '../middleware/emailVerificadoMiddleware.
 
 export async function artesRoutes(fastify: FastifyInstance) {
   fastify.get('/artes', { preHandler: [authenticate] }, listArtes)
+
+  // Antes de /artes/:id, senão "facetas" cai na rota de parâmetro e o
+  // validateCuidParam recusa — mesma colisão que /artes/upload já tinha.
+  fastify.get('/artes/facetas', { preHandler: [authenticate] }, facetasDeArtes)
 
   // /artes/upload must be registered before /artes/:id to avoid param collision
   fastify.post('/artes/upload', {

@@ -17,9 +17,31 @@ export interface ListArtesParams {
   projetoId?: string
   projetoIds?: string[] // access-control scope (set by controller for non-admins)
   autorId?: string
+  /** Cliente do projeto a que a arte pertence. */
+  clienteId?: string
   status?: string
   tipo?: string
   search?: string
+  orderBy?: OrdemDeArtes
+}
+
+/**
+ * As ordens que a listagem sabe aplicar.
+ *
+ * A direção vai junto com o campo, e não como parâmetro à parte, porque cada
+ * um destes só tem um sentido útil: ninguém pede "as artes mais antigas
+ * primeiro" tanto quanto pede "as mais recentes", e por nome ou projeto o que
+ * se quer é ordem alfabética. Um par campo+direção dobraria as combinações
+ * para oferecer as que ninguém escolhe.
+ */
+export type OrdemDeArtes = 'criado_em' | 'nome' | 'projeto' | 'versao' | 'tamanho'
+
+const ORDENS: Record<OrdemDeArtes, any> = {
+  criado_em: { criadoEm: 'desc' },
+  nome: { nome: 'asc' },
+  projeto: { projeto: { nome: 'asc' } },
+  versao: { versao: 'desc' },
+  tamanho: { tamanho: 'desc' },
 }
 
 export class ArteService {
@@ -32,9 +54,11 @@ export class ArteService {
     projetoId,
     projetoIds,
     autorId,
+    clienteId,
     status,
     tipo,
     search,
+    orderBy,
   }: ListArtesParams) {
     const skip = (page - 1) * limit
     // projetoId (filtro de quem chama) e projetoIds (escopo de acesso) são
@@ -50,11 +74,14 @@ export class ArteService {
       ...(projetoConditions.length === 1 && projetoConditions[0]),
       ...(projetoConditions.length > 1 && { AND: projetoConditions }),
       ...(autorId && { autorId }),
+      // O cliente não é campo da arte: ele mora no projeto. Filtrar por ele
+      // era o único filtro da tela que não tinha como ser atendido aqui.
+      ...(clienteId && { projeto: { clienteId } }),
       ...(status && { status }),
       ...(tipo && { tipo }),
       ...(search && { nome: { contains: search } }),
     }
-    const [artes, total] = await Promise.all([
+    const [artes, total, porStatus] = await Promise.all([
       prisma.arte.findMany({
         where,
         skip,
@@ -88,11 +115,87 @@ export class ArteService {
             select: { feedbacks: true, aprovacoes: true },
           },
         },
-        orderBy: { criadoEm: 'desc' },
+        // Ordem desconhecida cai na mais recente, que é o padrão da tela.
+        orderBy: (orderBy && ORDENS[orderBy]) ?? ORDENS.criado_em,
       }),
       prisma.arte.count({ where }),
+      /*
+       * As contagens por status do conjunto FILTRADO — não da página.
+       *
+       * A tela somava os status das artes que tinha na mão e escrevia o
+       * resultado ao lado do total. Com uma página só os dois números falavam
+       * do mesmo conjunto e ninguém percebia; com duas, o cabeçalho dizia
+       * "13 itens" e "4 em análise" sobre as mesmas artes.
+       *
+       * Mesmo `where` da listagem, porque é ele que o total descreve.
+       */
+      prisma.arte.groupBy({ by: ['status'], where, _count: { _all: true } }),
     ])
-    return { artes, total }
+    return {
+      artes,
+      total,
+      porStatus: Object.fromEntries(
+        porStatus.map((g: any) => [g.status, g._count._all]),
+      ) as Record<string, number>,
+    }
+  }
+
+  /**
+   * Os valores por que da para filtrar a listagem de artes.
+   *
+   * A tela montava estas listas a partir das artes que já estavam na mão — o
+   * resultado da página atual, que já vem filtrado. Isso se mordia: escolher
+   * um cliente reduzia o resultado, e a lista de clientes passava a ter só
+   * ele, então trocar de cliente exigia limpar tudo antes. Pior: com o filtro
+   * dando zero resultados a lista nascia vazia e o valor escolhido sumia do
+   * próprio campo — filtro aplicado e invisível, que é como se acha que a tela
+   * está mostrando tudo.
+   *
+   * O escopo aqui é o mesmo da listagem (`projetoIds` quando não é admin), e
+   * não o resultado dela: são as opções possíveis, não as presentes.
+   */
+  async facetasDeArtes({ projetoIds }: { projetoIds?: string[] } = {}) {
+    const escopo = projetoIds ? { projetoId: { in: projetoIds } } : {}
+
+    const [projetos, autores, tipos] = await Promise.all([
+      // Só projetos que têm arte: oferecer um projeto vazio é oferecer um
+      // filtro que só pode dar lista vazia.
+      prisma.projeto.findMany({
+        where: {
+          ...(projetoIds && { id: { in: projetoIds } }),
+          artes: { some: {} },
+        },
+        select: { id: true, nome: true, cliente: { select: { id: true, nome: true } } },
+        orderBy: { nome: 'asc' },
+      }),
+      prisma.arte.findMany({
+        where: escopo,
+        distinct: ['autorId'],
+        select: { autor: { select: { id: true, nome: true } } },
+        orderBy: { autor: { nome: 'asc' } },
+      }),
+      prisma.arte.findMany({
+        where: escopo,
+        distinct: ['tipo'],
+        select: { tipo: true },
+        orderBy: { tipo: 'asc' },
+      }),
+    ])
+
+    // Um cliente com dois projetos apareceria duas vezes.
+    const clientes = new Map<string, { id: string; nome: string }>()
+    for (const p of projetos) {
+      if (p.cliente) clientes.set(p.cliente.id, { id: p.cliente.id, nome: p.cliente.nome })
+    }
+
+    return {
+      projetos: projetos.map((p) => ({ id: p.id, nome: p.nome })),
+      clientes: [...clientes.values()].sort((a, b) => a.nome.localeCompare(b.nome)),
+      autores: autores
+        .map((a) => a.autor)
+        .filter((a): a is { id: string; nome: string } => Boolean(a)),
+      tipos: tipos.map((t) => t.tipo).filter(Boolean),
+    }
   }
 
   /**
