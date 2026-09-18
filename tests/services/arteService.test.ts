@@ -58,19 +58,37 @@ describe('ArteService.listArtes', () => {
   it('ordena pelo que a tela pediu', async () => {
     semArtes()
     await service.listArtes({ orderBy: 'nome' })
-    expect(chamada().orderBy).toEqual({ nome: 'asc' })
+    expect(chamada().orderBy[0]).toEqual({ nome: 'asc' })
 
     vi.clearAllMocks()
     semArtes()
     await service.listArtes({ orderBy: 'projeto' })
-    expect(chamada().orderBy).toEqual({ projeto: { nome: 'asc' } })
+    expect(chamada().orderBy[0]).toEqual({ projeto: { nome: 'asc' } })
+  })
+
+  /*
+   * Sem desempate, uma arte pode aparecer em duas páginas e outra em nenhuma:
+   * nenhum destes campos é único, e o banco não deve ordem entre empatados.
+   * Não reproduz na bancada — com tabela pequena o plano não varia — e é
+   * justamente por isso que o teste existe: a falha depende do plano, então
+   * aparece com volume, em produção, e não aqui.
+   */
+  it('desempata por id em toda ordem, porque a lista é paginada', async () => {
+    for (const ordem of ['criado_em', 'nome', 'projeto', 'versao', 'tamanho'] as const) {
+      vi.clearAllMocks()
+      semArtes()
+      await service.listArtes({ orderBy: ordem })
+      const orderBy = chamada().orderBy
+      expect(Array.isArray(orderBy)).toBe(true)
+      expect(orderBy[orderBy.length - 1]).toEqual({ id: 'asc' })
+    }
   })
 
   it('cai na mais recente quando a ordem não é uma das conhecidas', async () => {
     // A ordem vem da URL, então qualquer texto pode chegar aqui.
     semArtes()
     await service.listArtes({ orderBy: 'sql injection' as any })
-    expect(chamada().orderBy).toEqual({ criadoEm: 'desc' })
+    expect(chamada().orderBy).toEqual([{ criadoEm: 'desc' }, { id: 'asc' }])
   })
 
   /*
@@ -110,9 +128,10 @@ describe('ArteService.facetasDeArtes', () => {
 
   function comDados() {
     vi.mocked(prisma.projeto.findMany).mockResolvedValue(PROJETOS as any)
-    vi.mocked(prisma.arte.findMany)
-      .mockResolvedValueOnce([{ autor: { id: 'a1', nome: 'Ana Silva' } }] as any)
+    vi.mocked(prisma.arte.groupBy)
+      .mockResolvedValueOnce([{ autorId: 'a1' }] as any)
       .mockResolvedValueOnce([{ tipo: 'IMAGEM' }, { tipo: 'DOCUMENTO' }] as any)
+    vi.mocked(prisma.usuario.findMany).mockResolvedValue([{ id: 'a1', nome: 'Ana Silva' }] as any)
   }
 
   it('não repete o cliente que tem mais de um projeto', async () => {
@@ -143,8 +162,30 @@ describe('ArteService.facetasDeArtes', () => {
     expect(projetos.where.id).toEqual({ in: ['p1'] })
     // E só projetos com arte: um projeto vazio é um filtro que só pode dar lista vazia.
     expect(projetos.where.artes).toEqual({ some: {} })
-    const artes = vi.mocked(prisma.arte.findMany).mock.calls[0][0] as any
+    const artes = vi.mocked(prisma.arte.groupBy).mock.calls[0][0] as any
     expect(artes.where).toEqual({ projetoId: { in: ['p1'] } })
+  })
+
+  /*
+   * `distinct` do Prisma não vira SELECT DISTINCT: ele traz as linhas todas e
+   * deduplica em memória. Numa rota chamada a cada carga de /artes, isso
+   * cresce com o número de artes da conta para devolver meia dúzia de nomes.
+   */
+  it('agrupa no banco em vez de trazer todas as artes para deduplicar aqui', async () => {
+    comDados()
+    await service.facetasDeArtes()
+    expect(prisma.arte.groupBy).toHaveBeenCalledTimes(2)
+    expect(prisma.arte.findMany).not.toHaveBeenCalled()
+  })
+
+  it('não pede nome de autor nenhum quando não há artes', async () => {
+    vi.mocked(prisma.projeto.findMany).mockResolvedValue([] as any)
+    vi.mocked(prisma.arte.groupBy).mockResolvedValue([] as any)
+
+    const facetas = await service.facetasDeArtes()
+
+    expect(prisma.usuario.findMany).not.toHaveBeenCalled()
+    expect(facetas).toEqual({ projetos: [], clientes: [], autores: [], tipos: [] })
   })
 
   it('sem escopo (admin), não restringe', async () => {

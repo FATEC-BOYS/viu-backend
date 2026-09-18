@@ -36,12 +36,31 @@ export interface ListArtesParams {
  */
 export type OrdemDeArtes = 'criado_em' | 'nome' | 'projeto' | 'versao' | 'tamanho'
 
+/*
+ * Toda ordem termina no `id`, e isso não é detalhe.
+ *
+ * Nenhum destes campos é único — `versao` tem dois ou três valores no produto
+ * inteiro, e `projeto` repete em todas as artes do mesmo projeto. Com empate e
+ * `skip`/`take`, o banco não deve ordem nenhuma entre as linhas empatadas: a
+ * consulta da página 1 e a da página 2 podem desempatar diferente, e aí uma
+ * arte aparece nas duas enquanto outra não aparece em nenhuma.
+ *
+ * Tentei reproduzir localmente — quinze artes com o mesmo `criadoEm`, com e sem
+ * escrita concorrente — e a ordem se manteve: com tabela pequena o plano não
+ * varia. Isso não torna o desempate opcional, torna a falha silenciosa. Ela
+ * depende do plano (varredura paralela, índice diferente, linha reescrita por
+ * um UPDATE), então aparece em produção, com volume, e não na bancada. É o
+ * mesmo acordo implícito que corrigimos no viewer: duas consultas concordando
+ * por uma ordenação que nenhuma das duas declara.
+ *
+ * `id` é único e indexado, então o desempate é de graça.
+ */
 const ORDENS: Record<OrdemDeArtes, any> = {
-  criado_em: { criadoEm: 'desc' },
-  nome: { nome: 'asc' },
-  projeto: { projeto: { nome: 'asc' } },
-  versao: { versao: 'desc' },
-  tamanho: { tamanho: 'desc' },
+  criado_em: [{ criadoEm: 'desc' }, { id: 'asc' }],
+  nome: [{ nome: 'asc' }, { id: 'asc' }],
+  projeto: [{ projeto: { nome: 'asc' } }, { id: 'asc' }],
+  versao: [{ versao: 'desc' }, { id: 'asc' }],
+  tamanho: [{ tamanho: 'desc' }, { id: 'asc' }],
 }
 
 export class ArteService {
@@ -168,19 +187,31 @@ export class ArteService {
         select: { id: true, nome: true, cliente: { select: { id: true, nome: true } } },
         orderBy: { nome: 'asc' },
       }),
-      prisma.arte.findMany({
-        where: escopo,
-        distinct: ['autorId'],
-        select: { autor: { select: { id: true, nome: true } } },
-        orderBy: { autor: { nome: 'asc' } },
-      }),
-      prisma.arte.findMany({
-        where: escopo,
-        distinct: ['tipo'],
-        select: { tipo: true },
-        orderBy: { tipo: 'asc' },
-      }),
+      /*
+       * `groupBy` e não `distinct`.
+       *
+       * O `distinct` do Prisma não vira `SELECT DISTINCT`: ele emite um SELECT
+       * sem distinção nenhuma e deduplica em memória, no cliente. Conferido no
+       * SQL emitido pela 6.19 — `SELECT id, "autorId" FROM artes ORDER BY …`,
+       * a tabela inteira, para devolver um autor. Como isto é chamado a cada
+       * carga de /artes, uma conta com milhares de artes traria milhares de
+       * linhas para responder três nomes.
+       *
+       * `groupBy` emite `GROUP BY` de verdade, e aí são tantas linhas quantos
+       * são os valores.
+       */
+      prisma.arte.groupBy({ by: ['autorId'], where: escopo }),
+      prisma.arte.groupBy({ by: ['tipo'], where: escopo, orderBy: { tipo: 'asc' } }),
     ])
+
+    // Os nomes dos autores, num lote só: o groupBy devolve ids.
+    const nomesDeAutores = autores.length
+      ? await prisma.usuario.findMany({
+          where: { id: { in: autores.map((a) => a.autorId) } },
+          select: { id: true, nome: true },
+          orderBy: { nome: 'asc' },
+        })
+      : []
 
     // Um cliente com dois projetos apareceria duas vezes.
     const clientes = new Map<string, { id: string; nome: string }>()
@@ -191,9 +222,7 @@ export class ArteService {
     return {
       projetos: projetos.map((p) => ({ id: p.id, nome: p.nome })),
       clientes: [...clientes.values()].sort((a, b) => a.nome.localeCompare(b.nome)),
-      autores: autores
-        .map((a) => a.autor)
-        .filter((a): a is { id: string; nome: string } => Boolean(a)),
+      autores: nomesDeAutores,
       tipos: tipos.map((t) => t.tipo).filter(Boolean),
     }
   }
