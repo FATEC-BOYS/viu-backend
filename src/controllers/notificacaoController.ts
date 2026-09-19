@@ -27,6 +27,23 @@ export async function listNotificacoes(request: FastifyRequest, reply: FastifyRe
   }
 }
 
+/*
+ * As opções de filtro desta pessoa.
+ *
+ * Antes a tela trazia a lista de tipos escrita à mão. Vindo daqui, cada opção
+ * existe porque existe linha — e some quando não existe mais.
+ */
+export async function getFacetasDeNotificacoes(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  try {
+    const usuario = (request as any).usuario
+    const facetas = await notificacaoService.facetasDeNotificacoes(usuario.id)
+    reply.send({ data: facetas, success: true })
+  } catch (erro) {
+    request.log.error({ err: erro }, 'Erro ao carregar facetas de notificações')
+    reply.status(500).send({ message: 'Erro ao carregar filtros', success: false })
+  }
+}
+
 export async function getNotificacaoById(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
     const usuario = (request as any).usuario

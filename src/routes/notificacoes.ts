@@ -3,6 +3,7 @@ import { FastifyInstance } from 'fastify'
 import {
   listNotificacoes,
   getNotificacaoById,
+  getFacetasDeNotificacoes,
   createNotificacao,
   markNotificacaoAsRead,
   markAllNotificacoesAsRead,
@@ -13,6 +14,10 @@ import { requireRole } from '../middleware/authorizationMiddleware.js'
 
 export async function notificacoesRoutes(fastify: FastifyInstance) {
   fastify.get('/notificacoes', { preHandler: [authenticate] }, listNotificacoes)
+  // Antes de `/:id`: rota estática ganha de paramétrica no find-my-way, mas
+  // deixar o vizinho à vista evita que alguém introduza `/notificacoes/:algo`
+  // aqui no meio sem perceber que engoliria esta.
+  fastify.get('/notificacoes/facetas', { preHandler: [authenticate] }, getFacetasDeNotificacoes)
   fastify.get('/notificacoes/:id', { preHandler: [authenticate] }, getNotificacaoById)
   // Admin-only: direct creation for system messages
   fastify.post('/notificacoes', { preHandler: [authenticate, requireRole('ADMIN')] }, createNotificacao)
