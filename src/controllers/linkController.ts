@@ -242,6 +242,39 @@ export async function deleteLink(
   }
 }
 
+/**
+ * Para onde o link leva — sem contar visita.
+ *
+ * Existe para `/l/<token>`, que só redireciona. Ver `destinoDoToken`.
+ *
+ * O corpo do erro é o MESMO do preview (motivo + expiraEm, 410/404), porque é
+ * a mesma tela que o consome: `LinkIndisponivel` decide o que dizer a partir
+ * do motivo, e duas formas de recusar dariam duas telas para o mesmo fato.
+ */
+export async function getDestinoByToken(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  try {
+    const { token } = request.params as { token: string }
+    const destino = await linkService.destinoDoToken(token)
+    reply.send({ data: destino, success: true })
+  } catch (error: any) {
+    if (error instanceof LinkIndisponivelError) {
+      const status = error.motivo === 'NAO_ENCONTRADO' ? 404 : 410
+      reply.status(status).send({
+        message: error.message,
+        motivo: error.motivo,
+        ...(error.expiraEm ? { expiraEm: error.expiraEm.toISOString() } : {}),
+        success: false,
+      })
+      return
+    }
+    request.log.error({ err: error }, 'Erro ao resolver destino do link')
+    reply.status(500).send({ message: 'Erro ao abrir o link', success: false })
+  }
+}
+
 export async function getPreviewByToken(
   request: FastifyRequest,
   reply: FastifyReply,

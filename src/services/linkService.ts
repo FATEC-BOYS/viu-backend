@@ -99,6 +99,33 @@ export class LinkService {
     }
   }
 
+  /**
+   * Para onde o link leva, sem contar visita.
+   *
+   * `/l/<token>` — o endereço que vai no WhatsApp — só precisa do id da arte
+   * para redirecionar ao viewer. Ele chamava `getPreviewByToken`, que monta a
+   * resposta inteira (URL assinada, feedbacks, licença) e, de quebra, soma um
+   * acesso. A página descartava tudo menos o id, e o acesso ficava contado por
+   * uma tela que não mostrou nada a ninguém.
+   *
+   * Resultado: UMA abertura do cliente valia DOIS acessos — um aqui, outro no
+   * viewer. Conferido no navegador. E isso corrói duas coisas de uma vez: o
+   * número que o designer lê como "quantas vezes ele abriu", que é a única
+   * prova de que o link chegou do outro lado; e `limiteTentativas`, que morre
+   * na metade das aberturas combinadas.
+   *
+   * As mesmas recusas do preview (`assertLinkValid`), para que o motivo que
+   * chega na tela continue idêntico. Diferente de `resolveArteIdFromToken`,
+   * que recusa link somente-leitura por servir ao caminho de comentar: aqui
+   * ler é justamente o que se vai fazer.
+   */
+  async destinoDoToken(token: string): Promise<{ arteId: string }> {
+    const link = await prisma.linkCompartilhado.findUnique({ where: { token } })
+    if (!link) throw new LinkIndisponivelError('NAO_ENCONTRADO', 'Link inválido')
+    this.assertLinkValid(link)
+    return { arteId: link.arteId! }
+  }
+
   async resolveArteIdFromToken(token: string): Promise<string> {
     const link = await prisma.linkCompartilhado.findUnique({ where: { token } })
     if (!link) throw new LinkIndisponivelError('NAO_ENCONTRADO', 'Link inválido')

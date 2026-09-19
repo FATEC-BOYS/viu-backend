@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify'
 import {
   createSharedLink,
   getPreviewByToken,
+  getDestinoByToken,
   listLinks,
   updateLink,
   deleteLink,
@@ -32,6 +33,12 @@ export async function linksRoutes(fastify: FastifyInstance) {
     // Endpoint público sem auth — protege contra enumeração de tokens e scraping
     config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
   }, getPreviewByToken)
+
+  // Só o destino, sem contar acesso: é o que `/l/<token>` precisa para
+  // redirecionar. Mesmo teto do preview — é a mesma superfície pública.
+  fastify.get('/preview/:token/destino', {
+    config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+  }, getDestinoByToken)
 
   /*
    * Esta é a porta pública do produto: o link é encaminhável e qualquer um que
