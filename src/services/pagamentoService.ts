@@ -68,6 +68,7 @@ export class PagamentoService {
           'PAGAMENTO_CONFIRMADO',
           'Pagamento confirmado 💰',
           `Um pagamento de ${formatCurrency(fatura.valorLiquidoDesigner)} foi confirmado e adicionado ao seu saldo.`,
+          { entidadeTipo: 'FATURA', entidadeId: pagamento.faturaId },
         )
       }
     }

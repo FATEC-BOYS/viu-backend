@@ -155,6 +155,7 @@ export class AssinaturaService {
         'ASSINATURA_RENOVADA',
         'Assinatura ativada ✅',
         `Sua assinatura do plano ${nomePlano} está ativa e válida por 30 dias.`,
+        { entidadeTipo: 'ASSINATURA', entidadeId: assinatura.id },
       )
     } else if (novoStatus === 'CANCELADA') {
       notificacaoService.dispatch(
@@ -162,6 +163,7 @@ export class AssinaturaService {
         'ASSINATURA_CANCELADA',
         'Assinatura cancelada',
         `Sua assinatura do plano ${nomePlano} foi cancelada.`,
+        { entidadeTipo: 'ASSINATURA', entidadeId: assinatura.id },
       )
     } else if (novoStatus === 'PAUSADA') {
       notificacaoService.dispatch(
@@ -169,6 +171,7 @@ export class AssinaturaService {
         'ASSINATURA_PAUSADA',
         'Assinatura pausada',
         `Sua assinatura do plano ${nomePlano} foi pausada.`,
+        { entidadeTipo: 'ASSINATURA', entidadeId: assinatura.id },
       )
     }
   }

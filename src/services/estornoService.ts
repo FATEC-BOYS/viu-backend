@@ -146,15 +146,17 @@ export async function estornarFatura(faturaId: string, motivo: string): Promise<
   if (aplicado) {
     notificacaoService.dispatch(
       fatura.clienteId,
-      'SISTEMA',
+      'ESTORNO',
       'Estorno emitido',
       `O pagamento de ${formatCurrency(fatura.valor)} do projeto "${fatura.projeto.nome}" foi devolvido. ${motivo}`,
+      { entidadeTipo: 'FATURA', entidadeId: fatura.id },
     )
     notificacaoService.dispatch(
       fatura.designerId,
-      'SISTEMA',
+      'ESTORNO',
       'Fatura estornada',
       `A fatura do projeto "${fatura.projeto.nome}" foi estornada e ${formatCurrency(fatura.valorLiquidoDesigner)} saíram do seu saldo. ${motivo}`,
+      { entidadeTipo: 'FATURA', entidadeId: fatura.id },
     )
   }
 

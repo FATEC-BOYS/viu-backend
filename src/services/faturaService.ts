@@ -190,6 +190,7 @@ export class FaturaService {
       'FATURA_GERADA',
       `Fatura gerada — ${projeto.nome}`,
       `Uma fatura de ${formatCurrency(projeto.orcamento)} foi gerada para o projeto "${projeto.nome}". Acesse para realizar o pagamento.`,
+      { entidadeTipo: 'FATURA', entidadeId: fatura.id },
     )
 
     /*
