@@ -161,6 +161,7 @@ export async function recusarCadastro(rawToken: string): Promise<ResultadoDaRecu
       'CLIENTE_RECUSOU_CADASTRO',
       'Seu cliente recusou o cadastro',
       `A pessoa que você cadastrou como cliente em "${projeto.nome}" pediu a remoção dos dados dela. O projeto continua aí, mas você precisa indicar outro cliente.`,
+      { entidadeTipo: 'PROJETO', entidadeId: projeto.id },
     )
   }
 

@@ -5,13 +5,73 @@ import {
   TipoNotificacao, CanalNotificacao,
   TIPOS_USUARIO, STATUS_PROJETO, TIPOS_ARTE, STATUS_ARTE,
   TIPOS_FEEDBACK, STATUS_APROVACAO, STATUS_TAREFA, PRIORIDADES,
-  TIPOS_NOTIFICACAO, CANAIS_NOTIFICACAO,
+  TIPOS_NOTIFICACAO, CANAIS_NOTIFICACAO, ROTULO_NOTIFICACAO,
   isValidTipoUsuario, isValidStatusProjeto, isValidTipoArte,
   isValidStatusArte, isValidTipoFeedback, isValidStatusAprovacao,
   isValidStatusTarefa, isValidPrioridade, isValidTipoNotificacao,
   isValidCanalNotificacao,
 } from '../../src/types/enums.js'
 import { ARTE_TRANSITIONS } from '../../src/utils/stateMachine.js'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const DIR_SERVICES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../src/services')
+
+/**
+ * Argumentos de cada `notificacaoService.dispatch(...)` de um arquivo.
+ *
+ * Feito na mão porque a alternativa é manter uma segunda lista de tipos — que
+ * é exatamente a duplicata que deixou o enum divergir. Conta parênteses,
+ * colchetes e chaves para não cortar no meio de um template literal ou de um
+ * objeto, e ignora vírgula dentro de string.
+ */
+function argumentosDeDispatch(fonte: string): string[][] {
+  const chamadas: string[][] = []
+  const marca = 'notificacaoService.dispatch('
+
+  for (let i = fonte.indexOf(marca); i !== -1; i = fonte.indexOf(marca, i + 1)) {
+    let profundidade = 0
+    let j = i + marca.length - 1
+    let fim = -1
+    for (; j < fonte.length; j++) {
+      const c = fonte[j]
+      if (c === '(') profundidade++
+      else if (c === ')') {
+        profundidade--
+        if (profundidade === 0) { fim = j; break }
+      }
+    }
+    if (fim === -1) continue
+
+    const corpo = fonte.slice(i + marca.length, fim)
+    const args: string[] = []
+    let atual = ''
+    let nivel = 0
+    for (let k = 0; k < corpo.length; k++) {
+      const c = corpo[k]
+      if (c === '\'' || c === '"' || c === '`') {
+        const aspas = c
+        atual += c
+        k++
+        while (k < corpo.length && corpo[k] !== aspas) {
+          if (corpo[k] === '\\') { atual += corpo[k]; k++ }
+          atual += corpo[k]
+          k++
+        }
+        atual += corpo[k] ?? ''
+        continue
+      }
+      if (c === '(' || c === '[' || c === '{') nivel++
+      else if (c === ')' || c === ']' || c === '}') nivel--
+      if (c === ',' && nivel === 0) { args.push(atual.trim()); atual = ''; continue }
+      atual += c
+    }
+    if (atual.trim()) args.push(atual.trim())
+    if (args.length >= 2) chamadas.push(args)
+  }
+  return chamadas
+}
 
 describe('Enums - constantes', () => {
   it('TipoUsuario deve conter DESIGNER, CLIENTE e ADMIN', () => {
@@ -72,8 +132,50 @@ describe('Enums - constantes', () => {
     expect(PRIORIDADES).toEqual(['BAIXA', 'MEDIA', 'ALTA', 'URGENTE'])
   })
 
-  it('TipoNotificacao deve conter todos os tipos', () => {
-    expect(TIPOS_NOTIFICACAO).toHaveLength(6)
+  /*
+   * Este teste já existiu como `expect(TIPOS_NOTIFICACAO).toHaveLength(6)` e
+   * passava verdinho enquanto o enum e o sistema falavam línguas diferentes:
+   * contava seis, e eram seis — só que quatro deles nenhum serviço emitia, e
+   * dez que os serviços emitiam não estavam na lista. Contagem não é conteúdo.
+   *
+   * Agora o teste vai ler os `dispatch` de verdade. Serviço que inventar um
+   * tipo novo sem declará-lo aqui derruba a suíte, que é o único jeito de a
+   * tela de /notificacoes não voltar a rotular pelo palpite.
+   */
+  it('TipoNotificacao declara exatamente os tipos que os serviços disparam', () => {
+    const tiposDisparados = new Set<string>()
+
+    for (const arquivo of fs.readdirSync(DIR_SERVICES)) {
+      if (!arquivo.endsWith('.ts')) continue
+      const fonte = fs.readFileSync(path.join(DIR_SERVICES, arquivo), 'utf8')
+      for (const args of argumentosDeDispatch(fonte)) {
+        /*
+         * O 2º argumento é o tipo, e ele pode ser um ternário:
+         * `status === 'APROVADO' ? 'ARTE_APROVADA' : 'ARTE_REJEITADA'`.
+         * Só os ramos são tipos — a condição compara outra coisa (aqui, um
+         * status de aprovação). Por isso o corte no `?`: pegar a expressão
+         * inteira fazia o teste cobrar 'APROVADO' como tipo de notificação.
+         */
+        const corte = args[1].indexOf('?')
+        const expressao = corte === -1 ? args[1] : args[1].slice(corte + 1)
+        for (const [, literal] of expressao.matchAll(/'([A-Z_]+)'/g)) {
+          tiposDisparados.add(literal)
+        }
+      }
+    }
+
+    // Se isto vier vazio o teste não está provando nada — provavelmente o
+    // parser deixou de achar as chamadas.
+    expect(tiposDisparados.size).toBeGreaterThan(0)
+
+    const naoDeclarados = [...tiposDisparados].filter((t) => !TIPOS_NOTIFICACAO.includes(t as any))
+    expect(naoDeclarados).toEqual([])
+
+    // E cada tipo declarado precisa de rótulo: sem ele a caixa de entrada
+    // mostra o próprio identificador, como mostrava `APROVACAO_SOLICITADA`.
+    for (const tipo of TIPOS_NOTIFICACAO) {
+      expect(ROTULO_NOTIFICACAO[tipo], `sem rótulo: ${tipo}`).toBeTruthy()
+    }
   })
 
   it('CanalNotificacao deve conter todos os canais', () => {
@@ -129,7 +231,7 @@ describe('Funções de validação', () => {
   })
 
   it('isValidTipoNotificacao funciona corretamente', () => {
-    expect(isValidTipoNotificacao('NOVO_PROJETO')).toBe(true)
+    expect(isValidTipoNotificacao('APROVACAO_SOLICITADA')).toBe(true)
     expect(isValidTipoNotificacao('INVALIDO')).toBe(false)
   })
 

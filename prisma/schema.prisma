@@ -343,12 +343,22 @@ model Notificacao {
   usuarioId String
   usuario   Usuario @relation("NotificacaoUsuario", fields: [usuarioId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
+  // Para onde a notificação leva. Opcional porque nem todo aviso tem destino
+  // (mensagem de sistema não aponta para lugar nenhum) e porque as linhas que
+  // já existem em produção nasceram sem isto.
+  entidadeTipo String?
+  entidadeId   String?
+
   criadoEm DateTime @default(now())
 
   @@index([usuarioId])
   @@index([tipo])
   @@index([lida])
   @@index([criadoEm])
+  // A listagem é sempre "as minhas, da mais nova para a mais velha": o índice
+  // composto atende ordenação e recorte de uma vez, e o `id` é o desempate que
+  // a paginação precisa para não repetir nem pular linha.
+  @@index([usuarioId, criadoEm, id])
   @@map("notificacoes")
 }
 

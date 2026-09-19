@@ -165,6 +165,7 @@ export class FeedbackService {
         'NOVO_FEEDBACK',
         `Novo feedback em "${arte.nome}"`,
         `${autor.nome} ${threadLabel} na arte "${arte.nome}".`,
+        { entidadeTipo: 'ARTE', entidadeId: arte.id },
       )
     }
 

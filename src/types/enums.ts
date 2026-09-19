@@ -114,17 +114,76 @@ export const Prioridade = {
 
 export type Prioridade = typeof Prioridade[keyof typeof Prioridade];
 
-// 🔔 Tipos de Notificação
+/*
+ * 🔔 Tipos de Notificação
+ *
+ * Esta lista precisa ser exatamente o que os serviços disparam. Ela já esteve
+ * errada: declarava NOVO_PROJETO, NOVA_ARTE, APROVACAO e PRAZO — que nenhum
+ * `dispatch` jamais emitiu — e não declarava dez tipos que existiam de fato.
+ * Deu para divergir porque `dispatch` recebia `tipo: string`, então o
+ * compilador não tinha o que conferir; o seed escrevia o vocabulário da lista
+ * e a tela de /notificacoes foi desenhada a partir dela, de modo que filtro e
+ * rótulo combinavam com o seed e com mais nada.
+ *
+ * `dispatch` agora recebe `TipoNotificacao`. Tipo novo sem entrada aqui não
+ * compila, e é assim que a divergência não volta.
+ */
 export const TipoNotificacao = {
-  NOVO_PROJETO: 'NOVO_PROJETO',
-  NOVA_ARTE: 'NOVA_ARTE',
+  APROVACAO_SOLICITADA: 'APROVACAO_SOLICITADA',
+  LEMBRETE_APROVACAO: 'LEMBRETE_APROVACAO',
+  ARTE_APROVADA: 'ARTE_APROVADA',
+  ARTE_REJEITADA: 'ARTE_REJEITADA',
   NOVO_FEEDBACK: 'NOVO_FEEDBACK',
-  APROVACAO: 'APROVACAO',
-  PRAZO: 'PRAZO',
+  FATURA_GERADA: 'FATURA_GERADA',
+  PAGAMENTO_CONFIRMADO: 'PAGAMENTO_CONFIRMADO',
+  ESTORNO: 'ESTORNO',
+  CLIENTE_RECUSOU_CADASTRO: 'CLIENTE_RECUSOU_CADASTRO',
+  ASSINATURA_RENOVADA: 'ASSINATURA_RENOVADA',
+  ASSINATURA_CANCELADA: 'ASSINATURA_CANCELADA',
+  ASSINATURA_PAUSADA: 'ASSINATURA_PAUSADA',
   SISTEMA: 'SISTEMA',
 } as const;
 
 export type TipoNotificacao = typeof TipoNotificacao[keyof typeof TipoNotificacao];
+
+/*
+ * O nome que a pessoa lê.
+ *
+ * Fica aqui, coladinho na união, e não na tela: o rótulo precisa nascer junto
+ * com o tipo, senão tipo novo aparece na caixa de entrada escrito
+ * `APROVACAO_SOLICITADA` — que foi o que aconteceu com dez dos doze. O
+ * `Record` completo obriga o par: declarar o tipo sem rótulo não compila.
+ */
+export const ROTULO_NOTIFICACAO: Record<TipoNotificacao, string> = {
+  APROVACAO_SOLICITADA: 'Aguardando sua aprovação',
+  LEMBRETE_APROVACAO: 'Lembrete de aprovação',
+  ARTE_APROVADA: 'Arte aprovada',
+  ARTE_REJEITADA: 'Arte recusada',
+  NOVO_FEEDBACK: 'Novo feedback',
+  FATURA_GERADA: 'Fatura gerada',
+  PAGAMENTO_CONFIRMADO: 'Pagamento confirmado',
+  ESTORNO: 'Estorno',
+  CLIENTE_RECUSOU_CADASTRO: 'Cliente recusou o cadastro',
+  ASSINATURA_RENOVADA: 'Assinatura ativada',
+  ASSINATURA_CANCELADA: 'Assinatura cancelada',
+  ASSINATURA_PAUSADA: 'Assinatura pausada',
+  SISTEMA: 'Sistema',
+};
+
+/*
+ * A que a notificação se refere — para a linha levar a algum lugar.
+ *
+ * Sem isto a caixa de entrada avisa e abandona: "'Logo TechStart' aguarda sua
+ * aprovação" sem caminho até a arte.
+ */
+export const EntidadeNotificacao = {
+  ARTE: 'ARTE',
+  PROJETO: 'PROJETO',
+  FATURA: 'FATURA',
+  ASSINATURA: 'ASSINATURA',
+} as const;
+
+export type EntidadeNotificacao = typeof EntidadeNotificacao[keyof typeof EntidadeNotificacao];
 
 // 🔔 Canais de Notificação
 export const CanalNotificacao = {

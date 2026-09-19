@@ -218,24 +218,34 @@ async function main() {
     },
   })
 
-  // Criar notificações
+  /*
+   * Notificações de exemplo.
+   *
+   * Precisam usar o mesmo vocabulário que os serviços disparam. Já não usavam:
+   * a segunda linha nascia com tipo `APROVACAO`, que nenhum `dispatch` emite —
+   * o tipo real é `ARTE_APROVADA`. Como a tela de /notificacoes foi desenhada
+   * olhando o seed, filtro e rótulo combinavam aqui e com mais nada. Semear o
+   * que o sistema não produz é esconder o buraco em vez de mostrá-lo.
+   */
   await prisma.notificacao.create({
     data: {
-      titulo: 'Novo feedback recebido',
-      conteudo: 'João Santos comentou no logo TechStart',
+      titulo: 'Novo feedback em "Logo TechStart - Versão 1"',
+      conteudo: 'João Santos adicionou um feedback na arte "Logo TechStart - Versão 1".',
       tipo: 'NOVO_FEEDBACK',
-      canal: 'SISTEMA',
       usuarioId: designer.id,
+      entidadeTipo: 'ARTE',
+      entidadeId: arte1.id,
     },
   })
   await prisma.notificacao.create({
     data: {
-      titulo: 'Arte aprovada!',
-      conteudo: 'Seu cartão de visita foi aprovado pelo cliente',
-      tipo: 'APROVACAO',
-      canal: 'SISTEMA',
+      titulo: 'Arte aprovada ✅',
+      conteudo: 'A arte "Cartão de Visita TechStart" foi aprovada pelo cliente.',
+      tipo: 'ARTE_APROVADA',
       lida: false,
       usuarioId: designer.id,
+      entidadeTipo: 'ARTE',
+      entidadeId: arte2.id,
     },
   })
 
