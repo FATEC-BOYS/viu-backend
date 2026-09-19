@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { UsuarioService, ListUsuariosParams } from '../services/usuarioService.js'
 import { registrarAceiteTermos } from '../services/termosPlataformaService.js'
+import { assinarPlanoGratuito } from '../services/assinaturaService.js'
 import {
   sendVerificationEmail,
   sendAvisoDeContaCriadaPorTerceiro,
@@ -119,6 +120,33 @@ export async function createUsuario(request: FastifyRequest, reply: FastifyReply
         ip: request.ip ?? request.headers['x-forwarded-for']?.toString().split(',')[0]?.trim(),
         userAgent: request.headers['user-agent'],
       })
+    }
+
+    /*
+     * O designer nasce no plano gratuito.
+     *
+     * Pelo TIPO e não pela rota: esta função atende tanto `/auth/register`
+     * quanto `POST /usuarios`, e o Gratuito é um plano de DESIGNER. Cliente
+     * cadastrado pelo designer não assina nada — não é conta que paga o VIU.
+     *
+     * Falha aqui não recusa o cadastro. Sem a linha, o produto volta ao que
+     * fazia antes (a taxa da fatura já resolve o gratuito por ausência), e
+     * recusar uma conta porque a tabela de planos está vazia seria trocar um
+     * incômodo por uma porta fechada. Mas vai para o log: designer sem
+     * assinatura é pergunta de suporte depois.
+     */
+    if (usuario.tipo === 'DESIGNER') {
+      try {
+        const assinatura = await assinarPlanoGratuito(usuario.id)
+        if (!assinatura) {
+          request.log.warn(
+            { usuarioId: usuario.id },
+            'Cadastro sem assinatura gratuita: nenhum plano gratuito de designer ativo',
+          )
+        }
+      } catch (erro) {
+        request.log.error({ err: erro, usuarioId: usuario.id }, 'Falha ao assinar o plano gratuito')
+      }
     }
 
     // Fire-and-forget — não bloqueia o registro se o email falhar

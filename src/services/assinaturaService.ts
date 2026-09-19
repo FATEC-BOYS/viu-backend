@@ -3,6 +3,7 @@ import { mpPreApproval } from './mercadoPagoService.js'
 import { ASSINATURA_TRANSITIONS } from '../utils/stateMachine.js'
 import { notificacaoService } from './notificacaoService.js'
 import { env } from '../config/env.js'
+import { planoGratuitoDoDesigner } from './planoGratuito.js'
 
 const MP_STATUS_MAP: Record<string, string> = {
   authorized: 'ATIVA',
@@ -17,6 +18,37 @@ export class AssinaturaService {
       where: { usuarioId, status: { in: ['ATIVA', 'PENDENTE', 'PAUSADA'] } },
       include: { plano: true },
       orderBy: { criadoEm: 'desc' },
+    })
+  }
+
+  /**
+   * Põe o designer no plano gratuito, no cadastro.
+   *
+   * O produto já tratava a ausência de assinatura como "está no gratuito" na
+   * hora de calcular a taxa da fatura. Só que a tela não sabia disso: o Perfil
+   * mostrava "Nenhuma assinatura ativa" para todo designer do VIU, com um
+   * botão para escolher um plano que ele já tinha. E o teto de projetos e
+   * artes vinha de outro lugar (as variáveis BETA_MAX), então mudar os limites
+   * do Gratuito na tela de administração não mudava limite nenhum.
+   *
+   * Com a linha criada, as três coisas passam a ler o mesmo lugar.
+   *
+   * Devolve `null` em vez de estourar quando não há plano gratuito cadastrado
+   * ou quando o designer já assina algo: nenhum dos dois é motivo para recusar
+   * um cadastro, e a taxa continua tendo a saída do `faturaService`.
+   */
+  async assinarPlanoGratuito(usuarioId: string) {
+    const plano = await planoGratuitoDoDesigner()
+    if (!plano) return null
+
+    const jaTem = await prisma.assinatura.findFirst({
+      where: { usuarioId, status: { in: ['ATIVA', 'PENDENTE'] } },
+    })
+    if (jaTem) return null
+
+    return prisma.assinatura.create({
+      data: { usuarioId, planoId: plano.id, status: 'ATIVA', periodoInicio: new Date() },
+      include: { plano: true },
     })
   }
 
@@ -145,5 +177,6 @@ export class AssinaturaService {
 const _svc = new AssinaturaService()
 export const getMinhaAssinatura = (...args: Parameters<AssinaturaService['getMinhaAssinatura']>) => _svc.getMinhaAssinatura(...args)
 export const criarAssinatura = (...args: Parameters<AssinaturaService['criarAssinatura']>) => _svc.criarAssinatura(...args)
+export const assinarPlanoGratuito = (...args: Parameters<AssinaturaService['assinarPlanoGratuito']>) => _svc.assinarPlanoGratuito(...args)
 export const cancelarAssinatura = (...args: Parameters<AssinaturaService['cancelarAssinatura']>) => _svc.cancelarAssinatura(...args)
 export const handleWebhookAssinatura = (...args: Parameters<AssinaturaService['handleWebhookAssinatura']>) => _svc.handleWebhookAssinatura(...args)

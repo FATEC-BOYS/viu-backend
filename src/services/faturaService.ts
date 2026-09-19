@@ -4,6 +4,7 @@ import { formatCurrency, formatDate } from '../utils/formatters.js'
 import { assertValidTransition, FATURA_TRANSITIONS } from '../utils/stateMachine.js'
 import { notificacaoService } from './notificacaoService.js'
 import { pendenciaDeContrato, ContratoPendenteError } from './contratoProjetoService.js'
+import { planoGratuitoDoDesigner } from './planoGratuito.js'
 
 /**
  * Último recurso, quando não há NENHUM plano gratuito de designer cadastrado.
@@ -32,14 +33,10 @@ async function taxaDoDesigner(designerId: string): Promise<number> {
   })
   if (assinatura) return assinatura.plano.taxaPlataforma
 
-  const gratuito = await prisma.plano.findFirst({
-    where: { tipo: 'DESIGNER', ativo: true, precoMensal: 0 },
-    // O mais antigo: se houver mais de um gratuito, o primeiro cadastrado é o
-    // que já estava valendo. Sem ordem explícita o Postgres pode devolver
-    // outro a cada consulta, e a taxa da fatura mudaria sozinha.
-    orderBy: { criadoEm: 'asc' },
-    select: { taxaPlataforma: true },
-  })
+  // Mesma função que o cadastro usa para assinar: as duas leituras precisam
+  // apontar para a MESMA linha, senão a taxa sai de um plano e os limites de
+  // outro.
+  const gratuito = await planoGratuitoDoDesigner()
   return gratuito?.taxaPlataforma ?? TAXA_PADRAO
 }
 
