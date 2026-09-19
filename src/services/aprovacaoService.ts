@@ -155,6 +155,7 @@ export class AprovacaoService {
         data.status === 'APROVADO' ? 'ARTE_APROVADA' : 'ARTE_REJEITADA',
         `Arte ${statusLabel}`,
         `A arte "${arte.nome}" foi ${statusLabel} pelo cliente.${data.comentario ? ` Comentário: ${data.comentario}` : ''}`,
+        { entidadeTipo: 'ARTE', entidadeId: arte.id },
       )
     }
 
@@ -210,6 +211,7 @@ export class AprovacaoService {
       'APROVACAO_SOLICITADA',
       `"${arte.nome}" aguarda sua aprovação`,
       `A versão ${versao} de "${arte.nome}" foi enviada para sua aprovação.`,
+      { entidadeTipo: 'ARTE', entidadeId: arte.id },
     )
 
     return aprovacao
@@ -247,7 +249,40 @@ export class AprovacaoService {
     }
     if (updateData.comentario !== undefined) allowedUpdate.comentario = updateData.comentario
 
-    return prisma.aprovacao.update({ where: { id }, data: allowedUpdate })
+    const atualizada = await prisma.aprovacao.update({ where: { id }, data: allowedUpdate })
+
+    /*
+     * Avisa o designer de que o cliente respondeu.
+     *
+     * Este aviso existia só em `createAprovacao` — o caminho em que o cliente
+     * registra uma decisão do zero. O produto decide por aqui: o designer pede
+     * com `solicitarAprovacao`, e a tela do cliente responde com
+     * `PUT /aprovacoes/:id`. Resultado: no laço central do VIU, o designer
+     * nunca ficava sabendo que a arte foi aprovada ou recusada. Conferido no
+     * app — pedir e aprovar deixava a caixa de entrada do designer intacta.
+     *
+     * `existing.arte.autorId` e não o designer do projeto: quem espera a
+     * resposta é quem mandou a arte, que num time pode não ser o dono da conta.
+     */
+    if (
+      existing.arte?.autorId &&
+      (allowedUpdate.status === 'APROVADO' || allowedUpdate.status === 'REJEITADO')
+    ) {
+      const aprovada = allowedUpdate.status === 'APROVADO'
+      // O emoji fica no título, onde marca a linha de relance. No meio da
+      // frase ele só atravessa a leitura: "foi aprovada ✅ pelo cliente".
+      const statusLabel = aprovada ? 'aprovada' : 'recusada'
+      const comentario = allowedUpdate.comentario ?? existing.comentario
+      notificacaoService.dispatch(
+        existing.arte.autorId,
+        aprovada ? 'ARTE_APROVADA' : 'ARTE_REJEITADA',
+        `Arte ${statusLabel} ${aprovada ? '✅' : '❌'}`,
+        `A arte "${existing.arte.nome}" foi ${statusLabel} pelo cliente.${comentario ? ` Comentário: ${comentario}` : ''}`,
+        { entidadeTipo: 'ARTE', entidadeId: existing.arteId },
+      )
+    }
+
+    return atualizada
   }
 
   async deleteAprovacao(id: string, userId: string, isAdmin: boolean) {
@@ -293,6 +328,7 @@ export class AprovacaoService {
       'LEMBRETE_APROVACAO',
       `Lembrete: "${aprovacao.arte.nome}" aguarda sua aprovação`,
       `A arte "${aprovacao.arte.nome}" continua pendente de aprovação.`,
+      { entidadeTipo: 'ARTE', entidadeId: aprovacao.arteId },
     )
 
     return { aprovacaoId: aprovacao.id, aprovadorId: aprovacao.aprovadorId }
