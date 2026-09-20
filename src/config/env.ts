@@ -12,7 +12,21 @@ const envSchema = z.object({
   ALLOWED_ORIGINS: z.string().default('http://localhost:3000,http://localhost:5173'),
   // Rate limit global. Default preserva o comportamento anterior (hardcoded);
   // existe para dar folga em dev/testes e para ajustar em produção sem deploy.
-  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
+  /*
+   * Teto do limite global, por sessão (ver `keyGenerator` em index.ts).
+   *
+   * Era 100, e dava para estourar NAVEGANDO: medido no app, uma caminhada de
+   * nove telas custava 48 requisições, com a mais pesada em 11. Quem revisava
+   * trabalho por meia hora levava "espere 15 minutos" na cara — foi relatado
+   * por quem usa.
+   *
+   * 600 é folga sobre esse número medido, não um chute redondo: dá mais de
+   * cinquenta telas no pior caso por janela. Continua sendo um freio para
+   * cliente desgovernado, que é o que o limite global faz; abuso de verdade é
+   * barrado pelos limites por rota (login, reset, saque, comentário por link),
+   * que não mudaram.
+   */
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(600),
   RATE_LIMIT_WINDOW: z.string().default('15 minutes'),
   /**
    * Quantos proxies existem na frente da API.

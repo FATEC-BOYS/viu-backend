@@ -18,6 +18,7 @@ import { sessoesRoutes } from './routes/sessoes.js'
 import { twoFactorRoutes } from './routes/twoFactor.js'
 import { securityRoutes } from './routes/security.js'
 import { linksRoutes } from './routes/links.js'
+import { COOKIE_TOKEN } from './utils/authCookies.js'
 import { authRoutes } from './routes/auth.js'
 import { adminRoutes } from './routes/admin.js'
 import { planosRoutes } from './routes/planos.js'
@@ -121,6 +122,29 @@ export async function buildServer() {
     global: true,
     max: env.RATE_LIMIT_MAX,
     timeWindow: env.RATE_LIMIT_WINDOW,
+    /*
+     * A cota é de cada sessão, não do endereço de onde ela vem.
+     *
+     * Sem `keyGenerator`, o padrão é o IP — e aí duas pessoas do mesmo
+     * escritório, ou dois celulares atrás do CGNAT da operadora, dividem os
+     * mesmos 100. Uma navegando derrubava a outra, sem que nenhuma das duas
+     * tivesse feito nada demais.
+     *
+     * O cookie de sessão é lido sem ser validado, de propósito: este gancho
+     * roda em `onRequest`, antes de qualquer autenticação, e validar aqui
+     * seria uma consulta ao banco em toda requisição. A consequência é que
+     * quem forjar um cookie novo a cada chamada escapa DESTE limite — e tudo
+     * bem: o limite global existe para um cliente desgovernado, não para
+     * conter abuso. Abuso é barrado pelos limites por rota, que seguem
+     * apertados onde importa: login e reset de senha (5/15min), saque
+     * (5/hora), comentário por link (20/min, chaveado pelo próprio link).
+     *
+     * Sem cookie, cai no IP — que é o certo para quem ainda não entrou.
+     */
+    keyGenerator: (request) => {
+      const sessao = (request as any).cookies?.[COOKIE_TOKEN]
+      return sessao ? `sessao:${sessao}` : `ip:${request.ip}`
+    },
     // Quem lê isto é uma pessoa na tela, não quem escreveu o limite: o número
     // de requisições e a janela não dizem a ela o que fazer. O tempo restante,
     // sim — e o `Retry-After` continua no header para o cliente HTTP.
