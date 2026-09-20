@@ -393,13 +393,81 @@ export const SolicitarSaqueSchema = z.object({
   valor: z.number().int('Valor deve ser inteiro em centavos').positive('Valor deve ser positivo'),
 })
 
-export const CadastrarChavePixSchema = z.object({
-  tipo: z.enum(['CPF', 'EMAIL', 'TELEFONE', 'ALEATORIA'], {
-    errorMap: () => ({ message: 'Tipo deve ser CPF, EMAIL, TELEFONE ou ALEATORIA' }),
-  }),
-  chave: z.string().min(1, 'Chave PIX é obrigatória').max(256),
-  titular: z.string().min(1, 'Nome do titular é obrigatório').max(256),
-})
+/*
+ * A chave precisa ter a cara do tipo que ela diz ser.
+ *
+ * `chave` era `z.string().min(1).max(256)`, então `tipo: 'CPF'` com
+ * `chave: 'banana'` entrava — conferido contra o servidor: os quatro tipos
+ * aceitavam lixo. Isto é o fim de um caminho de dinheiro: o designer cadastra,
+ * pede o saque, e a transferência falha lá na frente, quando ele já está
+ * esperando o dinheiro cair.
+ *
+ * As regras são as do próprio PIX, não invenção nossa. O CPF confere os
+ * dígitos verificadores porque onze dígitos quaisquer não são um CPF — e é
+ * justamente o erro de digitação que se quer pegar aqui.
+ */
+const SO_DIGITOS = (v: string) => v.replace(/\D/g, '')
+
+function cpfValido(bruto: string): boolean {
+  const cpf = SO_DIGITOS(bruto)
+  if (cpf.length !== 11) return false
+  // Todos os dígitos iguais passam no cálculo, mas não existem como CPF.
+  if (/^(\d)\1{10}$/.test(cpf)) return false
+
+  const digito = (ate: number) => {
+    let soma = 0
+    for (let i = 0; i < ate; i++) soma += Number(cpf[i]) * (ate + 1 - i)
+    const resto = (soma * 10) % 11
+    return resto === 10 ? 0 : resto
+  }
+  return digito(9) === Number(cpf[9]) && digito(10) === Number(cpf[10])
+}
+
+/** Celular brasileiro: DDD (11–99) + 9 + oito dígitos, com ou sem +55. */
+function telefoneValido(bruto: string): boolean {
+  const n = SO_DIGITOS(bruto).replace(/^55/, '')
+  return /^[1-9][1-9]9\d{8}$/.test(n)
+}
+
+/** Chave aleatória do PIX é um UUID — 32 hexadecimais, com ou sem hífens. */
+function aleatoriaValida(bruto: string): boolean {
+  return /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i.test(bruto.trim())
+}
+
+const MENSAGEM_POR_TIPO: Record<'CPF' | 'EMAIL' | 'TELEFONE' | 'ALEATORIA', string> = {
+  CPF: 'CPF inválido',
+  EMAIL: 'E-mail inválido',
+  TELEFONE: 'Telefone inválido — use DDD + celular, como 11987654321',
+  ALEATORIA: 'Chave aleatória inválida — ela tem o formato de um UUID',
+}
+
+export const CadastrarChavePixSchema = z
+  .object({
+    tipo: z.enum(['CPF', 'EMAIL', 'TELEFONE', 'ALEATORIA'], {
+      errorMap: () => ({ message: 'Tipo deve ser CPF, EMAIL, TELEFONE ou ALEATORIA' }),
+    }),
+    chave: z.string().trim().min(1, 'Chave PIX é obrigatória').max(256),
+    titular: z.string().trim().min(1, 'Nome do titular é obrigatório').max(256),
+  })
+  .superRefine((dados, ctx) => {
+    // Indexado pelo tipo do enum, não por `string`: assim o compilador garante
+    // que todo tipo aceito tem um conferidor, e um tipo novo sem regra não
+    // passa batido.
+    const confere: Record<typeof dados.tipo, (v: string) => boolean> = {
+      CPF: cpfValido,
+      EMAIL: (v) => z.string().email().safeParse(v).success,
+      TELEFONE: telefoneValido,
+      ALEATORIA: aleatoriaValida,
+    }
+
+    if (!confere[dados.tipo](dados.chave)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['chave'],
+        message: MENSAGEM_POR_TIPO[dados.tipo],
+      })
+    }
+  })
 
 // ===== SCHEMAS DE EQUIPE =====
 
