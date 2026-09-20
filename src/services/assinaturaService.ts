@@ -4,6 +4,7 @@ import { ASSINATURA_TRANSITIONS } from '../utils/stateMachine.js'
 import { notificacaoService } from './notificacaoService.js'
 import { env } from '../config/env.js'
 import { planoGratuitoDoDesigner } from './planoGratuito.js'
+import { assinaturaVigente } from './assinaturaVigente.js'
 
 const MP_STATUS_MAP: Record<string, string> = {
   authorized: 'ATIVA',
@@ -13,12 +14,18 @@ const MP_STATUS_MAP: Record<string, string> = {
 }
 
 export class AssinaturaService {
+  /**
+   * O que vale para esta pessoa — a assinatura, se houver, e o plano em vigor.
+   *
+   * Antes devolvia só a linha, e `null` quando não havia nenhuma. A tela lia
+   * esse `null` como "não tem plano" e mostrava "Você ainda não tem uma
+   * assinatura ativa" com um convite para escolher um plano — inclusive para
+   * quem acabara de cancelar e para todo designer cadastrado antes de o
+   * produto passar a criar a linha do Gratuito. O resto do sistema já os
+   * tratava como assinantes do Gratuito; só esta rota discordava.
+   */
   async getMinhaAssinatura(usuarioId: string) {
-    return prisma.assinatura.findFirst({
-      where: { usuarioId, status: { in: ['ATIVA', 'PENDENTE', 'PAUSADA'] } },
-      include: { plano: true },
-      orderBy: { criadoEm: 'desc' },
-    })
+    return assinaturaVigente(usuarioId)
   }
 
   /**
@@ -108,6 +115,8 @@ export class AssinaturaService {
       throw new Error('Assinatura não pode ser cancelada no status atual')
     }
 
+    // A cobrança recorrente para no gateway de qualquer forma: o que se
+    // decide aqui embaixo é só até quando o acesso já pago continua valendo.
     if (assinatura.mpPreapprovalId) {
       await mpPreApproval.update({
         id: assinatura.mpPreapprovalId,
@@ -115,9 +124,28 @@ export class AssinaturaService {
       })
     }
 
+    /*
+     * Cancelar desliga a renovação; não confisca o que já foi pago.
+     *
+     * Escrevia `CANCELADA` na hora, e como `taxaDoDesigner` e
+     * `requirePlanLimit` só enxergam `ATIVA`, o acesso caía no mesmo segundo.
+     * Conferido no app: com 27 dias pagos pela frente, `POST /projetos` passou
+     * de aceito para `402 "Você chegou ao limite do beta: 3 projetos"` logo
+     * depois do clique — enquanto o diálogo prometia, com todas as letras,
+     * "você perderá acesso ao final do período pago".
+     *
+     * Agora a linha continua `ATIVA` com `renovacaoAutomatica: false` até
+     * `periodoFim`, e `assinaturaVigente` a vence quando a data chega. Sem
+     * período pago pela frente — plano gratuito, ou assinatura que nunca
+     * chegou a ter data — não há o que preservar e ela encerra na hora.
+     */
+    const aindaPago = assinatura.periodoFim !== null && assinatura.periodoFim > new Date()
+
     return prisma.assinatura.update({
       where: { id },
-      data: { status: 'CANCELADA', renovacaoAutomatica: false },
+      data: aindaPago
+        ? { renovacaoAutomatica: false }
+        : { status: 'CANCELADA', renovacaoAutomatica: false },
       include: { plano: true },
     })
   }

@@ -4,7 +4,7 @@ import { formatCurrency, formatDate, formatDateOnly } from '../utils/formatters.
 import { assertValidTransition, FATURA_TRANSITIONS } from '../utils/stateMachine.js'
 import { notificacaoService } from './notificacaoService.js'
 import { pendenciaDeContrato, ContratoPendenteError } from './contratoProjetoService.js'
-import { planoGratuitoDoDesigner } from './planoGratuito.js'
+import { planoVigente } from './assinaturaVigente.js'
 import { env } from '../config/env.js'
 
 /**
@@ -28,17 +28,15 @@ const TAXA_PADRAO = 0.10
  * administração de planos passa a valer para valer.
  */
 async function taxaDoDesigner(designerId: string): Promise<number> {
-  const assinatura = await prisma.assinatura.findFirst({
-    where: { usuarioId: designerId, status: 'ATIVA' },
-    include: { plano: { select: { taxaPlataforma: true } } },
-  })
-  if (assinatura) return assinatura.plano.taxaPlataforma
-
-  // Mesma função que o cadastro usa para assinar: as duas leituras precisam
-  // apontar para a MESMA linha, senão a taxa sai de um plano e os limites de
-  // outro.
-  const gratuito = await planoGratuitoDoDesigner()
-  return gratuito?.taxaPlataforma ?? TAXA_PADRAO
+  /*
+   * Uma leitura só, compartilhada com o teto de recursos e com a tela de
+   * assinatura. Antes cada um decidia por conta própria o que vale quando não
+   * há assinatura — este caía no Gratuito, o middleware de limites caía nas
+   * variáveis BETA_MAX_* — e bastava mexer num para o designer ser cobrado
+   * pela taxa de um plano e limitado pelos tetos de outro.
+   */
+  const plano = await planoVigente(designerId)
+  return plano?.taxaPlataforma ?? TAXA_PADRAO
 }
 
 /**
