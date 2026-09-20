@@ -204,8 +204,20 @@ describe('a escrita do estorno é idempotente', () => {
 })
 
 describe('resolver a disputa move o dinheiro junto', () => {
+  /*
+   * `projeto` vem junto porque a linha real vem: `projetoId` não é anulável, e
+   * resolver agora avisa os dois lados do projeto. Um fixture sem projeto
+   * descreveria uma disputa que o banco não consegue guardar.
+   */
   function disputaAberta(extra: Record<string, unknown> = {}) {
-    return { id: DISPUTA, status: 'ABERTA', faturaId: FATURA, ...extra } as any
+    return {
+      id: DISPUTA,
+      status: 'ABERTA',
+      faturaId: FATURA,
+      saldoBloqueado: 0,
+      projeto: { nome: 'Projeto em disputa', designerId: 'designer1', clienteId: 'cliente1' },
+      ...extra,
+    } as any
   }
 
   it('a favor do cliente estorna a fatura', async () => {
