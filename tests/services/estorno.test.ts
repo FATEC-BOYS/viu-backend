@@ -33,7 +33,9 @@ function faturaPaga(extra: Record<string, unknown> = {}) {
     valorLiquidoDesigner: 90_000,
     designerId: 'd1',
     clienteId: 'c1',
-    pagamento: { mpPaymentId: '12345' },
+    // A tentativa APROVADA — a que levou o dinheiro. A consulta já filtra
+    // por status, então aqui vem só ela.
+    pagamentos: [{ mpPaymentId: '12345' }],
     projeto: { nome: 'Identidade visual' },
     ...extra,
   } as any
@@ -128,7 +130,7 @@ describe('estornar uma fatura', () => {
 
   it('fatura paga fora do gateway acerta os livros e avisa que o dinheiro não saiu', async () => {
     // Silenciar isto faria a tela dizer "devolvido" sobre dinheiro parado.
-    db.fatura.findUnique.mockResolvedValue(faturaPaga({ pagamento: null }))
+    db.fatura.findUnique.mockResolvedValue(faturaPaga({ pagamentos: [] }))
     transacaoQueAplica(1)
 
     const r = await estornarFatura(FATURA, 'motivo')

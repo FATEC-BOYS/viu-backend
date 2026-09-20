@@ -555,7 +555,19 @@ model Fatura {
   designerId String
   designer   Usuario @relation("FaturasDesigner", fields: [designerId], references: [id])
 
-  pagamento Pagamento? @relation("PagamentoFatura")
+  /*
+   * Tentativas de pagamento, não uma só.
+   *
+   * Era `Pagamento?` com `faturaId @unique`: uma fatura só podia ter uma
+   * tentativa na vida. Quando o QR do PIX expirava (webhook do MP marca
+   * CANCELADO) ou o pagamento era recusado (REJEITADO), a tentativa morria,
+   * a fatura continuava PENDENTE e não havia como criar outra — o cliente
+   * ficava impedido de pagar para sempre.
+   *
+   * A tentativa recusada fica guardada: num sistema de dinheiro, apagar
+   * tentativa é apagar prova.
+   */
+  pagamentos Pagamento[] @relation("PagamentoFatura")
   disputas  Disputa[]  @relation("DisputasFatura")
 
   criadoEm     DateTime @default(now())
@@ -580,11 +592,21 @@ model Pagamento {
   mpQrCode        String?
   mpQrCodeText    String?
 
+  /*
+   * Quando o QR deixa de valer, como o gateway informou.
+   *
+   * Antes isto não era guardado e a expiração era recalculada como
+   * `agora + 24h` a cada resposta — inclusive ao reexpor um QR antigo. Quem
+   * gerava às 10h e voltava às 23h lia "válido até 23h", treze horas a mais
+   * que a verdade.
+   */
+  expiraEm        DateTime?
+
   usuarioId    String
   usuario      Usuario     @relation("PagamentosUsuario", fields: [usuarioId], references: [id])
   assinaturaId String?
   assinatura   Assinatura? @relation("PagamentosAssinatura", fields: [assinaturaId], references: [id])
-  faturaId     String?     @unique
+  faturaId     String?
   fatura       Fatura?     @relation("PagamentoFatura", fields: [faturaId], references: [id])
 
   criadoEm     DateTime @default(now())
@@ -594,6 +616,9 @@ model Pagamento {
   @@index([status])
   @@index([tipo])
   @@index([mpPaymentId])
+  // Substitui o UNIQUE que impedia uma fatura de ter mais de uma tentativa.
+  // O acesso continua sendo "as tentativas desta fatura", agora sem a trava.
+  @@index([faturaId])
   @@map("pagamentos")
 }
 
