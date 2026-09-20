@@ -28,7 +28,16 @@ export async function abrirDisputa(request: FastifyRequest, reply: FastifyReply)
       reply.status(403).send({ message: error.message, success: false })
       return
     }
-    if (error.message.includes('não encontrado') || error.message.includes('inválido') || error.message.includes('não pertence')) {
+    /*
+     * Conflito de estado, não erro de quem clicou: a fatura já está em disputa.
+     * Cair no 500 genérico daria "erro interno" para uma recusa que a pessoa
+     * consegue entender e resolver escolhendo outra fatura.
+     */
+    if (error.message.includes('Já existe uma disputa em aberto')) {
+      reply.status(409).send({ message: error.message, success: false })
+      return
+    }
+    if (error.message.includes('não encontrado') || error.message.includes('não encontrada') || error.message.includes('inválido') || error.message.includes('não pertence')) {
       reply.status(400).send({ message: error.message, success: false })
       return
     }

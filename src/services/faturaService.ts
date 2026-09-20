@@ -365,8 +365,20 @@ export class FaturaService {
     }
   }
 
-  async listarFaturas(usuarioId: string, tipo: 'cliente' | 'designer') {
-    const where = tipo === 'cliente' ? { clienteId: usuarioId } : { designerId: usuarioId }
+  /*
+   * `projetoId` estreita a lista a um projeto — e é filtro do banco, não da
+   * tela. Quem abre uma disputa precisa escolher QUAL fatura está em jogo, e
+   * filtrar no navegador uma lista que já chega inteira esconderia as faturas
+   * que não couberam nela sem dizer que estava escondendo.
+   *
+   * O recorte por participante continua onde estava: mesmo com `projetoId`,
+   * só saem faturas em que a pessoa é o cliente ou o designer.
+   */
+  async listarFaturas(usuarioId: string, tipo: 'cliente' | 'designer', projetoId?: string) {
+    const where = {
+      ...(tipo === 'cliente' ? { clienteId: usuarioId } : { designerId: usuarioId }),
+      ...(projetoId ? { projetoId } : {}),
+    }
     const faturas = await prisma.fatura.findMany({
       where,
       include: {

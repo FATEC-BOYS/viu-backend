@@ -141,6 +141,8 @@ export const TipoNotificacao = {
   ASSINATURA_RENOVADA: 'ASSINATURA_RENOVADA',
   ASSINATURA_CANCELADA: 'ASSINATURA_CANCELADA',
   ASSINATURA_PAUSADA: 'ASSINATURA_PAUSADA',
+  DISPUTA_ABERTA: 'DISPUTA_ABERTA',
+  DISPUTA_RESOLVIDA: 'DISPUTA_RESOLVIDA',
   SISTEMA: 'SISTEMA',
 } as const;
 
@@ -167,6 +169,8 @@ export const ROTULO_NOTIFICACAO: Record<TipoNotificacao, string> = {
   ASSINATURA_RENOVADA: 'Assinatura ativada',
   ASSINATURA_CANCELADA: 'Assinatura cancelada',
   ASSINATURA_PAUSADA: 'Assinatura pausada',
+  DISPUTA_ABERTA: 'Disputa aberta',
+  DISPUTA_RESOLVIDA: 'Disputa resolvida',
   SISTEMA: 'Sistema',
 };
 
@@ -181,6 +185,12 @@ export const EntidadeNotificacao = {
   PROJETO: 'PROJETO',
   FATURA: 'FATURA',
   ASSINATURA: 'ASSINATURA',
+  /*
+   * Não há tela por disputa — `/disputas` é a lista, e ela mostra tanto quem
+   * abriu quanto o outro lado. Apontar para um detalhe que não existe seria
+   * repetir o que a caixa de entrada já fazia: avisar e abandonar.
+   */
+  DISPUTA: 'DISPUTA',
 } as const;
 
 export type EntidadeNotificacao = typeof EntidadeNotificacao[keyof typeof EntidadeNotificacao];

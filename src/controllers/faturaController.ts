@@ -104,8 +104,8 @@ export async function listarFaturasHandler(
 ): Promise<void> {
   try {
     const usuario = (request as any).usuario
-    const { tipo = 'cliente' } = (request.query || {}) as any
-    const faturas = await listarFaturas(usuario.id, tipo)
+    const { tipo = 'cliente', projetoId } = (request.query || {}) as any
+    const faturas = await listarFaturas(usuario.id, tipo, projetoId || undefined)
     reply.send({ data: faturas, success: true })
   } catch (erro) {
     request.log.error({ err: erro }, 'Erro ao buscar faturas')
