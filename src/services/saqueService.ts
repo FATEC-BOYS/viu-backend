@@ -32,6 +32,26 @@ function disputasBloqueantesWhere(designerId: string) {
   }
 }
 
+/**
+ * Um saque como a interface precisa dele.
+ *
+ * A formatação estava copiada em `listarSaques` e `listarSaquesAdmin` — e
+ * faltava em `solicitarSaque`, que devolvia a linha crua do Prisma. A tela
+ * insere o saque recém-criado direto na lista, então ele aparecia no histórico
+ * SEM VALOR: só a chave e a data. Conferido no app antes do conserto.
+ *
+ * É o mesmo defeito que `faturaService` já tinha e resolveu do mesmo jeito:
+ * uma função só, usada por todas as rotas que descrevem a entidade, para não
+ * voltarem a divergir.
+ */
+function comValoresFormatados<T extends { valor: number; criadoEm: Date }>(saque: T) {
+  return {
+    ...saque,
+    valorFormatado: formatCurrency(saque.valor),
+    criadoEmFormatado: formatDate(saque.criadoEm),
+  }
+}
+
 export class SaqueService {
   async listarChavesPix(usuarioId: string) {
     return prisma.chavePix.findMany({
@@ -92,6 +112,16 @@ export class SaqueService {
       // encolhe sem explicacao parece dinheiro sumido.
       saldoBloqueado,
       saldoBloqueadoFormatado: formatCurrency(saldoBloqueado),
+      /*
+       * O mínimo vai junto do saldo porque é a mesma pergunta: "posso sacar?".
+       *
+       * A tela tinha a própria cópia do número (`valor < 500`) e a própria
+       * frase ("Mínimo R$ 5,00"). Duas fontes para uma regra só: mudar aqui
+       * deixaria a tela recusando um valor que o servidor aceita, ou pior,
+       * prometendo um que ele recusa.
+       */
+      valorMinimo: VALOR_MINIMO_SAQUE,
+      valorMinimoFormatado: formatCurrency(VALOR_MINIMO_SAQUE),
     }
   }
 
@@ -133,10 +163,13 @@ export class SaqueService {
           (disputasAbertas._sum.saldoBloqueado ?? 0)
         if (valor > saldo) throw new Error('Saldo insuficiente para o saque solicitado')
 
-        return tx.saque.create({
+        const criado = await tx.saque.create({
           data: { designerId, chavePixId, valor, status: 'SOLICITADO' },
           include: { chavePix: true },
         })
+        // Pelo mesmo formatador das listagens: a tela insere este objeto
+        // direto no histórico, e sem isto a linha nascia sem valor.
+        return comValoresFormatados(criado)
       },
       { isolationLevel: 'Serializable' },
     )
@@ -174,11 +207,7 @@ export class SaqueService {
       include: { chavePix: true },
       orderBy: { criadoEm: 'desc' },
     })
-    return saques.map((s) => ({
-      ...s,
-      valorFormatado: formatCurrency(s.valor),
-      criadoEmFormatado: formatDate(s.criadoEm),
-    }))
+    return saques.map(comValoresFormatados)
   }
 
   async listarSaquesAdmin(filtros: { status?: string; designerId?: string }) {
@@ -193,11 +222,7 @@ export class SaqueService {
       },
       orderBy: { criadoEm: 'desc' },
     })
-    return saques.map((s) => ({
-      ...s,
-      valorFormatado: formatCurrency(s.valor),
-      criadoEmFormatado: formatDate(s.criadoEm),
-    }))
+    return saques.map(comValoresFormatados)
   }
 
   async listarLedger(designerId: string) {
