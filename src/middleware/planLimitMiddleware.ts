@@ -1,6 +1,6 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import prisma from '../database/client.js'
-import { env } from '../config/env.js'
+import { planoVigente } from '../services/assinaturaVigente.js'
 
 type LimitResource = 'projetos' | 'artes'
 
@@ -10,13 +10,20 @@ type LimitResource = 'projetos' | 'artes'
  * Antes este middleware saía calado para quem não tinha assinatura ativa —
  * "free tier, sem limite". Como usuário novo nunca tem assinatura, o plano
  * gratuito era, na prática, ilimitado: exatamente o contrário do que a
- * palavra "free" faz o time acreditar ao ler o código. Agora quem não assina
- * cai no teto de beta (`BETA_MAX_*`), ajustável por variável de ambiente sem
- * deploy.
+ * palavra "free" faz o time acreditar ao ler o código. Depois disso passou a
+ * cair nas variáveis `BETA_MAX_*` — o que consertava o buraco e abria outro:
+ * a taxa da fatura caía no plano Gratuito e o teto caía no ambiente, duas
+ * fontes para a mesma pergunta. Os números batiam por coincidência (3 e 20
+ * dos dois lados) e bastava mexer num deles para o designer ser cobrado pela
+ * taxa de um plano e limitado pelos tetos de outro.
  *
- * Quem assina continua com o limite do plano, e `null` no plano segue
- * significando ilimitado — plano pago sem teto é decisão de produto, não
- * descuido.
+ * Agora o plano em vigor sai de `assinaturaVigente`, que é a mesma leitura
+ * que a fatura e a tela de assinatura usam. Quem não assina está no Gratuito,
+ * e os limites são os que a tela de administração de planos mostra — o que
+ * também faz aquela tela valer para valer.
+ *
+ * `null` no plano segue significando ilimitado: plano pago sem teto é decisão
+ * de produto, não descuido.
  */
 export function requirePlanLimit(resource: LimitResource) {
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
@@ -24,19 +31,13 @@ export function requirePlanLimit(resource: LimitResource) {
       const usuario = (request as any).usuario
       if (!usuario?.id) return
 
-      const assinatura = await prisma.assinatura.findFirst({
-        where: { usuarioId: usuario.id, status: 'ATIVA' },
-        include: { plano: { select: { nome: true, limitesProjetos: true, limitesArtes: true } } },
-      })
+      const plano = await planoVigente(usuario.id)
+      // Sem plano Gratuito cadastrado não há teto declarado em lugar nenhum.
+      // Bloquear por um número inventado aqui seria pior do que deixar passar.
+      if (!plano) return
 
-      const plano = assinatura?.plano
-      const tetoBeta = resource === 'projetos' ? env.BETA_MAX_PROJETOS : env.BETA_MAX_ARTES
-
-      const limite: number | null = plano
-        ? resource === 'projetos'
-          ? plano.limitesProjetos
-          : plano.limitesArtes
-        : tetoBeta
+      const limite: number | null =
+        resource === 'projetos' ? plano.limitesProjetos : plano.limitesArtes
 
       if (limite === null) return
 
@@ -51,9 +52,7 @@ export function requirePlanLimit(resource: LimitResource) {
 
       if (uso >= limite) {
         reply.status(402).send({
-          message: plano
-            ? `Limite do plano "${plano.nome}" atingido: ${limite} ${resource}. Faça upgrade para continuar.`
-            : `Você chegou ao limite do beta: ${limite} ${resource}. Fale com a gente para liberar mais.`,
+          message: `Limite do plano "${plano.nome}" atingido: ${limite} ${resource}. Faça upgrade para continuar.`,
           success: false,
           limitReached: true,
           resource,

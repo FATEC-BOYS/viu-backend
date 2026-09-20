@@ -85,10 +85,17 @@ const envSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((v) => v === 'true'),
-  /**
-   * Teto de quem não tem assinatura. Sem isto o plano "free" é ilimitado —
-   * `requirePlanLimit` só olhava assinatura ativa, e usuário novo não tem
-   * nenhuma.
+  /*
+   * `BETA_MAX_PROJETOS` e `BETA_MAX_ARTES` saíram daqui.
+   *
+   * Eram o teto de quem não tem assinatura, e existiam porque `requirePlanLimit`
+   * não sabia o que fazer sem uma. O teto agora vem do plano Gratuito, como a
+   * taxa da fatura já vinha: uma leitura só (`assinaturaVigente`) para a mesma
+   * pergunta. Manter as variáveis seria deixar dois botões no Railway que não
+   * mexem em nada — e um deles com o nome de quem manda.
+   *
+   * Quem quiser mudar o limite do beta mexe no plano Gratuito em
+   * /admin/planos, que é onde a tela sempre disse que se mexe.
    */
   /*
    * Por quantas horas o QR do PIX vale.
@@ -98,8 +105,6 @@ const envSchema = z.object({
    * viravam a resposta da API, e nada garantia que continuassem concordando.
    */
   PIX_EXPIRACAO_HORAS: z.coerce.number().int().positive().default(24),
-  BETA_MAX_PROJETOS: z.coerce.number().int().positive().default(3),
-  BETA_MAX_ARTES: z.coerce.number().int().positive().default(20),
   FRONTEND_URL: z.string().default('http://localhost:3000'),
   // Cookies de sessão. 'lax' vale quando app e API compartilham o site
   // registrável (viu.app / api.viu.app, ou localhost:3000 / localhost:3001) e
