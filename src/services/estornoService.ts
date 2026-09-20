@@ -105,7 +105,21 @@ export async function estornarFatura(faturaId: string, motivo: string): Promise<
       valorLiquidoDesigner: true,
       designerId: true,
       clienteId: true,
-      pagamento: { select: { mpPaymentId: true } },
+      /*
+       * A tentativa que de fato levou o dinheiro.
+       *
+       * Era `pagamento` no singular, quando a fatura só podia ter uma. Agora
+       * que uma fatura acumula tentativas (QR expirado, pagamento recusado),
+       * estornar "o pagamento" deixou de ser inequívoco: quem tem o que
+       * devolver é a APROVADA. Pedir a errada mandaria o gateway estornar uma
+       * cobrança que nunca foi paga.
+       */
+      pagamentos: {
+        where: { status: { in: ['APROVADO', 'ESTORNADO'] } },
+        select: { mpPaymentId: true },
+        orderBy: { criadoEm: 'desc' },
+        take: 1,
+      },
       projeto: { select: { nome: true } },
     },
   })
@@ -124,7 +138,7 @@ export async function estornarFatura(faturaId: string, motivo: string): Promise<
    * lucro sobre um trabalho que a arbitragem julgou não entregue. O cliente
    * recebe de volta o que pagou.
    */
-  const mpPaymentId = fatura.pagamento?.mpPaymentId ?? null
+  const mpPaymentId = fatura.pagamentos[0]?.mpPaymentId ?? null
   if (mpPaymentId) {
     try {
       await mpRefund.total({ payment_id: mpPaymentId })

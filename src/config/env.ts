@@ -76,6 +76,14 @@ const envSchema = z.object({
    * `requirePlanLimit` só olhava assinatura ativa, e usuário novo não tem
    * nenhuma.
    */
+  /*
+   * Por quantas horas o QR do PIX vale.
+   *
+   * Uma declaração só. Estava escrita três vezes dentro de `faturaService`
+   * como `Date.now() + 24 * 60 * 60 * 1000` — uma ia para o gateway, duas
+   * viravam a resposta da API, e nada garantia que continuassem concordando.
+   */
+  PIX_EXPIRACAO_HORAS: z.coerce.number().int().positive().default(24),
   BETA_MAX_PROJETOS: z.coerce.number().int().positive().default(3),
   BETA_MAX_ARTES: z.coerce.number().int().positive().default(20),
   FRONTEND_URL: z.string().default('http://localhost:3000'),

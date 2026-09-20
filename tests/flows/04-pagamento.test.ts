@@ -62,7 +62,7 @@ const FATURA_PENDENTE = {
   descricao: 'Pagamento do projeto: Projeto Teste',
   dataVencimento: null,
   dataPagamento: null,
-  pagamento: null, // no existing payment
+  pagamentos: [], // nenhuma tentativa ainda
   cliente: { nome: 'Test Cliente', email: 'cliente@test.com' },
   projeto: { nome: 'Projeto Teste' },
 }
@@ -172,15 +172,18 @@ describe('POST /faturas/:id/pagar/pix — gerar PIX', () => {
   })
 
   it('segunda chamada reutiliza pagamento existente sem chamar o MP novamente → 201', async () => {
-    // Fatura com pagamento PENDENTE já existente
+    // Tentativa PENDENTE e ainda dentro do prazo: é ela que volta.
     db.fatura.findUnique.mockResolvedValue({
       ...FATURA_PENDENTE,
-      pagamento: {
-        id: PAGAMENTO_ID,
-        status: 'PENDENTE',
-        mpQrCode: QR_CODE,
-        mpQrCodeText: QR_CODE_TEXT,
-      },
+      pagamentos: [
+        {
+          id: PAGAMENTO_ID,
+          status: 'PENDENTE',
+          mpQrCode: QR_CODE,
+          mpQrCodeText: QR_CODE_TEXT,
+          expiraEm: new Date(Date.now() + 60 * 60 * 1000),
+        },
+      ],
     })
 
     const token = await makeToken(CLIENTE)

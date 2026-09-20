@@ -1,10 +1,11 @@
 import prisma from '../database/client.js'
 import { mpPayment } from './mercadoPagoService.js'
-import { formatCurrency, formatDate } from '../utils/formatters.js'
+import { formatCurrency, formatDate, formatDateOnly } from '../utils/formatters.js'
 import { assertValidTransition, FATURA_TRANSITIONS } from '../utils/stateMachine.js'
 import { notificacaoService } from './notificacaoService.js'
 import { pendenciaDeContrato, ContratoPendenteError } from './contratoProjetoService.js'
 import { planoGratuitoDoDesigner } from './planoGratuito.js'
+import { env } from '../config/env.js'
 
 /**
  * Último recurso, quando não há NENHUM plano gratuito de designer cadastrado.
@@ -52,19 +53,49 @@ async function taxaDoDesigner(designerId: string): Promise<number> {
  * Uma função só, usada pelas duas, para não voltar a divergir.
  */
 function comValoresFormatados<T extends {
+  status: string
   valor: number
   taxaPlataforma: number
   valorLiquidoDesigner: number
   dataVencimento: Date | null
   dataPagamento: Date | null
-}>(f: T) {
+}>(f: T, mostrarRepasse: boolean) {
+  const { taxaPlataforma, valorLiquidoDesigner, ...semRepasse } = f
+
+  const base = {
+    valorFormatado: formatCurrency(f.valor),
+    // Vencimento é dia, não instante. `dataPagamento` continua com hora:
+    // ali o momento em que o dinheiro entrou importa.
+    dataVencimentoFormatada: f.dataVencimento ? formatDateOnly(f.dataVencimento) : null,
+    dataPagamentoFormatada: f.dataPagamento ? formatDate(f.dataPagamento) : null,
+    /*
+     * Vencida é um fato, não uma conta da tela.
+     *
+     * A lista mostrava "Vence 15 de set." em cinza para uma fatura cinco dias
+     * atrasada — numa tela chamada "o que você tem a pagar", atraso é o dado
+     * mais acionável e não aparecia em lugar nenhum. Sai daqui porque o
+     * servidor tem a data e o relógio; deixar a comparação para o navegador é
+     * deixá-la para um relógio que pode estar em outro fuso ou errado.
+     */
+    vencida:
+      f.status === 'PENDENTE' && f.dataVencimento !== null && f.dataVencimento < new Date(),
+  }
+
+  /*
+   * O repasse só vai para quem ele diz respeito.
+   *
+   * A fatura do cliente trazia `taxaPlataforma` e `valorLiquidoDesigner`, e a
+   * tela os desenhava: quem pagava R$ 12.000 lia quanto o VIU cobra e quanto o
+   * designer embolsa. Esconder isso só no componente não resolveria — o número
+   * continuaria no corpo da resposta, a um devtools de distância. Some aqui.
+   */
+  if (!mostrarRepasse) return { ...semRepasse, ...base }
+
   return {
     ...f,
-    valorFormatado: formatCurrency(f.valor),
-    taxaPlataformaFormatada: formatCurrency(f.taxaPlataforma),
-    valorLiquidoDesignerFormatado: formatCurrency(f.valorLiquidoDesigner),
-    dataVencimentoFormatada: f.dataVencimento ? formatDate(f.dataVencimento) : null,
-    dataPagamentoFormatada: f.dataPagamento ? formatDate(f.dataPagamento) : null,
+    ...base,
+    taxaPlataformaFormatada: formatCurrency(taxaPlataforma),
+    valorLiquidoDesignerFormatado: formatCurrency(valorLiquidoDesigner),
   }
 }
 
@@ -174,7 +205,16 @@ export class FaturaService {
         valor: projeto.orcamento,
         taxaPlataforma: taxaValor,
         valorLiquidoDesigner: valorLiquido,
-        descricao: descricao ?? `Pagamento do projeto: ${projeto.nome}`,
+        /*
+         * Sem descrição inventada.
+         *
+         * O padrão era `Pagamento do projeto: ${projeto.nome}`, e a tela de
+         * detalhe desenha o nome do projeto como título e a descrição logo
+         * abaixo — então toda fatura sem descrição própria mostrava o nome do
+         * projeto duas vezes seguidas. Nulo, a tela não desenha a linha; e a
+         * descrição que vai ao gateway já tem o seu próprio fallback.
+         */
+        descricao: descricao ?? null,
         ...(dataVencimento ? { dataVencimento: new Date(dataVencimento) } : {}),
       },
       include: {
@@ -206,7 +246,8 @@ export class FaturaService {
      * ninguém aceitou, e é agora que ela precisa saber. Uma consulta à parte
      * seria outra requisição para dizer o que esta já sabe.
      */
-    return { ...comValoresFormatados(fatura), avisoContrato }
+    // Quem cria a fatura é o designer: a quebra entre taxa e líquido é dele.
+    return { ...comValoresFormatados(fatura, true), avisoContrato }
   }
 
   async pagarFaturaComPix(faturaId: string, usuarioId: string, cpf: string) {
@@ -215,26 +256,66 @@ export class FaturaService {
       include: {
         cliente: { select: { nome: true, email: true } },
         projeto: { select: { nome: true } },
-        pagamento: { select: { id: true, status: true, mpQrCode: true, mpQrCodeText: true } },
+        /*
+         * Todas as tentativas, da mais nova para a mais velha.
+         *
+         * Era uma só (`faturaId` era UNIQUE). Com uma tentativa morta na mão e
+         * a fatura ainda PENDENTE, não havia caminho de volta.
+         */
+        pagamentos: { orderBy: { criadoEm: 'desc' } },
       },
     })
     if (!fatura) throw new Error('Fatura não encontrada')
     if (fatura.clienteId !== usuarioId) throw new Error('Acesso negado')
     if (fatura.status !== 'PENDENTE') throw new Error('Fatura não está pendente')
 
-    // Pagamento já existe para esta fatura (idempotência no nível da aplicação)
-    if (fatura.pagamento) {
-      if (fatura.pagamento.status !== 'PENDENTE') {
+    const aprovado = fatura.pagamentos.find((p) => p.status === 'APROVADO')
+    if (aprovado) {
+      // A fatura deveria estar PAGA. Gerar outro QR aqui é convidar a pagar
+      // duas vezes.
+      throw new Error('Esta fatura já foi paga e está aguardando a confirmação')
+    }
+
+    /*
+     * A tentativa que ainda está de pé.
+     *
+     * "De pé" é mais do que `status === 'PENDENTE'`: um QR cujo prazo passou
+     * continua PENDENTE no banco até o webhook do gateway chegar, e reexpô-lo
+     * é entregar ao cliente um código que o banco dele vai recusar.
+     */
+    const agora = new Date()
+    const emAndamento = fatura.pagamentos.find(
+      (p) =>
+        p.status === 'PROCESSANDO' ||
+        (p.status === 'PENDENTE' && (!p.expiraEm || p.expiraEm > agora)),
+    )
+
+    if (emAndamento) {
+      if (emAndamento.status === 'PROCESSANDO') {
         throw new Error('Esta fatura já possui um pagamento em andamento')
       }
-      // Reexpõe o QR code existente em vez de criar outro
+      // Reexpõe o QR existente em vez de criar outro — e com o prazo que ele
+      // realmente tem, não com um recalculado a partir de agora.
       return {
-        pagamentoId: fatura.pagamento.id,
-        qrCode: fatura.pagamento.mpQrCode,
-        qrCodeText: fatura.pagamento.mpQrCodeText,
-        expiraEm: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        pagamentoId: emAndamento.id,
+        qrCode: emAndamento.mpQrCode,
+        qrCodeText: emAndamento.mpQrCodeText,
+        expiraEm: emAndamento.expiraEm?.toISOString() ?? null,
       }
     }
+
+    const expiraEm = new Date(agora.getTime() + env.PIX_EXPIRACAO_HORAS * 60 * 60 * 1000)
+
+    /*
+     * A chave de idempotência é da TENTATIVA, não da fatura.
+     *
+     * Era `fatura-${faturaId}`, fixa. Mesmo destravando o código acima, o
+     * gateway devolveria o mesmo pagamento morto para sempre: a chave dizia
+     * "esta fatura", quando o que precisa ser idempotente é "esta tentativa".
+     * Repetir a MESMA tentativa (um retry de rede) continua colapsando numa
+     * cobrança só, que é o ponto da idempotência.
+     */
+    const tentativa = fatura.pagamentos.length + 1
 
     const payment = await mpPayment.create({
       body: {
@@ -247,10 +328,18 @@ export class FaturaService {
           last_name: fatura.cliente.nome.split(' ').slice(1).join(' ') || ' ',
           identification: { type: 'CPF', number: cpf.replace(/\D/g, '') },
         },
-        date_of_expiration: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        date_of_expiration: expiraEm.toISOString(),
       },
-      requestOptions: { idempotencyKey: `fatura-${faturaId}` },
+      requestOptions: { idempotencyKey: `fatura-${faturaId}-${tentativa}` },
     })
+
+    /*
+     * O prazo que vale é o que o gateway confirma. Só caímos no nosso quando
+     * ele não devolve nada — e aí é o que mandamos, não um `agora + 24h`
+     * recalculado depois.
+     */
+    const expiracaoDoGateway = (payment as any).date_of_expiration
+    const expiraEmReal = expiracaoDoGateway ? new Date(expiracaoDoGateway) : expiraEm
 
     const pagamento = await prisma.pagamento.create({
       data: {
@@ -262,6 +351,7 @@ export class FaturaService {
         mpStatus: payment.status ?? null,
         mpQrCode: (payment as any).point_of_interaction?.transaction_data?.qr_code_base64 ?? null,
         mpQrCodeText: (payment as any).point_of_interaction?.transaction_data?.qr_code ?? null,
+        expiraEm: expiraEmReal,
         usuarioId,
         faturaId,
       },
@@ -271,7 +361,7 @@ export class FaturaService {
       pagamentoId: pagamento.id,
       qrCode: pagamento.mpQrCode,
       qrCodeText: pagamento.mpQrCodeText,
-      expiraEm: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      expiraEm: pagamento.expiraEm?.toISOString() ?? null,
     }
   }
 
@@ -283,12 +373,22 @@ export class FaturaService {
         projeto: { select: { id: true, nome: true } },
         cliente: { select: { id: true, nome: true } },
         designer: { select: { id: true, nome: true } },
-        pagamento: { select: { id: true, status: true, metodoPagamento: true } },
+        // A tentativa mais recente basta para a lista: é ela que diz se há um
+        // pagamento em curso.
+        pagamentos: {
+          select: { id: true, status: true, metodoPagamento: true, expiraEm: true },
+          orderBy: { criadoEm: 'desc' },
+          take: 1,
+        },
       },
-      orderBy: { criadoEm: 'desc' },
+      // `id` desempata: `criadoEm` sozinho não é ordem total, e faturas de um
+      // mesmo lote nascem no mesmo instante.
+      orderBy: [{ criadoEm: 'desc' }, { id: 'desc' }],
     })
 
-    return faturas.map(comValoresFormatados)
+    // Quem lista como cliente está vendo o que paga; a quebra entre taxa e
+    // líquido é do outro lado do balcão.
+    return faturas.map((f) => comValoresFormatados(f, tipo === 'designer'))
   }
 
   async getFaturaById(id: string, requesterId: string, isAdmin: boolean) {
@@ -298,14 +398,15 @@ export class FaturaService {
         projeto: { select: { id: true, nome: true } },
         cliente: { select: { id: true, nome: true, email: true } },
         designer: { select: { id: true, nome: true } },
-        pagamento: true,
+        pagamentos: { orderBy: { criadoEm: 'desc' } },
       },
     })
     if (!fatura) throw new Error('Fatura não encontrada')
     if (!isAdmin && fatura.clienteId !== requesterId && fatura.designerId !== requesterId) {
       throw new Error('Acesso negado')
     }
-    return comValoresFormatados(fatura)
+    // O designer e o admin veem a quebra; o cliente vê o que paga.
+    return comValoresFormatados(fatura, isAdmin || fatura.designerId === requesterId)
   }
 
   async cancelarFatura(id: string, requesterId: string) {
