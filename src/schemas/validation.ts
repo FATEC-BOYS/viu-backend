@@ -3,6 +3,13 @@
  */
 
 import { z } from 'zod';
+import {
+  cepValido,
+  cnpjValido,
+  cpfValido,
+  soDigitos,
+  UNIDADES_FEDERATIVAS,
+} from '../utils/documentos.js';
 
 // ===== VALIDAÇÃO DE SENHA FORTE =====
 
@@ -406,22 +413,13 @@ export const SolicitarSaqueSchema = z.object({
  * dígitos verificadores porque onze dígitos quaisquer não são um CPF — e é
  * justamente o erro de digitação que se quer pegar aqui.
  */
-const SO_DIGITOS = (v: string) => v.replace(/\D/g, '')
-
-function cpfValido(bruto: string): boolean {
-  const cpf = SO_DIGITOS(bruto)
-  if (cpf.length !== 11) return false
-  // Todos os dígitos iguais passam no cálculo, mas não existem como CPF.
-  if (/^(\d)\1{10}$/.test(cpf)) return false
-
-  const digito = (ate: number) => {
-    let soma = 0
-    for (let i = 0; i < ate; i++) soma += Number(cpf[i]) * (ate + 1 - i)
-    const resto = (soma * 10) % 11
-    return resto === 10 ? 0 : resto
-  }
-  return digito(9) === Number(cpf[9]) && digito(10) === Number(cpf[10])
-}
+/*
+ * `cpfValido` mora em `utils/documentos` desde que os dados fiscais passaram a
+ * precisar do mesmo conferidor. Duas cópias do algoritmo seriam duas verdades
+ * sobre o que é um CPF válido, com a divergência aparecendo numa nota recusada
+ * pela prefeitura.
+ */
+const SO_DIGITOS = soDigitos
 
 /** Celular brasileiro: DDD (11–99) + 9 + oito dígitos, com ou sem +55. */
 function telefoneValido(bruto: string): boolean {
@@ -609,3 +607,81 @@ export const TermosProjetoSchema = z
       })
     }
   })
+
+
+// ===== DADOS FISCAIS =====
+
+/**
+ * O que uma nota fiscal precisa de quem a recebe.
+ *
+ * Nada aqui é enfeite: sem endereço completo e sem documento conferido, o
+ * emissor recusa a nota — e a recusa chega depois, fora do produto, quando
+ * alguém já está esperando o documento. Validar na entrada é o que mantém o
+ * erro perto de quem consegue corrigi-lo.
+ *
+ * O documento é guardado só com dígitos. A pontuação que a pessoa digita é
+ * assunto de quem exibe, e guardar as duas formas seria guardar duas verdades
+ * sobre o mesmo CNPJ.
+ */
+export const DadosFiscaisSchema = z
+  .object({
+    tipoPessoa: z.enum(['FISICA', 'JURIDICA'], {
+      errorMap: () => ({ message: 'Tipo de pessoa deve ser FISICA ou JURIDICA' }),
+    }),
+    documento: z.string().trim().min(1, 'CPF ou CNPJ é obrigatório'),
+    razaoSocial: z
+      .string()
+      .trim()
+      .min(2, 'Informe a razão social (ou seu nome completo)')
+      .max(256),
+    nomeFantasia: z.string().trim().max(256).nullable().optional(),
+    inscricaoMunicipal: z.string().trim().max(32).nullable().optional(),
+
+    cep: z.string().trim().min(1, 'CEP é obrigatório'),
+    logradouro: z.string().trim().min(2, 'Logradouro é obrigatório').max(256),
+    numero: z.string().trim().min(1, 'Número é obrigatório').max(16),
+    complemento: z.string().trim().max(128).nullable().optional(),
+    bairro: z.string().trim().min(2, 'Bairro é obrigatório').max(128),
+    cidade: z.string().trim().min(2, 'Cidade é obrigatória').max(128),
+    uf: z
+      .string()
+      .trim()
+      .toUpperCase()
+      .refine((v) => (UNIDADES_FEDERATIVAS as readonly string[]).includes(v), {
+        message: 'UF inválida',
+      }),
+  })
+  .superRefine((dados, ctx) => {
+    /*
+     * O documento tem que combinar com o tipo declarado.
+     *
+     * Aceitar um CPF em conta marcada como jurídica deixaria a nota sair com
+     * tomador de um tipo e documento de outro — e quem descobre é a prefeitura,
+     * rejeitando. O par é conferido aqui porque é aqui que ele ainda pode ser
+     * corrigido por quem digitou.
+     */
+    const ehValido = dados.tipoPessoa === 'FISICA' ? cpfValido : cnpjValido
+    if (!ehValido(dados.documento)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['documento'],
+        message:
+          dados.tipoPessoa === 'FISICA'
+            ? 'CPF inválido'
+            : 'CNPJ inválido',
+      })
+    }
+
+    if (!cepValido(dados.cep)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['cep'],
+        message: 'CEP inválido — são oito dígitos',
+      })
+    }
+  })
+  .transform((dados) => ({
+    ...dados,
+    documento: soDigitos(dados.documento),
+    cep: soDigitos(dados.cep),
+  }))

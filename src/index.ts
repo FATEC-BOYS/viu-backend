@@ -29,6 +29,7 @@ import { assinaturasRoutes } from './routes/assinaturas.js'
 import { faturasRoutes } from './routes/faturas.js'
 import { pagamentosRoutes } from './routes/pagamentos.js'
 import { saquesRoutes } from './routes/saques.js'
+import { dadosFiscaisRoutes } from './routes/dadosFiscais.js'
 import { aceitesRoutes } from './routes/aceites.js'
 import { disputasRoutes } from './routes/disputas.js'
 import { equipesRoutes } from './routes/equipes.js'
@@ -218,6 +219,7 @@ export async function buildServer() {
   await app.register(faturasRoutes)
   await app.register(pagamentosRoutes)
   await app.register(saquesRoutes)
+  await app.register(dadosFiscaisRoutes)
   await app.register(aceitesRoutes)
   await app.register(disputasRoutes)
   await app.register(equipesRoutes)

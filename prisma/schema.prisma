@@ -83,6 +83,7 @@ model Usuario {
   auditLogs        AuditLog[]      @relation("AuditLogUsuario")
   securityEvents   SecurityEvent[] @relation("SecurityEventUsuario")
 
+  dadosFiscais        DadosFiscais? @relation("DadosFiscaisUsuario")
   assinaturas         Assinatura[] @relation("AssinaturaUsuario")
   pagamentos          Pagamento[]  @relation("PagamentosUsuario")
   chavesPix           ChavePix[]   @relation("ChavesPixUsuario")
@@ -620,6 +621,54 @@ model Pagamento {
   // O acesso continua sendo "as tentativas desta fatura", agora sem a trava.
   @@index([faturaId])
   @@map("pagamentos")
+}
+
+/// Os dados que uma nota fiscal precisa de quem a recebe.
+///
+/// Tabela à parte, e não colunas em `Usuario`, por dois motivos: a maioria das
+/// contas não tem nenhum destes campos, e `atualizadoEm` aqui responde "quando
+/// os dados fiscais mudaram" — a pergunta que se faz ao conferir uma nota já
+/// emitida contra o cadastro de hoje.
+///
+/// Serve aos dois lados do balcão: o VIU emitindo para o designer (assinatura
+/// e taxa retida) e o designer emitindo para o cliente. É o mesmo conjunto de
+/// campos, então é a mesma tabela.
+model DadosFiscais {
+  id String @id @default(dbgenerated("('c'::text || encode(gen_random_bytes(12), 'hex'::text))"))
+
+  /// FISICA ou JURIDICA — decide se `documento` é CPF ou CNPJ, e se
+  /// `inscricaoMunicipal` faz sentido.
+  tipoPessoa String
+  /// CPF ou CNPJ, só dígitos. Pontuação é assunto de quem exibe.
+  documento  String
+  /// Razão social na pessoa jurídica; o nome completo na física.
+  razaoSocial        String
+  nomeFantasia       String?
+  /// Quem presta serviço e emite NFS-e costuma ter uma. Opcional porque nem
+  /// todo município exige, e porque o dado chega depois do cadastro.
+  inscricaoMunicipal String?
+
+  cep         String
+  logradouro  String
+  numero      String
+  complemento String?
+  bairro      String
+  cidade      String
+  uf          String
+
+  /// Uma por conta: são os dados fiscais DAQUELA pessoa, não uma lista.
+  usuarioId String  @unique
+  usuario   Usuario @relation("DadosFiscaisUsuario", fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @default(now()) @updatedAt
+
+  /// Sem `@unique` no documento: duas contas com o mesmo CNPJ é o caso normal
+  /// de uma empresa com dois usuários, e recusar isso seria inventar uma regra
+  /// de negócio dentro do banco. O índice existe para procurar por documento,
+  /// que é como se confere uma nota.
+  @@index([documento])
+  @@map("dados_fiscais")
 }
 
 model ChavePix {
