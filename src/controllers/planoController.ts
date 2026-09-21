@@ -66,6 +66,15 @@ export async function updatePlanoHandler(request: FastifyRequest, reply: Fastify
       reply.status(404).send({ message: error.message, success: false })
       return
     }
+    /*
+     * Conflito de estado, não erro interno: a edição é válida em si, mas
+     * derrubaria o piso de quem não assina nada. Quem clicou precisa ler o
+     * motivo para saber o que fazer — criar outro gratuito antes.
+     */
+    if (error.message.includes('único plano gratuito')) {
+      reply.status(409).send({ message: error.message, success: false })
+      return
+    }
     erroInterno(request, reply, error, 'Erro ao atualizar plano')
   }
 }

@@ -1,6 +1,51 @@
 import prisma from '../database/client.js'
 import { comPlanoFormatado } from './planoFormatado.js'
 
+/**
+ * O plano Gratuito é o piso do produto, e não pode ser removido por edição.
+ *
+ * Desde que o teto de recursos e a taxa da fatura passaram a sair de
+ * `assinaturaVigente`, quem não assina nada É assinante do Gratuito — e
+ * `planoGratuitoDoDesigner` exige `tipo: DESIGNER`, `ativo: true` e
+ * `precoMensal: 0`. Tirar qualquer um desses três da última linha que os tem
+ * derruba o piso de todo designer sem assinatura de uma vez.
+ *
+ * Conferido no app: com o Gratuito desativado, `/assinaturas/minha` respondeu
+ * "plano em vigor: NENHUM" e `POST /projetos` passou com 3 projetos num teto
+ * de 3 — o limite simplesmente deixou de existir. Nada na tela avisava; o
+ * texto ao lado do botão dizia apenas que o plano "some da tela de Planos".
+ *
+ * A guarda mora aqui e não na tela porque é regra do dado: qualquer caminho
+ * que edite um plano precisa dela.
+ */
+async function assertPisoPreservado(
+  atual: { id: string; tipo: string; ativo: boolean; precoMensal: number },
+  mudanca: { tipo?: string; ativo?: boolean; precoMensal?: number },
+) {
+  const eraPiso = atual.tipo === 'DESIGNER' && atual.ativo && atual.precoMensal === 0
+  if (!eraPiso) return
+
+  const continuaPiso =
+    (mudanca.tipo ?? atual.tipo) === 'DESIGNER' &&
+    (mudanca.ativo ?? atual.ativo) === true &&
+    (mudanca.precoMensal ?? atual.precoMensal) === 0
+  if (continuaPiso) return
+
+  // Só é problema se esta for a ÚLTIMA: havendo outro gratuito ativo, o piso
+  // continua de pé e a edição é legítima.
+  const outro = await prisma.plano.findFirst({
+    where: { tipo: 'DESIGNER', ativo: true, precoMensal: 0, id: { not: atual.id } },
+    select: { id: true },
+  })
+  if (outro) return
+
+  throw new Error(
+    'Este é o único plano gratuito de designer ativo, e ele é o piso de quem não assina nada: ' +
+      'desativá-lo ou cobrar por ele deixaria esses designers sem limite e sem taxa definida. ' +
+      'Crie outro plano gratuito antes de mudar este.',
+  )
+}
+
 export class PlanoService {
   /**
    * `incluirInativos` existe para a tela de administração.
@@ -47,6 +92,7 @@ export class PlanoService {
   async updatePlano(id: string, data: Partial<Parameters<PlanoService['createPlano']>[0]>) {
     const plano = await prisma.plano.findUnique({ where: { id } })
     if (!plano) throw new Error('Plano não encontrado')
+    await assertPisoPreservado(plano, data)
     return comPlanoFormatado(await prisma.plano.update({ where: { id }, data }))
   }
 }
