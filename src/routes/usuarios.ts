@@ -21,6 +21,7 @@ import {
   validateLogin,
   restringirCriacaoACliente,
 } from '../middleware/usuarioMiddleware.js'
+import { listarClientesHandler, getClienteHandler } from '../controllers/clienteController.js'
 import { authenticate } from '../middleware/authMiddleware.js'
 import { recusarCadastroHandler } from '../controllers/recusaCadastroController.js'
 import { requireOwnership, requireRole } from '../middleware/authorizationMiddleware.js'
@@ -66,6 +67,23 @@ export async function usuariosRoutes(fastify: FastifyInstance) {
   fastify.post('/clientes', {
     preHandler: [authenticate, limitarCriacaoDeCliente, validateResolverCliente],
   }, resolverClienteHandler)
+
+  /*
+   * A carteira do designer, montada pelo banco.
+   *
+   * Vivia só no navegador: as duas telas de cliente chamavam `getAll
+   * ('/projetos')` e agrupavam em memória — todos os projetos baixados para
+   * desenhar uma lista de cinco pessoas, com `getAll` parando na vigésima
+   * página em silêncio.
+   *
+   * Não precisa de guarda de papel: o escopo É a resposta. Só saem clientes de
+   * projetos deste designer, que é exatamente o que ele já enxergava.
+   *
+   * Estática antes da paramétrica não importa aqui (não há `/clientes/:id`
+   * conflitante em POST), mas a ordem de declaração segue a do arquivo.
+   */
+  fastify.get('/clientes', { preHandler: [authenticate] }, listarClientesHandler)
+  fastify.get('/clientes/:id', { preHandler: [authenticate] }, getClienteHandler)
 
   // Única porta pública de cadastro. O limite por hora e o teto diário vivem
   // no middleware porque precisam valer para o conjunto, não por rota.
