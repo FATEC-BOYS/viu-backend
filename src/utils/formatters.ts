@@ -49,3 +49,21 @@ export function formatDate(date: string | Date): string {
     minute: '2-digit'
   }).format(dateObj);
 }
+/**
+ * A data curta, para tabela.
+ *
+ * `formatDate` escreve "19 de setembro de 2026 às 00:00" — bom numa frase,
+ * caro numa coluna: numa tabela de conferência ela come a largura das colunas
+ * que importam, e a referência do documento sai da tela. Aqui a data é dado
+ * de apoio, não texto.
+ */
+export function formatDateShort(date: string | Date): string {
+  const d = typeof date === 'string' ? new Date(date) : date
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(d)
+}
