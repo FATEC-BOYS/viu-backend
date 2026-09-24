@@ -3,6 +3,10 @@ import { getResumoAdmin } from '../controllers/adminController.js'
 import { entrarComoUsuario, sairDaConta } from '../controllers/impersonacaoController.js'
 import { authenticate } from '../middleware/authMiddleware.js'
 import { requireRole } from '../middleware/authorizationMiddleware.js'
+import {
+  resumoFinanceiroHandler,
+  movimentosFinanceirosHandler,
+} from '../controllers/adminFinanceiroController.js'
 
 export async function adminRoutes(fastify: FastifyInstance) {
   // A home do admin em uma requisição: seis contagens, o funil e duas listas.
@@ -36,4 +40,20 @@ export async function adminRoutes(fastify: FastifyInstance) {
   fastify.post('/admin/impersonar/sair', {
     preHandler: [authenticate],
   }, sairDaConta)
+
+  /*
+   * O dinheiro da plataforma, para quem responde por ele.
+   *
+   * A taxa retida de cada fatura é a receita do VIU, e nada no sistema a
+   * somava: não havia como responder "quanto faturamos no mês passado" sem
+   * abrir o banco. `formato=csv` devolve o período inteiro, e não a página que
+   * estava à vista — é o que faz a tela servir a uma conferência de verdade.
+   */
+  fastify.get('/admin/financeiro/resumo', {
+    preHandler: [authenticate, requireRole('ADMIN')],
+  }, resumoFinanceiroHandler)
+
+  fastify.get('/admin/financeiro/movimentos', {
+    preHandler: [authenticate, requireRole('ADMIN')],
+  }, movimentosFinanceirosHandler)
 }

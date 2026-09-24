@@ -10,8 +10,24 @@ export const TipoUsuario = {
 
 export type TipoUsuario = typeof TipoUsuario[keyof typeof TipoUsuario];
 
-// 📁 Status do Projeto
+/*
+ * 📁 Status do Projeto
+ *
+ * `RASCUNHO` faltava aqui, e é estado real: `createProjeto` grava todo projeto
+ * de não-admin nele, `PROJETO_TRANSITIONS` o declara como origem de
+ * EM_ANDAMENTO e CANCELADO, e o fluxo de convite depende dele — só sai do
+ * rascunho quando a outra parte aceita. Conferido no app: `POST /projetos`
+ * devolve `status: RASCUNHO`.
+ *
+ * O efeito da ausência era latente, não vivo: `isValidStatusProjeto`, montado a
+ * partir daqui, recusaria um projeto legítimo, e não tem consumidor hoje. Mas é
+ * exatamente a armadilha que `TipoNotificacao` já pagou — enum declarando um
+ * vocabulário que o sistema não fala — e ali o estrago só apareceu quando
+ * alguém foi usar.
+ */
 export const StatusProjeto = {
+  // Aguardando o aceite do convite pela outra parte.
+  RASCUNHO: 'RASCUNHO',
   EM_ANDAMENTO: 'EM_ANDAMENTO',
   PAUSADO: 'PAUSADO',
   CONCLUIDO: 'CONCLUIDO',
@@ -141,6 +157,7 @@ export const TipoNotificacao = {
   ASSINATURA_RENOVADA: 'ASSINATURA_RENOVADA',
   ASSINATURA_CANCELADA: 'ASSINATURA_CANCELADA',
   ASSINATURA_PAUSADA: 'ASSINATURA_PAUSADA',
+  CONVITE_RECUSADO: 'CONVITE_RECUSADO',
   DISPUTA_ABERTA: 'DISPUTA_ABERTA',
   DISPUTA_RESOLVIDA: 'DISPUTA_RESOLVIDA',
   SISTEMA: 'SISTEMA',
@@ -169,6 +186,7 @@ export const ROTULO_NOTIFICACAO: Record<TipoNotificacao, string> = {
   ASSINATURA_RENOVADA: 'Assinatura ativada',
   ASSINATURA_CANCELADA: 'Assinatura cancelada',
   ASSINATURA_PAUSADA: 'Assinatura pausada',
+  CONVITE_RECUSADO: 'Convite recusado',
   DISPUTA_ABERTA: 'Disputa aberta',
   DISPUTA_RESOLVIDA: 'Disputa resolvida',
   SISTEMA: 'Sistema',
