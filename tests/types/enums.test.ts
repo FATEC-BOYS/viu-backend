@@ -11,7 +11,7 @@ import {
   isValidStatusTarefa, isValidPrioridade, isValidTipoNotificacao,
   isValidCanalNotificacao,
 } from '../../src/types/enums.js'
-import { ARTE_TRANSITIONS } from '../../src/utils/stateMachine.js'
+import { ARTE_TRANSITIONS, PROJETO_TRANSITIONS } from '../../src/utils/stateMachine.js'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -80,8 +80,23 @@ describe('Enums - constantes', () => {
     expect(TipoUsuario.ADMIN).toBe('ADMIN')
   })
 
-  it('StatusProjeto deve conter todos os status', () => {
-    expect(STATUS_PROJETO).toEqual(['EM_ANDAMENTO', 'PAUSADO', 'CONCLUIDO', 'CANCELADO'])
+  /*
+   * Conferido contra a máquina de estados, não contra uma lista escrita à mão.
+   *
+   * `RASCUNHO` faltava no enum e existia no sistema: `createProjeto` grava todo
+   * projeto de não-admin nele, e o fluxo de convite depende disso. A lista
+   * literal deste teste concordava com o enum errado — dois lugares repetindo a
+   * mesma omissão não a denunciam.
+   *
+   * `PROJETO_TRANSITIONS` é quem decide quais estados existem: um estado que
+   * não esteja lá não tem como ser alcançado nem deixado.
+   */
+  it('StatusProjeto declara exatamente os estados que a máquina conhece', () => {
+    expect([...STATUS_PROJETO].sort()).toEqual(Object.keys(PROJETO_TRANSITIONS).sort())
+  })
+
+  it('inclui RASCUNHO, que é onde todo projeto de não-admin nasce', () => {
+    expect(STATUS_PROJETO).toContain('RASCUNHO')
   })
 
   it('TipoArte deve conter todos os tipos', () => {

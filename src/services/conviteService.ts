@@ -1,5 +1,6 @@
 import { randomBytes, createHash } from 'crypto'
 import prisma from '../database/client.js'
+import { notificacaoService } from './notificacaoService.js'
 import { Resend } from 'resend'
 import { env } from '../config/env.js'
 
@@ -153,7 +154,18 @@ export class ConviteService {
     if (convite.convidadoId !== usuarioId) throw new Error('Este convite não pertence a você')
     if (convite.status !== 'PENDENTE') throw new Error('Este convite já foi respondido')
 
-    await prisma.$transaction([
+    /*
+     * Recusar cancela o projeto — e por isso quem convidou precisa ficar
+     * sabendo.
+     *
+     * O projeto nasce em RASCUNHO só para esperar o aceite, então não faz
+     * sentido sobreviver à recusa. Mas o efeito não era contado a ninguém: o
+     * designer criava um projeto, convidava, e o projeto virava CANCELADO sem
+     * qualquer aviso. Conferido no app antes do conserto — e convidar de novo
+     * responde "Convite só pode ser criado para projetos em rascunho", ou
+     * seja, nem refazer o caminho é possível.
+     */
+    const [, projeto] = await prisma.$transaction([
       prisma.conviteProjeto.update({
         where: { id: convite.id },
         data: { status: 'RECUSADO', respondidoEm: new Date() },
@@ -161,8 +173,22 @@ export class ConviteService {
       prisma.projeto.update({
         where: { id: convite.projetoId },
         data: { status: 'CANCELADO' },
+        select: { id: true, nome: true, designerId: true },
       }),
     ])
+
+    const quemRecusou = await prisma.usuario.findUnique({
+      where: { id: usuarioId },
+      select: { nome: true },
+    })
+
+    notificacaoService.dispatch(
+      projeto.designerId,
+      'CONVITE_RECUSADO',
+      'Convite recusado — projeto cancelado',
+      `${quemRecusou?.nome ?? 'A pessoa convidada'} recusou o convite do projeto "${projeto.nome}", e por isso ele foi cancelado. Para tentar de novo é preciso criar um projeto novo.`,
+      { entidadeTipo: 'PROJETO', entidadeId: projeto.id },
+    )
   }
 
   async listarConvitesPendentes(usuarioId: string) {
