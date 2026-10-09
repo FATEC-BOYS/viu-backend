@@ -10,6 +10,36 @@ import {
 } from '../controllers/authController.js'
 import { validateBody } from '../middleware/validationMiddleware.js'
 import { COOKIE_REFRESH } from '../utils/authCookies.js'
+import { criarJanelaDeslizante } from '../utils/limiteEmMemoria.js'
+
+/*
+ * Teto do /auth/refresh por IP, que cookie nenhum contorna.
+ *
+ * A cota da rota é chaveada pelo refresh token para que a renovação de uma
+ * pessoa não derrube a de outra. Só que essa chave vem de um COOKIE, que quem
+ * chama escolhe: mandando um valor diferente a cada requisição, ganha-se um
+ * balde novo toda vez e a rota fica sem teto algum — e cada tentativa ainda
+ * consulta o banco antes de ser recusada.
+ *
+ * O limitador global tem a mesma brecha, e de propósito: o comentário dele diz
+ * que "abuso é barrado pelos limites por rota". Ou seja, era este limite que
+ * segurava — e chavear só pelo token o teria removido.
+ *
+ * Os dois convivem. O balde por token é apertado (20) e cuida da justiça entre
+ * pessoas; este teto é largo e cuida do abuso. Largo de propósito: uma pessoa
+ * renova a cada sete dias, então 120 em 15 minutos não encosta em uso real nem
+ * quando um proxy junta todo mundo no mesmo endereço. E quando encosta, o 429
+ * daqui chega ao cliente como "não deu para confirmar", que não desloga
+ * ninguém — ao contrário do 401.
+ */
+const JANELA_REFRESH_MS = 15 * 60 * 1000
+const TETO_REFRESH_POR_IP = 120
+const janelaRefreshPorIp = criarJanelaDeslizante(JANELA_REFRESH_MS)
+
+/** Exposto para os testes poderem começar sem histórico. */
+export function limparTetoDeRefresh(): void {
+  janelaRefreshPorIp.limpar()
+}
 import {
   ForgotPasswordRequestSchema,
   ResetPasswordRequestSchema,
@@ -103,6 +133,13 @@ export async function authRoutes(fastify: FastifyInstance) {
           return refresh ? `refresh:${refresh}` : `ip:${request.ip}`
         },
       },
+    },
+    preHandler: async (request, reply) => {
+      if (janelaRefreshPorIp.registrar(`refresh:${request.ip}`) > TETO_REFRESH_POR_IP) {
+        reply
+          .status(429)
+          .send({ message: 'Muitas tentativas. Espere um pouco e tente de novo.', success: false })
+      }
     },
   }, refreshTokenHandler)
 

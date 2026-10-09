@@ -1,4 +1,4 @@
-import { vi, describe, it, expect, beforeAll } from 'vitest'
+import { vi, describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
@@ -13,6 +13,7 @@ vi.mock('../../src/database/client.js', async () => {
 import prisma from '../../src/database/client.js'
 import { buildServer } from '../../src/index.js'
 import { ORIGIN } from '../helpers/token.js'
+import { limparTetoDeRefresh } from '../../src/routes/auth.js'
 
 const db = prisma as any
 
@@ -30,6 +31,11 @@ const db = prisma as any
  */
 describe('cota do refresh é por sessão, não por IP', () => {
   let app: FastifyInstance
+
+  beforeEach(() => {
+    // A janela por IP é estado de módulo e atravessa testes.
+    limparTetoDeRefresh()
+  })
 
   beforeAll(async () => {
     app = await buildServer()
@@ -78,5 +84,32 @@ describe('cota do refresh é por sessão, não por IP', () => {
     // A cota existe para conter força bruta em cima de um token, e isso segue
     // valendo: o que mudou é só quem divide o balde com quem.
     expect(status).toContain(429)
+  })
+
+  /*
+   * A cota por token é chaveada por um COOKIE, e cookie quem escolhe é quem
+   * chama. Sem um teto por IP, bastava variar o valor a cada requisição para
+   * ganhar um balde novo toda vez — a rota ficaria sem limite algum, com cada
+   * tentativa ainda indo ao banco antes de ser recusada.
+   *
+   * Apontado na revisão do PR #110, conferido aqui.
+   */
+  it('variar o cookie a cada chamada não escapa do teto por IP', async () => {
+    const TETO = 120
+    let ultimo = 0
+
+    for (let i = 0; i <= TETO; i++) {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/refresh',
+        headers: { ...ORIGIN, 'content-type': 'application/json' },
+        payload: '',
+        // Um token inventado por requisição: é o que um atacante faria.
+        cookies: { viu_refresh_token: `inventado-${i}-${Math.random()}` },
+      })
+      ultimo = res.statusCode
+    }
+
+    expect(ultimo).toBe(429)
   })
 })
