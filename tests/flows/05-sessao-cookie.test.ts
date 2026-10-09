@@ -143,6 +143,52 @@ describe('sessão por cookie HttpOnly', () => {
     expect(db.sessao.create).toHaveBeenCalled()
   })
 
+  /*
+   * O navegador manda `Content-Type: application/json` por hábito e corpo
+   * nenhum — o refresh token vem do cookie, não há o que enviar.
+   *
+   * O parser padrão do Fastify recusa essa combinação com 400 ("Body cannot be
+   * empty") ANTES de a rota rodar, e o cliente HTTP lê o 400 como "sua sessão
+   * acabou". Era isso que deslogava quem estava logado: a renovação nunca
+   * chegava a ser tentada.
+   *
+   * O teste acima não pegou porque injeta a requisição SEM Content-Type —
+   * exatamente a forma que o navegador nunca manda. Daí a suíte verde com o
+   * produto quebrado.
+   */
+  it('refresh aceita Content-Type de JSON com corpo vazio, que é o que o navegador manda', async () => {
+    db.sessao.findFirst.mockResolvedValue({
+      id: 'csessao000000002',
+      usuarioId: DESIGNER.id,
+      usuario: { ...USUARIO_DB },
+    })
+    db.sessao.update.mockResolvedValue({})
+    db.sessao.create.mockResolvedValue({})
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/refresh',
+      headers: { ...ORIGIN, 'content-type': 'application/json' },
+      payload: '',
+      cookies: { viu_refresh_token: 'refresh-valido' },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(pegarCookie(res, 'viu_token')?.httpOnly).toBe(true)
+  })
+
+  it('corpo vazio é tolerado, JSON malformado não', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/refresh',
+      headers: { ...ORIGIN, 'content-type': 'application/json' },
+      payload: '{isso nao e json',
+      cookies: { viu_refresh_token: 'refresh-valido' },
+    })
+
+    expect(res.statusCode).toBe(400)
+  })
+
   it('refresh inválido limpa os cookies em vez de deixar sessão morta no navegador', async () => {
     db.sessao.findFirst.mockResolvedValue(null)
 
