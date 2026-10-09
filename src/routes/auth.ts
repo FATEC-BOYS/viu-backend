@@ -1,4 +1,4 @@
-import { FastifyInstance } from 'fastify'
+import { FastifyInstance, FastifyRequest } from 'fastify'
 import {
   forgotPassword,
   resetPassword,
@@ -9,6 +9,7 @@ import {
   twoFactorLoginHandler,
 } from '../controllers/authController.js'
 import { validateBody } from '../middleware/validationMiddleware.js'
+import { COOKIE_REFRESH } from '../utils/authCookies.js'
 import {
   ForgotPasswordRequestSchema,
   ResetPasswordRequestSchema,
@@ -76,7 +77,33 @@ export async function authRoutes(fastify: FastifyInstance) {
   // Sem validateBody: com sessão por cookie o corpo vem vazio, e o refresh
   // token é lido do cookie. O handler valida a presença de um ou de outro.
   fastify.post('/auth/refresh', {
-    config: { rateLimit: { max: 20, timeWindow: '15 minutes' } },
+    config: {
+      rateLimit: {
+        max: 20,
+        timeWindow: '15 minutes',
+        /*
+         * Chaveado pelo refresh token, e não pelo IP.
+         *
+         * O `keyGenerator` global chaveia pelo cookie do token de acesso — que
+         * nesta rota, por definição, já venceu e não é mais enviado pelo
+         * navegador. A chave caía no IP, e atrás do proxy do Railway o IP é o
+         * mesmo para todo mundo: eram 20 renovações por 15 minutos para a
+         * plataforma inteira, com uma pessoa renovando derrubando as outras.
+         * Medido antes da correção: o contador caiu de 19 a 14 alternando
+         * entre duas contas diferentes.
+         *
+         * Como o token rotaciona a cada renovação bem-sucedida, a cota não
+         * atrapalha quem está renovando de verdade — ela continua apertada
+         * onde precisa estar, que é em cima de um mesmo token tentado à força.
+         */
+        keyGenerator: (request: FastifyRequest) => {
+          const refresh = (request as { cookies?: Record<string, string> }).cookies?.[
+            COOKIE_REFRESH
+          ]
+          return refresh ? `refresh:${refresh}` : `ip:${request.ip}`
+        },
+      },
+    },
   }, refreshTokenHandler)
 
   fastify.post('/auth/logout', {}, logoutHandler)
