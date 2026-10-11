@@ -91,10 +91,24 @@ export async function createFeedbackViaLink(
     const arteId = await linkService.resolveArteIdFromToken(token)
     const body = request.body as any
 
-    // `via: 'link'`: quem comenta por link é revisor externo e não participa
-    // do projeto — quem autorizou foi o token, já validado em
-    // resolveArteIdFromToken (não revogado, não expirado, dentro do limite,
-    // e não somenteLeitura).
+    /*
+     * `via: 'link'`: quem comenta por link é revisor externo e não participa
+     * do projeto — quem autorizou foi o token, já validado em
+     * resolveArteIdFromToken (não revogado, não expirado, dentro do limite,
+     * e não somenteLeitura).
+     *
+     * `parentId` segue junto porque o token autoriza a CONVERSA daquela arte,
+     * não só a primeira mensagem. Sem isto, responder só existia pela rota de
+     * sessão, que exige vínculo com o projeto: o designer respondia "vou
+     * clarear na v2" e o cliente convidado por link não tinha como dizer "não
+     * era isso". O laço que o produto existe para fechar morria aí.
+     *
+     * Quem decide se pode escrever continua sendo o `somenteLeitura` do link
+     * — responder é escrever, e obedece à mesma trava que comentar. E
+     * `createFeedback` já recusa pai de outra arte, que é exatamente a
+     * garantia que falta aqui: o token vale para ESTA arte, e a resposta não
+     * pode escapar dela.
+     */
     const feedback = await feedbackService.createFeedback(
       {
         conteudo: body.conteudo ?? '',
@@ -103,6 +117,7 @@ export async function createFeedbackViaLink(
         autorId: usuario.id,
         posicaoX: body.posicaoX ?? null,
         posicaoY: body.posicaoY ?? null,
+        parentId: body.parentId ?? null,
       },
       { via: 'link' },
     )
