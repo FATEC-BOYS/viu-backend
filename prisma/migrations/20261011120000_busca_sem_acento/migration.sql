@@ -1,0 +1,21 @@
+-- Busca de pessoas insensível a acento.
+--
+-- `ILIKE` do Postgres é insensível a CAIXA e sensível a ACENTO, e o
+-- `mode: 'insensitive'` do Prisma é exatamente isso. Resultado medido:
+--
+--   WHERE nome ILIKE '%joao%'              → 0 linhas
+--   WHERE nome ILIKE '%João%'              → João Santos
+--
+-- Num produto brasileiro isso quebra a busca na prática: quem digita "jose",
+-- "antonio" ou "conceicao" não acha ninguém e conclui que a pessoa não está
+-- cadastrada. Ninguém digita acento num campo de busca.
+--
+-- A extensão normaliza os dois lados da comparação, então tanto faz o que
+-- está no banco e o que foi digitado.
+--
+-- Sem índice de propósito: um índice sobre `unaccent(nome)` exige uma função
+-- wrapper marcada IMMUTABLE, porque `unaccent` não é — ela depende do
+-- dicionário instalado. Enquanto a busca varre uma tabela de usuários do
+-- tamanho de um beta fechado, isso é complexidade sem retorno. Fica anotado
+-- para quando o plano de execução pedir.
+CREATE EXTENSION IF NOT EXISTS unaccent;

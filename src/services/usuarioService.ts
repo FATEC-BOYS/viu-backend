@@ -75,20 +75,52 @@ export class UsuarioService {
     return { token, expiresAt, refreshToken, refreshExpiresAt }
   }
 
+  /**
+   * Busca de pessoas, insensível a caixa E a acento.
+   *
+   * O `mode: 'insensitive'` do Prisma resolve só a caixa: ele vira `ILIKE`,
+   * que no Postgres é insensível a maiúscula e SENSÍVEL a acento. Medido no
+   * banco: `nome ILIKE '%joao%'` devolvia zero linhas com "João Santos"
+   * cadastrado, enquanto `'%João%'` achava.
+   *
+   * Num produto brasileiro isso quebra a busca de verdade — metade dos nomes
+   * de cliente tem acento e ninguém digita acento num campo de busca. Quem
+   * procurava "jose" concluía que a pessoa não estava cadastrada.
+   *
+   * É `$queryRaw` porque o Prisma não expressa `unaccent()` no query builder.
+   * A interpolação é por parâmetro (`${...}` em tagged template vira bind do
+   * driver, não concatenação), então o termo digitado não vira SQL. O `%` vai
+   * no valor do parâmetro, e não no literal, pelo mesmo motivo.
+   */
   async buscarUsuarios(q: string, limit = 5) {
     const termo = q.trim()
-    return prisma.usuario.findMany({
-      where: {
-        ativo: true,
-        OR: [
-          { nome: { contains: termo, mode: 'insensitive' } },
-          { email: { contains: termo, mode: 'insensitive' } },
-        ],
-      },
-      take: Math.min(limit, 20),
-      select: { id: true, nome: true, email: true, avatar: true, tipo: true },
-      orderBy: { nome: 'asc' },
-    })
+    /*
+     * `%` e `_` digitados são TEXTO, não curinga.
+     *
+     * Parâmetro de driver protege contra injeção de SQL, não contra
+     * metacaractere de LIKE: eles viajam dentro do valor e o `ILIKE` os
+     * interpreta do mesmo jeito. Sem escapar, um `%` sozinho casa com a base
+     * inteira, e um e-mail com underscore — `joao_silva@` — casa também com
+     * `joaoXsilva@`. A barra invertida vai primeiro, senão ela escaparia o
+     * escape que as outras duas acabaram de ganhar.
+     */
+    const literal = termo.replace(/\\/g, '\\\\').replace(/[%_]/g, '\\$&')
+    const padrao = `%${literal}%`
+    const take = Math.min(limit, 20)
+
+    return prisma.$queryRaw<
+      { id: string; nome: string; email: string; avatar: string | null; tipo: string }[]
+    >`
+      SELECT id, nome, email, avatar, tipo
+        FROM usuarios
+       WHERE ativo = true
+         AND (
+              unaccent(nome)  ILIKE unaccent(${padrao})
+           OR unaccent(email) ILIKE unaccent(${padrao})
+         )
+       ORDER BY nome ASC
+       LIMIT ${take}
+    `
   }
 
   async listUsuarios({ page = 1, limit = 10, tipo, ativo }: ListUsuariosParams) {

@@ -13,7 +13,13 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['tests/concorrencia/**/*.test.ts'],
+    /*
+     * Duas pastas, mesmo motivo: precisam de Postgres de verdade.
+     * `concorrencia` são transações disputando a mesma linha; `banco` é
+     * comportamento que só o banco decide — colação, acento, índice. Um teste
+     * de acento dentro de "concorrencia" seria estrutura mentindo.
+     */
+    include: ['tests/concorrencia/**/*.test.ts', 'tests/banco/**/*.test.ts'],
     setupFiles: ['tests/setup-db.ts'],
     testTimeout: 30000,
     // Transações concorrentes contra o mesmo banco: rodar arquivos em paralelo
