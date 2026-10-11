@@ -143,17 +143,96 @@ describe('sessão por cookie HttpOnly', () => {
     expect(db.sessao.create).toHaveBeenCalled()
   })
 
-  it('refresh inválido limpa os cookies em vez de deixar sessão morta no navegador', async () => {
+  /*
+   * O navegador manda `Content-Type: application/json` por hábito e corpo
+   * nenhum — o refresh token vem do cookie, não há o que enviar.
+   *
+   * O parser padrão do Fastify recusa essa combinação com 400 ("Body cannot be
+   * empty") ANTES de a rota rodar, e o cliente HTTP lê o 400 como "sua sessão
+   * acabou". Era isso que deslogava quem estava logado: a renovação nunca
+   * chegava a ser tentada.
+   *
+   * O teste acima não pegou porque injeta a requisição SEM Content-Type —
+   * exatamente a forma que o navegador nunca manda. Daí a suíte verde com o
+   * produto quebrado.
+   */
+  it('refresh aceita Content-Type de JSON com corpo vazio, que é o que o navegador manda', async () => {
+    db.sessao.findFirst.mockResolvedValue({
+      id: 'csessao000000002',
+      usuarioId: DESIGNER.id,
+      usuario: { ...USUARIO_DB },
+    })
+    db.sessao.update.mockResolvedValue({})
+    db.sessao.create.mockResolvedValue({})
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/refresh',
+      headers: { ...ORIGIN, 'content-type': 'application/json' },
+      payload: '',
+      cookies: { viu_refresh_token: 'refresh-valido' },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(pegarCookie(res, 'viu_token')?.httpOnly).toBe(true)
+  })
+
+  it('corpo vazio é tolerado, JSON malformado não', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/refresh',
+      headers: { ...ORIGIN, 'content-type': 'application/json' },
+      payload: '{isso nao e json',
+      cookies: { viu_refresh_token: 'refresh-valido' },
+    })
+
+    expect(res.statusCode).toBe(400)
+  })
+
+  /*
+   * Recusar um refresh NÃO pode apagar os cookies, e a razão é uma corrida.
+   *
+   * Este teste afirmava o contrário, sob a premissa de que "refresh que falhou
+   * é sessão morta". A premissa é falsa justamente quando mais custa: renovar
+   * ROTACIONA, e o motivo mais comum de uma recusa é o token já ter sido
+   * trocado — isto é, outra requisição renovou com sucesso um instante antes.
+   * Apagar ali destrói a sessão NOVA, que estava viva.
+   *
+   * Medido no navegador: `refresh=[200, 401]` numa única onda, e a pessoa
+   * caindo no login logo depois de o servidor ter criado uma sessão boa. Com
+   * duas abas isso não tem defesa possível do lado do cliente — cada aba é um
+   * módulo com sua própria memória —, então a defesa é aqui.
+   */
+  it('refresh recusado não apaga os cookies: pode haver sessão nova e viva', async () => {
     db.sessao.findFirst.mockResolvedValue(null)
 
     const res = await app.inject({
       method: 'POST',
       url: '/auth/refresh',
-      headers: { ...ORIGIN },
-      cookies: { viu_refresh_token: 'ja-usado' },
+      headers: { ...ORIGIN, 'content-type': 'application/json' },
+      payload: '',
+      cookies: { viu_refresh_token: 'ja-rotacionado' },
     })
 
     expect(res.statusCode).toBe(401)
+    // Nenhum Set-Cookie: o que estiver no navegador continua lá. Um cookie
+    // morto custa um 401 a mais, que o cliente trata; um cookie vivo apagado
+    // custa a sessão de quem não errou nada.
+    expect(pegarCookie(res, 'viu_token')).toBeUndefined()
+    expect(pegarCookie(res, 'viu_refresh_token')).toBeUndefined()
+  })
+
+  it('logout, esse sim, apaga os cookies', async () => {
+    db.sessao.updateMany.mockResolvedValue({ count: 1 })
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/logout',
+      headers: { ...ORIGIN, 'content-type': 'application/json' },
+      payload: '',
+      cookies: { viu_token: 'qualquer' },
+    })
+
+    // A diferença é intenção: aqui a pessoa PEDIU para sair.
     expect(pegarCookie(res, 'viu_token')?.value).toBe('')
     expect(pegarCookie(res, 'viu_refresh_token')?.value).toBe('')
   })

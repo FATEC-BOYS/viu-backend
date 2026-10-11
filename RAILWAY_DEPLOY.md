@@ -28,6 +28,21 @@ JWT_SECRET=<secret-forte>
 ALLOWED_ORIGINS=https://seu-frontend.vercel.app
 FRONTEND_URL=https://seu-frontend.vercel.app
 
+# Proxy — OBRIGATÓRIO no Railway, e o padrão (0) é o errado aqui.
+#
+# Sem isto o endereço que o servidor vê é o do proxy do Railway, igual para
+# todo mundo. Todo limite chaveado por IP vira um balde único da plataforma:
+# são 5 tentativas de login por 15 minutos somadas entre TODOS os usuários, e
+# quem chega depois leva 429 sem ter feito nada.
+TRUST_PROXY_HOPS=1
+
+# Cookie de sessão — `none` quando o app e a API estão em domínios diferentes
+# (vercel.app e railway.app são domínios diferentes; o navegador trata como
+# cross-site e só manda o cookie com `none`). Com `none` a checagem de origem
+# do authMiddleware passa a ser a única defesa contra CSRF, e é por isso que
+# ALLOWED_ORIGINS acima precisa estar certo.
+COOKIE_SAMESITE=none
+
 # Cloudflare R2
 R2_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
 R2_ACCESS_KEY_ID=<key>

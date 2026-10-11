@@ -436,12 +436,25 @@ export class UsuarioService {
       throw new Error('Refresh token inválido ou expirado')
     }
 
-    await prisma.sessao.update({ where: { id: sessao.id }, data: { ativo: false } })
-
     const { token, expiresAt, refreshToken: newRefresh, refreshExpiresAt } = await this.signToken(sessao.usuario)
-    await prisma.sessao.create({
-      data: { token, expiresAt, usuarioId: sessao.usuarioId, refreshToken: newRefresh, refreshExpiresAt },
-    })
+
+    /*
+     * Desativar a antiga e criar a nova são uma coisa só.
+     *
+     * Fora de transação, uma falha na criação (timeout do pool, colisão de
+     * token) deixava a sessão antiga já desativada e nenhuma no lugar: o
+     * refresh token que o navegador tem em mãos virava inválido para sempre e
+     * a pessoa era obrigada a entrar de novo, sem ter feito nada.
+     *
+     * Assinar o token antes de abrir a transação é de propósito: é trabalho de
+     * CPU e não tem por que segurar a conexão do banco.
+     */
+    await prisma.$transaction([
+      prisma.sessao.update({ where: { id: sessao.id }, data: { ativo: false } }),
+      prisma.sessao.create({
+        data: { token, expiresAt, usuarioId: sessao.usuarioId, refreshToken: newRefresh, refreshExpiresAt },
+      }),
+    ])
 
     return {
       token,
