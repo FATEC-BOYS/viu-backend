@@ -189,17 +189,50 @@ describe('sessão por cookie HttpOnly', () => {
     expect(res.statusCode).toBe(400)
   })
 
-  it('refresh inválido limpa os cookies em vez de deixar sessão morta no navegador', async () => {
+  /*
+   * Recusar um refresh NÃO pode apagar os cookies, e a razão é uma corrida.
+   *
+   * Este teste afirmava o contrário, sob a premissa de que "refresh que falhou
+   * é sessão morta". A premissa é falsa justamente quando mais custa: renovar
+   * ROTACIONA, e o motivo mais comum de uma recusa é o token já ter sido
+   * trocado — isto é, outra requisição renovou com sucesso um instante antes.
+   * Apagar ali destrói a sessão NOVA, que estava viva.
+   *
+   * Medido no navegador: `refresh=[200, 401]` numa única onda, e a pessoa
+   * caindo no login logo depois de o servidor ter criado uma sessão boa. Com
+   * duas abas isso não tem defesa possível do lado do cliente — cada aba é um
+   * módulo com sua própria memória —, então a defesa é aqui.
+   */
+  it('refresh recusado não apaga os cookies: pode haver sessão nova e viva', async () => {
     db.sessao.findFirst.mockResolvedValue(null)
 
     const res = await app.inject({
       method: 'POST',
       url: '/auth/refresh',
-      headers: { ...ORIGIN },
-      cookies: { viu_refresh_token: 'ja-usado' },
+      headers: { ...ORIGIN, 'content-type': 'application/json' },
+      payload: '',
+      cookies: { viu_refresh_token: 'ja-rotacionado' },
     })
 
     expect(res.statusCode).toBe(401)
+    // Nenhum Set-Cookie: o que estiver no navegador continua lá. Um cookie
+    // morto custa um 401 a mais, que o cliente trata; um cookie vivo apagado
+    // custa a sessão de quem não errou nada.
+    expect(pegarCookie(res, 'viu_token')).toBeUndefined()
+    expect(pegarCookie(res, 'viu_refresh_token')).toBeUndefined()
+  })
+
+  it('logout, esse sim, apaga os cookies', async () => {
+    db.sessao.updateMany.mockResolvedValue({ count: 1 })
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/logout',
+      headers: { ...ORIGIN, 'content-type': 'application/json' },
+      payload: '',
+      cookies: { viu_token: 'qualquer' },
+    })
+
+    // A diferença é intenção: aqui a pessoa PEDIU para sair.
     expect(pegarCookie(res, 'viu_token')?.value).toBe('')
     expect(pegarCookie(res, 'viu_refresh_token')?.value).toBe('')
   })
