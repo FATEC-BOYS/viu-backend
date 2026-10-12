@@ -34,6 +34,40 @@ describe('FeedbackService', () => {
     expect(result).toEqual({ feedbacks: [], total: 0 })
   })
 
+  /*
+   * A listagem precisa dizer quantas respostas cada thread tem.
+   *
+   * Ela devolve só as raízes (`parentId: null`), então sem esta contagem quem
+   * desenha o cartão não tem como saber se alguém respondeu — e foi assim que
+   * a tela de Feedbacks passou a carimbar "Aguardando resposta" em tudo que
+   * não estivesse resolvido, inclusive nas conversas que ela mesma mostrava
+   * respondidas no painel ao lado.
+   *
+   * O teste é de CONTRATO: a tela depende deste campo, e perdê-lo aqui volta
+   * a quebrar a frase lá, em silêncio.
+   */
+  it('listFeedbacks pede a contagem de respostas, que o cartão usa', async () => {
+    vi.mocked(prisma.feedback.findMany).mockResolvedValue([])
+    vi.mocked(prisma.feedback.count).mockResolvedValue(0)
+
+    await service.listFeedbacks({})
+
+    const [args] = vi.mocked(prisma.feedback.findMany).mock.calls.at(-1) as [any]
+    expect(args.include._count).toEqual({ select: { respostas: true } })
+  })
+
+  it('listFeedbacks devolve só as raízes — resposta não é item solto', async () => {
+    // O par da contagem: se a resposta aparecesse como linha própria, ela
+    // contaria duas vezes (uma na lista, outra dentro do pai).
+    vi.mocked(prisma.feedback.findMany).mockResolvedValue([])
+    vi.mocked(prisma.feedback.count).mockResolvedValue(0)
+
+    await service.listFeedbacks({})
+
+    const [args] = vi.mocked(prisma.feedback.findMany).mock.calls.at(-1) as [any]
+    expect(args.where.AND).toContainEqual({ parentId: null })
+  })
+
   it('createFeedback deve lançar erro se arte não existe', async () => {
     vi.mocked(prisma.arte.findUnique).mockResolvedValue(null)
     vi.mocked(prisma.usuario.findUnique).mockResolvedValue({ id: '1' } as any)
