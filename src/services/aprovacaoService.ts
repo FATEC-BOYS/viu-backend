@@ -137,6 +137,28 @@ export class AprovacaoService {
       throw new RecusaSemMotivoError()
     }
 
+    /*
+     * Esta linha já nasce decidida?
+     *
+     * A pergunta era feita duas vezes neste método — uma aqui, implícita, e
+     * outra logo abaixo para decidir se avisa o designer — e só a de baixo
+     * existia. O resultado: a aprovação era criada com status terminal, o
+     * designer recebia "Arte aprovada ✅", e `decididoEm` ficava nulo.
+     *
+     * `decididoEm` é o carimbo de QUANDO a decisão aconteceu, e três lugares
+     * o leem: a faixa "esta semana" do dashboard, o resumo do admin, e o
+     * funil — que mede quanto tempo o cliente levou para responder, que é o
+     * número que o produto promete encurtar. Nulo, a decisão simplesmente não
+     * conta em nenhum dos três.
+     *
+     * Medido: com duas aprovações APROVADO no mesmo dia, uma criada por aqui e
+     * outra decidida por `PUT /aprovacoes/:id` (que já carimbava), o feed do
+     * dashboard mostrava as duas e o contador ao lado dizia 1.
+     *
+     * Com um nome só, os dois usos não têm de onde divergir.
+     */
+    const jaDecidida = data.status === 'APROVADO' || data.status === 'REJEITADO'
+
     const aprovacao = await prisma.aprovacao.create({
       data: {
         arteId: data.arteId,
@@ -144,11 +166,14 @@ export class AprovacaoService {
         comentario: data.comentario,
         aprovadorId: data.aprovadorId,
         versaoNumero: data.versaoNumero ?? arte.versao,
+        // Criada já decidida: a decisão aconteceu agora. PENDENTE fica sem
+        // carimbo, que é o certo — ela ainda não foi decidida.
+        decididoEm: jaDecidida ? new Date() : null,
       },
     })
 
     // Notify the designer of the decision
-    if (arte.autorId && (data.status === 'APROVADO' || data.status === 'REJEITADO')) {
+    if (arte.autorId && jaDecidida) {
       const statusLabel = data.status === 'APROVADO' ? 'aprovada ✅' : 'rejeitada ❌'
       notificacaoService.dispatch(
         arte.autorId,

@@ -45,6 +45,63 @@ describe('AprovacaoService', () => {
    * quando, e o produto não consegue medir o que promete encurtar: o tempo
    * entre pedir a aprovação e receber a resposta.
    */
+  /*
+   * O par dos dois testes abaixo, que faltava.
+   *
+   * `updateAprovacao` já era cobrado pelo carimbo; `createAprovacao` não, e
+   * era por lá que a aprovação nascia decidida sem dizer quando. Três lugares
+   * leem `decididoEm` — a faixa "esta semana" do dashboard, o resumo do admin
+   * e o funil, que mede quanto tempo o cliente levou para responder — e nulo
+   * ela não conta em nenhum. Medido na tela: duas aprovações APROVADO no
+   * mesmo dia, o feed mostrando as duas e o contador ao lado dizendo 1.
+   */
+  it('createAprovacao carimba quando a aprovação já nasce decidida', async () => {
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue({
+      id: 'art1', autorId: 'd1', versao: 2,
+      projeto: { clienteId: 'c1', designerId: 'd1' },
+    } as any)
+    vi.mocked(prisma.aprovacao.create).mockResolvedValue({ id: 'a1' } as any)
+
+    await service.createAprovacao({ arteId: 'art1', status: 'APROVADO', aprovadorId: 'c1' })
+
+    const [argumentos] = vi.mocked(prisma.aprovacao.create).mock.calls[0] as [any]
+    expect(argumentos.data.decididoEm).toBeInstanceOf(Date)
+  })
+
+  /** Pedir aprovação não é decidir: PENDENTE fica sem carimbo. */
+  it('createAprovacao não carimba a pendência', async () => {
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue({
+      id: 'art1', autorId: 'd1', versao: 2,
+      projeto: { clienteId: 'c1', designerId: 'd1' },
+    } as any)
+    vi.mocked(prisma.aprovacao.create).mockResolvedValue({ id: 'a1' } as any)
+
+    await service.createAprovacao({ arteId: 'art1', status: 'PENDENTE', aprovadorId: 'c1' })
+
+    const [argumentos] = vi.mocked(prisma.aprovacao.create).mock.calls[0] as [any]
+    expect(argumentos.data.decididoEm).toBeNull()
+  })
+
+  /*
+   * A recusa também é uma decisão. Estava na mesma condição que a aprovação
+   * para notificar, e precisa estar na mesma para carimbar.
+   */
+  it('createAprovacao carimba a recusa também', async () => {
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue({
+      id: 'art1', autorId: 'd1', versao: 2,
+      projeto: { clienteId: 'c1', designerId: 'd1' },
+    } as any)
+    vi.mocked(prisma.aprovacao.create).mockResolvedValue({ id: 'a1' } as any)
+
+    await service.createAprovacao({
+      arteId: 'art1', status: 'REJEITADO', aprovadorId: 'c1',
+      comentario: 'O contraste do texto está baixo demais.',
+    })
+
+    const [argumentos] = vi.mocked(prisma.aprovacao.create).mock.calls[0] as [any]
+    expect(argumentos.data.decididoEm).toBeInstanceOf(Date)
+  })
+
   it('updateAprovacao carimba quando a decisão saiu de PENDENTE', async () => {
     vi.mocked(prisma.aprovacao.findUnique).mockResolvedValue({
       id: 'a1', status: 'PENDENTE', aprovadorId: 'c1',
