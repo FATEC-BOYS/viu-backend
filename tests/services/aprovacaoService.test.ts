@@ -144,6 +144,120 @@ describe('AprovacaoService', () => {
  * designer não tem. Aquela rota é "o cliente registra a própria decisão".
  * Solicitar é o sentido oposto: o designer cria a pendência para o cliente.
  */
+describe('a decisão do cliente move a arte', () => {
+  /*
+   * Eram dois registros do mesmo fato sem ligação: o cliente aprovava e a arte
+   * ficava onde o designer a tinha deixado. Medido no app — cartão em Projetos
+   * dizendo "0 de 1 aprovadas", detalhe da arte dizendo "Aprovada", e o
+   * cabeçalho do viewer dizendo "Recusada". Um evento, três respostas.
+   */
+  it('aprovar leva a arte de EM_ANALISE para APROVADO', async () => {
+    vi.mocked(prisma.aprovacao.findUnique).mockResolvedValue({
+      id: 'a1', status: 'PENDENTE', aprovadorId: 'c1', arteId: 'art1',
+      arte: { autorId: 'd1', nome: 'Capa', projeto: { clienteId: 'c1' } },
+    } as any)
+    vi.mocked(prisma.aprovacao.update).mockResolvedValue({ id: 'a1' } as any)
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue({ status: 'EM_ANALISE' } as any)
+    vi.mocked(prisma.arte.update).mockResolvedValue({ id: 'art1' } as any)
+
+    await service.updateAprovacao('a1', { status: 'APROVADO' }, 'c1')
+
+    const [args] = vi.mocked(prisma.arte.update).mock.calls[0] as [any]
+    expect(args).toMatchObject({ where: { id: 'art1' }, data: { status: 'APROVADO' } })
+  })
+
+  it('recusar leva a arte para REJEITADO', async () => {
+    vi.mocked(prisma.aprovacao.findUnique).mockResolvedValue({
+      id: 'a1', status: 'PENDENTE', aprovadorId: 'c1', arteId: 'art1',
+      arte: { autorId: 'd1', nome: 'Capa', projeto: { clienteId: 'c1' } },
+    } as any)
+    vi.mocked(prisma.aprovacao.update).mockResolvedValue({ id: 'a1' } as any)
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue({ status: 'EM_ANALISE' } as any)
+    vi.mocked(prisma.arte.update).mockResolvedValue({ id: 'art1' } as any)
+
+    await service.updateAprovacao('a1', { status: 'REJEITADO', comentario: 'O contraste está baixo.' }, 'c1')
+
+    const [args] = vi.mocked(prisma.arte.update).mock.calls[0] as [any]
+    expect(args.data.status).toBe('REJEITADO')
+  })
+
+  /*
+   * `REJEITADO → APROVADO` não existe na máquina: o caminho é mandar uma
+   * versão nova, que leva a arte a `EM_ANALISE`. Forçar o pulo apagaria a
+   * recusa do histórico — e é dela que uma disputa depende.
+   */
+  it('não força transição que a máquina não permite', async () => {
+    vi.mocked(prisma.aprovacao.findUnique).mockResolvedValue({
+      id: 'a1', status: 'PENDENTE', aprovadorId: 'c1', arteId: 'art1',
+      arte: { autorId: 'd1', nome: 'Capa', projeto: { clienteId: 'c1' } },
+    } as any)
+    vi.mocked(prisma.aprovacao.update).mockResolvedValue({ id: 'a1' } as any)
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue({ status: 'REJEITADO' } as any)
+    vi.mocked(prisma.arte.update).mockResolvedValue({ id: 'art1' } as any)
+
+    await service.updateAprovacao('a1', { status: 'APROVADO' }, 'c1')
+
+    expect(vi.mocked(prisma.arte.update)).not.toHaveBeenCalled()
+  })
+
+  /* O rótulo é consequência; a decisão do cliente vale de qualquer jeito. */
+  it('a decisão continua de pé se mover a arte falhar', async () => {
+    vi.mocked(prisma.aprovacao.findUnique).mockResolvedValue({
+      id: 'a1', status: 'PENDENTE', aprovadorId: 'c1', arteId: 'art1',
+      arte: { autorId: 'd1', nome: 'Capa', projeto: { clienteId: 'c1' } },
+    } as any)
+    vi.mocked(prisma.aprovacao.update).mockResolvedValue({ id: 'a1' } as any)
+    vi.mocked(prisma.arte.findUnique).mockRejectedValue(new Error('banco fora'))
+
+    await expect(service.updateAprovacao('a1', { status: 'APROVADO' }, 'c1')).resolves.toBeTruthy()
+  })
+})
+
+describe('pedir aprovação de uma versão já decidida', () => {
+  const arteComCliente = {
+    id: 'art1', autorId: 'd1', versao: 1,
+    projeto: { clienteId: 'c1', designerId: 'd1' },
+  }
+
+  /*
+   * O 500 que a designer via em produção. A busca que evitava duplicata
+   * filtrava `status: 'PENDENTE'`, mas a restrição do banco é
+   * `@@unique([arteId, aprovadorId, versaoNumero])` — sem status. Com a versão
+   * já decidida, a busca não achava e o `create` batia na restrição.
+   * Reproduzido no app: pedir, aprovar, pedir de novo → 500.
+   */
+  it('avisa em vez de estourar, e não tenta criar outra', async () => {
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue(arteComCliente as any)
+    vi.mocked(prisma.aprovacao.findFirst).mockResolvedValue({
+      id: 'a1', status: 'APROVADO', versaoNumero: 1, decididoEm: new Date('2026-10-03T12:00:00Z'),
+    } as any)
+
+    await expect(service.solicitarAprovacao('art1', 'd1')).rejects.toThrow(/já foi aprovada/i)
+    expect(vi.mocked(prisma.aprovacao.create)).not.toHaveBeenCalled()
+  })
+
+  it('a mensagem diz o que fazer: mandar outra versão', async () => {
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue(arteComCliente as any)
+    vi.mocked(prisma.aprovacao.findFirst).mockResolvedValue({
+      id: 'a1', status: 'REJEITADO', versaoNumero: 1, decididoEm: null,
+    } as any)
+
+    await expect(service.solicitarAprovacao('art1', 'd1')).rejects.toThrow(/nova versão/i)
+  })
+
+  /* O que a busca sempre existiu para fazer continua valendo. */
+  it('dois cliques em Solicitar devolvem a mesma pendência', async () => {
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue(arteComCliente as any)
+    vi.mocked(prisma.aprovacao.findFirst).mockResolvedValue({
+      id: 'a1', status: 'PENDENTE', versaoNumero: 1,
+    } as any)
+
+    const r: any = await service.solicitarAprovacao('art1', 'd1')
+    expect(r.id).toBe('a1')
+    expect(vi.mocked(prisma.aprovacao.create)).not.toHaveBeenCalled()
+  })
+})
+
 describe('solicitarAprovacao', () => {
   const ARTE = {
     id: 'a1',
@@ -202,7 +316,14 @@ describe('solicitarAprovacao', () => {
    */
   it('devolve a pendência existente em vez de duplicar', async () => {
     vi.mocked(prisma.arte.findUnique).mockResolvedValue(ARTE as any)
-    vi.mocked(prisma.aprovacao.findFirst).mockResolvedValue({ id: 'ja-existe' } as any)
+    /*
+     * O `status` passou a fazer falta no mock porque o serviço passou a lê-lo
+     * da linha, em vez de deixá-lo na cláusula da consulta — que é o que fazia
+     * a busca não enxergar uma aprovação já decidida e o `create` seguinte
+     * estourar na restrição única. O mock não simula o `where`, então a linha
+     * precisa dizer o que é.
+     */
+    vi.mocked(prisma.aprovacao.findFirst).mockResolvedValue({ id: 'ja-existe', status: 'PENDENTE' } as any)
 
     const resultado = await service.solicitarAprovacao('a1', 'd1')
 
