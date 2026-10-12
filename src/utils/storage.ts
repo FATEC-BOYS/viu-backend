@@ -53,6 +53,35 @@ export async function deleteFile(key: string): Promise<void> {
   await r2.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }))
 }
 
+/**
+ * O conteúdo de um arquivo do bucket, pela chave.
+ *
+ * Existe porque dois caminhos do feedback precisavam LER de volta o que
+ * subiram, e os dois faziam `fetch(feedback.arquivo)` — a coluna guarda a
+ * chave do bucket, não uma URL, então o `fetch` nunca tinha endereço para
+ * onde ir. Em `gerarAudioDoFeedback` isso significava que o cache de síntese
+ * nunca acertava: cada clique em "ouvir" pagava uma síntese nova. Em
+ * `getTranscricao`, que é o caminho de transcrever depois um áudio que entrou
+ * sem texto, significava que esse caminho nunca funcionou.
+ *
+ * Devolve `null` quando o objeto não está lá, porque é isso que quem chama
+ * precisa distinguir: "não tenho cópia guardada" se resolve gerando de novo;
+ * uma exceção, não.
+ */
+export async function lerArquivo(key: string | null): Promise<Buffer | null> {
+  if (!key) return null
+  if (/^https?:\/\//i.test(key)) return null
+
+  try {
+    const saida = await r2.send(new GetObjectCommand({ Bucket: R2_BUCKET, Key: key }))
+    const corpo = saida.Body as { transformToByteArray?: () => Promise<Uint8Array> } | undefined
+    if (!corpo?.transformToByteArray) return null
+    return Buffer.from(await corpo.transformToByteArray())
+  } catch {
+    return null
+  }
+}
+
 export async function signPath(
   path: string | null,
   expires = 3600,

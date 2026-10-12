@@ -136,6 +136,53 @@ describe('getPreviewByToken', () => {
     expect(preview.arte.previewUrl).not.toBe(preview.arte.arquivo)
   })
 
+  /*
+   * O mesmo bug da imagem, no áudio do comentário — e com uma causa a mais.
+   *
+   * A assinatura do áudio era condicionada a `fb.tipo === 'AUDIO'`, e
+   * `createFeedbackComAudio` rotulava como `POSICIONAL` toda gravação feita
+   * sobre um ponto da arte. Resultado medido no link público: o áudio com
+   * pino saía com `arquivo_url: null`, o viewer não desenhava player nenhum,
+   * e a gravação ficava no bucket sem nenhum caminho até ela.
+   *
+   * Um feedback tem áudio quando tem ARQUIVO. O rótulo não decide isso.
+   */
+  it('assina o áudio do comentário mesmo quando o rótulo é POSICIONAL', async () => {
+    prepararLinkValido()
+    db.feedback.findMany.mockResolvedValue([
+      {
+        id: 'cfb00000000000000000001',
+        conteudo: 'Esse canto ficou apertado',
+        tipo: 'POSICIONAL',
+        arquivo: 'feedbacks/carte0000000000000000001/123_gravacao.webm',
+        posicaoX: 30,
+        posicaoY: 40,
+        autor: { nome: 'João' },
+      },
+    ])
+
+    const preview = await service.getPreviewByToken('tok')
+    expect((preview.feedbacks[0] as any).arquivo_url).toBe(
+      'https://r2.exemplo/feedbacks/carte0000000000000000001/123_gravacao.webm?assinado',
+    )
+  })
+
+  it('comentário de texto não ganha endereço de áudio', async () => {
+    prepararLinkValido()
+    db.feedback.findMany.mockResolvedValue([
+      {
+        id: 'cfb00000000000000000002',
+        conteudo: 'O azul ficou pesado',
+        tipo: 'TEXTO',
+        arquivo: null,
+        autor: { nome: 'João' },
+      },
+    ])
+
+    const preview = await service.getPreviewByToken('tok')
+    expect((preview.feedbacks[0] as any).arquivo_url).toBeNull()
+  })
+
   it('conta o acesso que está sendo servido, sem esperar o incremento no banco', async () => {
     prepararLinkValido()
     const preview = await service.getPreviewByToken('tok')

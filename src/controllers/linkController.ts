@@ -2,6 +2,7 @@ import { FastifyRequest, FastifyReply } from 'fastify'
 import { LinkIndisponivelError, LinkService } from '../services/linkService.js'
 import { FeedbackService } from '../services/feedbackService.js'
 import { env } from '../config/env.js'
+import { assinarAudioDeFeedback } from '../utils/audioDeFeedback.js'
 import { erroInterno } from '../utils/erroInterno.js'
 
 const linkService = new LinkService()
@@ -168,11 +169,19 @@ export async function createAudioFeedbackViaLink(
       autorId: usuario.id,
       audioBuffer: audioData.buffer,
       filename: audioData.filename,
+      mimetype: audioData.mimetype,
       posicaoX,
       posicaoY,
     })
 
-    reply.status(201).send({ message: 'Feedback com áudio criado', data: feedback, success: true })
+    // Assinado já aqui, pelo mesmo motivo do fluxo por sessão: a tela insere
+    // este objeto direto na lista, e sem `arquivo_url` o áudio recém-gravado
+    // seria o único da página sem endereço tocável.
+    reply.status(201).send({
+      message: 'Feedback com áudio criado',
+      data: await assinarAudioDeFeedback(feedback),
+      success: true,
+    })
   } catch (error: any) {
     if (error.message === 'somenteLeitura') {
       reply.status(403).send({ message: 'Este link é somente leitura — feedbacks não são permitidos', success: false })
@@ -188,11 +197,61 @@ export async function createAudioFeedbackViaLink(
       reply.status(404).send({ message: error.message, success: false })
       return
     }
-    if (error.message.includes('OPENAI_API_KEY')) {
-      reply.status(503).send({ message: 'Serviço de transcrição não configurado', success: false })
+    erroInterno(request, reply, error, 'Erro ao criar feedback com áudio')
+  }
+}
+
+/**
+ * GET /links/:token/feedbacks/:id/audio — o comentário de texto lido em voz alta.
+ *
+ * Existe porque a mesma leitura por sessão (`GET /feedbacks/:id/audio`) exige
+ * vínculo com o projeto, e quem abre o link pode não ter nenhum. Sem esta
+ * porta, manter o recurso significaria mantê-lo só na tela do designer — e
+ * ouvir em vez de ler serve justamente a quem recebeu o link e está no
+ * celular.
+ *
+ * O `id` é conferido contra a arte DO TOKEN: o token autoriza aquela arte, e
+ * não a leitura de qualquer comentário do banco cujo id alguém adivinhe.
+ */
+export async function getAudioDoFeedbackViaLink(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  try {
+    const { token, id } = request.params as { token: string; id: string }
+    const arteId = await linkService.resolveArteIdFromToken(token)
+
+    const feedback = await feedbackService.getFeedbackById(id)
+    if (!feedback || feedback.arteId !== arteId || !feedback.publico) {
+      reply.status(404).send({ message: 'Feedback não encontrado', success: false })
       return
     }
-    erroInterno(request, reply, error, 'Erro ao criar feedback com áudio')
+
+    const { buffer } = await feedbackService.gerarAudioDoFeedback(id)
+    reply
+      .header('Content-Type', 'audio/mpeg')
+      .header('Content-Disposition', `inline; filename="feedback-${id}.mp3"`)
+      .send(buffer)
+  } catch (error: any) {
+    if (
+      error.message.includes('inválido') ||
+      error.message.includes('expirado') ||
+      error.message.includes('revogado') ||
+      error.message.includes('Limite') ||
+      error.message.includes('não encontrad')
+    ) {
+      reply.status(404).send({ message: error.message, success: false })
+      return
+    }
+    if (error.message.includes('não possui conteúdo')) {
+      reply.status(400).send({ message: error.message, success: false })
+      return
+    }
+    if (error.message.includes('OPENAI_API_KEY')) {
+      reply.status(503).send({ message: 'Serviço de síntese não configurado', success: false })
+      return
+    }
+    erroInterno(request, reply, error, 'Erro ao gerar áudio do feedback')
   }
 }
 

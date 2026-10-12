@@ -9,6 +9,7 @@ import {
   revokeLink,
   createFeedbackViaLink,
   createAudioFeedbackViaLink,
+  getAudioDoFeedbackViaLink,
 } from '../controllers/linkController.js'
 import { authenticate } from '../middleware/authMiddleware.js'
 import { chaveDoComentario } from '../utils/rateLimitComentario.js'
@@ -60,4 +61,20 @@ export async function linksRoutes(fastify: FastifyInstance) {
     config: { rateLimit: { max: 10, timeWindow: '1 hour', keyGenerator: chaveDoComentario } },
     preHandler: [authenticate, validateAudioUpload],
   }, createAudioFeedbackViaLink)
+
+  /*
+   * Ouvir um comentário de texto, pela porta do link.
+   *
+   * `authenticate` como as vizinhas: o token autoriza LER a arte, e a síntese
+   * custa dinheiro na conta da OpenAI — então o gatilho é a pessoa na conta
+   * dela, com limite por credencial, e não o token encaminhável.
+   *
+   * 30/hora porque a primeira chamada de cada comentário sintetiza (e cobra) e
+   * as seguintes vêm do bucket: o teto serve para o caso de alguém percorrer
+   * comentário por comentário, não para o uso normal de ouvir alguns.
+   */
+  fastify.get('/links/:token/feedbacks/:id/audio', {
+    config: { rateLimit: { max: 30, timeWindow: '1 hour', keyGenerator: chaveDoComentario } },
+    preHandler: [authenticate],
+  }, getAudioDoFeedbackViaLink)
 }
