@@ -113,6 +113,13 @@ export async function solicitarAprovacaoHandler(
       reply.status(403).send({ message: error.message, success: false })
       return
     }
+    // 409: o pedido é legítimo, o estado é que não permite. Antes isto virava
+    // 500 com "Erro ao solicitar aprovação" — a tela sem motivo e o designer
+    // sem saber que bastava mandar uma versão nova.
+    if (error.codigo === 'VERSAO_JA_DECIDIDA') {
+      reply.status(409).send({ message: error.message, codigo: error.codigo, success: false })
+      return
+    }
     erroInterno(request, reply, error, 'Erro ao solicitar aprovação')
   }
 }

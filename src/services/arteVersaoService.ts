@@ -58,7 +58,28 @@ export class ArteVersaoService {
       }),
       prisma.arte.update({
         where: { id: arteId },
-        data: { arquivo: key, tipo: mimetype, tamanho: BigInt(size), versao: novoNumero },
+        data: {
+          arquivo: key,
+          tipo: mimetype,
+          tamanho: BigInt(size),
+          versao: novoNumero,
+          /*
+           * Versão nova reabre a arte recusada.
+           *
+           * `ARTE_TRANSITIONS` diz `REJEITADO: ['EM_ANALISE']` — mandar outra
+           * versão É o caminho de volta, e era o único. Só que ninguém o
+           * conduzia: a versão subia e o status ficava onde estava.
+           *
+           * Enquanto a recusa do cliente não mexia no status da arte isso não
+           * aparecia. Agora que mexe, a arte recusada travaria: o cliente
+           * aprovaria a v2 e `REJEITADO → APROVADO` não existe na máquina, de
+           * modo que a tela continuaria dizendo "Recusada" para sempre.
+           *
+           * Só a recusa é desfeita aqui. `APROVADO` é terminal de propósito, e
+           * `EM_ANALISE` já é o que queremos.
+           */
+          ...(arte.status === 'REJEITADO' ? { status: 'EM_ANALISE' } : {}),
+        },
       }),
     ])
 

@@ -1,5 +1,5 @@
 import prisma from '../database/client.js'
-import { assertValidTransition, APROVACAO_TRANSITIONS } from '../utils/stateMachine.js'
+import { assertValidTransition, APROVACAO_TRANSITIONS, ARTE_TRANSITIONS } from '../utils/stateMachine.js'
 import { notificacaoService } from './notificacaoService.js'
 
 export interface ListAprovacoesParams {
@@ -29,6 +29,94 @@ export class RecusaSemMotivoError extends Error {
   constructor() {
     super('Diga o que precisa mudar para recusar esta versão.')
     this.name = 'RecusaSemMotivoError'
+  }
+}
+
+/**
+ * Pedir aprovação de uma versão que o cliente JÁ decidiu.
+ *
+ * `solicitarAprovacao` reaproveitava a pendência buscando por
+ * `status: 'PENDENTE'`, mas a restrição do banco é
+ * `@@unique([arteId, aprovadorId, versaoNumero])` — sem olhar status. Com a
+ * versão já aprovada ou recusada, a busca não achava nada e o `create` batia
+ * na restrição: Prisma P2002, 500, e a tela dizendo "Erro ao solicitar
+ * aprovação" sem motivo nenhum. Reproduzido pedindo, aprovando e pedindo de
+ * novo a mesma versão.
+ *
+ * As duas definições de "já existe" discordavam. Agora a busca é pela chave
+ * inteira, e o caso decidido tem resposta própria: a máquina de estados não
+ * deixa redecidir uma versão, então o caminho é mandar outra.
+ */
+export class VersaoJaDecididaError extends Error {
+  readonly codigo = 'VERSAO_JA_DECIDIDA'
+  constructor(versao: number | null, status: string, quando: Date | null) {
+    const rotulo = status === 'APROVADO' ? 'aprovada' : 'recusada'
+    const data = quando
+      ? ` em ${quando.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`
+      : ''
+    super(
+      `A v${versao ?? 1} já foi ${rotulo} pelo cliente${data}. ` +
+        `Envie uma nova versão para pedir outra aprovação.`,
+    )
+    this.name = 'VersaoJaDecididaError'
+  }
+}
+
+/**
+ * A decisão do cliente move a arte.
+ *
+ * `arte.status` e a aprovação eram dois registros do mesmo fato, e ninguém
+ * ligava um ao outro: o cliente aprovava e a arte continuava onde o designer
+ * a tinha deixado. Daí três telas respondendo coisas diferentes sobre o mesmo
+ * evento — medido no app, com uma arte decidida pelo cliente:
+ *
+ *   cartão em Projetos   lê `arte.status`   "0 de 1 aprovadas"
+ *   detalhe da arte      lê a aprovação     "Aprovada · v1"
+ *   cabeçalho do viewer  lê `arte.status`   "Recusada"
+ *
+ * A máquina de estados já previa este movimento — `EM_ANALISE` sai para
+ * `APROVADO` ou `REJEITADO` — e simplesmente não havia quem o conduzisse.
+ *
+ * Quando a transição NÃO é permitida, a arte fica como está. `REJEITADO →
+ * APROVADO` é o caso: a máquina exige passar por `EM_ANALISE`, que é o que
+ * acontece quando o designer manda a versão nova. Forçar o pulo aqui apagaria
+ * a recusa do histórico, que num produto com disputa é justamente o que não
+ * se pode perder.
+ *
+ * A decisão já está gravada quando isto roda: se mover a arte falhar, o
+ * registro continua de pé. Por isso a falha é anotada e não derruba a
+ * resposta — era a decisão que o cliente pediu, não o rótulo.
+ */
+async function moverArtePelaDecisao(
+  arteId: string,
+  decisao: 'APROVADO' | 'REJEITADO',
+  versaoDecidida: number | null,
+) {
+  try {
+    const arte = await prisma.arte.findUnique({
+      where: { id: arteId },
+      select: { status: true, versao: true },
+    })
+    if (!arte) return
+
+    /*
+     * Só a decisão da versão CORRENTE move o rótulo.
+     *
+     * `Arte.versao` é um ponteiro para a entrega atual, e `criarVersao` o
+     * avança. Então o cliente pode ter uma pendência aberta na v1 quando o
+     * designer já subiu a v2: respondida tarde, aquela decisão é sobre a v1, e
+     * carimbá-la na arte diria sobre a v2 algo que ninguém falou dela.
+     *
+     * A aprovação da v1 continua gravada e visível no histórico — o que não
+     * acontece é ela reescrever o estado de uma entrega que o cliente não viu.
+     */
+    if (versaoDecidida !== null && versaoDecidida !== arte.versao) return
+
+    const permitidos = ARTE_TRANSITIONS[arte.status] ?? []
+    if (!permitidos.includes(decisao)) return
+    await prisma.arte.update({ where: { id: arteId }, data: { status: decisao } })
+  } catch {
+    // A decisão vale mesmo que o rótulo não acompanhe.
   }
 }
 
@@ -172,6 +260,14 @@ export class AprovacaoService {
       },
     })
 
+    if (jaDecidida) {
+      await moverArtePelaDecisao(
+        data.arteId,
+        data.status as 'APROVADO' | 'REJEITADO',
+        data.versaoNumero ?? arte.versao,
+      )
+    }
+
     // Notify the designer of the decision
     if (arte.autorId && jaDecidida) {
       const statusLabel = data.status === 'APROVADO' ? 'aprovada ✅' : 'rejeitada ❌'
@@ -211,16 +307,26 @@ export class AprovacaoService {
     // Reaproveita a pendência em vez de criar outra. Dois cliques em
     // "Solicitar" criariam duas linhas, e a rota de decisão — que busca com
     // limit=1 e pega [0] — aplicaria a resposta do cliente numa arbitrária.
+    /*
+     * Busca pela MESMA chave que a restrição do banco usa — sem filtrar
+     * status. Filtrar por `PENDENTE` fazia a função concluir "não existe" para
+     * uma linha que existe, e o `create` seguinte estourava. Ver
+     * `VersaoJaDecididaError`.
+     */
     const existente = await prisma.aprovacao.findFirst({
       where: {
         arteId,
         aprovadorId: arte.projeto.clienteId,
         versaoNumero: versao,
-        status: 'PENDENTE',
         deletedAt: null,
       },
     })
-    if (existente) return existente
+    if (existente) {
+      // Pendência aberta: dois cliques em "Solicitar" devolvem a mesma linha,
+      // que é o que esta busca sempre existiu para garantir.
+      if (existente.status === 'PENDENTE') return existente
+      throw new VersaoJaDecididaError(versao, existente.status, existente.decididoEm)
+    }
 
     const aprovacao = await prisma.aprovacao.create({
       data: {
@@ -275,6 +381,10 @@ export class AprovacaoService {
     if (updateData.comentario !== undefined) allowedUpdate.comentario = updateData.comentario
 
     const atualizada = await prisma.aprovacao.update({ where: { id }, data: allowedUpdate })
+
+    if (allowedUpdate.status === 'APROVADO' || allowedUpdate.status === 'REJEITADO') {
+      await moverArtePelaDecisao(existing.arteId, allowedUpdate.status, existing.versaoNumero)
+    }
 
     /*
      * Avisa o designer de que o cliente respondeu.
