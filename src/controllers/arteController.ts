@@ -2,6 +2,7 @@ import { FastifyRequest, FastifyReply } from 'fastify'
 import { ArteService, ListArtesParams } from '../services/arteService.js'
 import { NotificacaoService } from '../services/notificacaoService.js'
 import { uploadFile, signPath, deleteFile } from '../utils/storage.js'
+import { assinarAudioDeFeedback } from '../utils/audioDeFeedback.js'
 import { getAccessibleProjectIds } from '../utils/projectAccess.js'
 import { novoId } from '../utils/ids.js'
 import prisma from '../database/client.js'
@@ -119,10 +120,7 @@ export async function getArteById(request: FastifyRequest, reply: FastifyReply):
      */
     const arquivo_url = await signPath(arte.arquivo)
     const feedbacksComUrl = await Promise.all(
-      (arte.feedbacks || []).map(async (fb: any) => ({
-        ...fb,
-        arquivo_url: fb.tipo === 'AUDIO' && fb.arquivo ? await signPath(fb.arquivo) : null,
-      })),
+      (arte.feedbacks || []).map((fb: any) => assinarAudioDeFeedback(fb)),
     )
     // `previewUrl` é o nome que o frontend lê; `arquivo_url` fica porque a
     // tela de feedbacks ainda o consome para o áudio.

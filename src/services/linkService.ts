@@ -1,5 +1,6 @@
 import { prisma } from '../database/client.js'
 import { signPath } from '../utils/storage.js'
+import { assinarAudioDeFeedback } from '../utils/audioDeFeedback.js'
 import crypto from 'crypto'
 import { licencaDoProjeto, licencaPublica } from './licencaService.js'
 
@@ -215,10 +216,7 @@ export class LinkService {
     })
 
     const feedbacksComUrl = await Promise.all(
-      feedbacks.map(async (fb: any) => ({
-        ...fb,
-        arquivo_url: fb.tipo === 'AUDIO' && fb.arquivo ? await signPath(fb.arquivo) : null,
-      })),
+      feedbacks.map((fb: any) => assinarAudioDeFeedback(fb)),
     )
 
     // `previewUrl` é o nome que o frontend lê para a imagem da arte — mesma

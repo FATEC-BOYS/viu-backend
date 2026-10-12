@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { FeedbackService, ListFeedbacksParams } from '../services/feedbackService.js'
 import { signPath } from '../utils/storage.js'
+import { assinarAudioDeFeedback } from '../utils/audioDeFeedback.js'
 import { getAccessibleProjectIds } from '../utils/projectAccess.js'
 import { erroInterno } from '../utils/erroInterno.js'
 
@@ -26,8 +27,7 @@ export async function listFeedbacks(request: FastifyRequest, reply: FastifyReply
     const { feedbacks, total } = await feedbackService.listFeedbacks(params)
     const feedbacksComUrl = await Promise.all(
       feedbacks.map(async (fb: any) => ({
-        ...fb,
-        arquivo_url: fb.tipo === 'AUDIO' && fb.arquivo ? await signPath(fb.arquivo) : null,
+        ...(await assinarAudioDeFeedback(fb)),
         arte_preview_url: fb.arte?.arquivo ? await signPath(fb.arte.arquivo, 3600) : null,
       })),
     )
@@ -50,9 +50,7 @@ export async function getFeedbackById(request: FastifyRequest, reply: FastifyRep
       reply.status(404).send({ message: 'Feedback não encontrado', success: false })
       return
     }
-    const arquivo_url =
-      feedback.tipo === 'AUDIO' && feedback.arquivo ? await signPath(feedback.arquivo) : null
-    reply.send({ data: { ...feedback, arquivo_url }, success: true })
+    reply.send({ data: await assinarAudioDeFeedback(feedback), success: true })
   } catch (erro) {
     request.log.error({ err: erro }, 'Erro ao buscar feedback')
     reply.status(500).send({ message: 'Erro ao buscar feedback', success: false })
@@ -129,22 +127,31 @@ export async function createFeedbackComAudio(
       autorId: usuario.id,
       audioBuffer: audioData.buffer,
       filename: audioData.filename,
+      mimetype: audioData.mimetype,
       posicaoX,
       posicaoY,
     })
 
+    /*
+     * Assinado já na resposta da criação.
+     *
+     * A linha crua saía com `arquivo` (chave do bucket) e sem `arquivo_url`, e
+     * a tela insere este objeto direto na lista — então o áudio que a pessoa
+     * acabou de gravar era o único da página sem endereço tocável, até
+     * recarregar.
+     *
+     * A mensagem também deixou de afirmar "e transcrito com sucesso": a
+     * transcrição agora é tentativa, e quem lê a resposta sabe o que houve
+     * olhando `transcricao`.
+     */
     reply.status(201).send({
-      message: 'Feedback com áudio criado e transcrito com sucesso',
-      data: feedback,
+      message: 'Feedback com áudio criado',
+      data: await assinarAudioDeFeedback(feedback),
       success: true,
     })
   } catch (error: any) {
     if (error.message.includes('não encontrad')) {
       reply.status(400).send({ message: error.message, success: false })
-      return
-    }
-    if (error.message.includes('OPENAI_API_KEY')) {
-      reply.status(503).send({ message: 'Serviço de transcrição não configurado', success: false })
       return
     }
     erroInterno(request, reply, error, 'Erro ao criar feedback com áudio')

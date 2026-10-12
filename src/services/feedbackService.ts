@@ -1,5 +1,5 @@
 import prisma from '../database/client.js'
-import { uploadFile } from '../utils/storage.js'
+import { uploadFile, lerArquivo } from '../utils/storage.js'
 import { PROJETO_ACCESS_SELECT, assertAcessoAoProjeto } from '../utils/projectAccess.js'
 import { transcreverAudio, sintetizarTexto } from './transcricaoService.js'
 import { notificacaoService } from './notificacaoService.js'
@@ -185,11 +185,39 @@ export class FeedbackService {
     return feedback
   }
 
+  /**
+   * O comentário em áudio — e a transcrição como enfeite, não como condição.
+   *
+   * A ordem aqui era: sobe o arquivo, TRANSCREVE, cria a linha. Com a
+   * transcrição no caminho crítico, qualquer tropeço da OpenAI (chave
+   * ausente, cota estourada, serviço fora) derrubava o comentário inteiro: a
+   * linha nunca era criada, o cliente lia "Não foi possível enviar o áudio" —
+   * e o arquivo, que já tinha subido na linha anterior, ficava órfão no
+   * bucket.
+   *
+   * Isso invertia a importância das duas coisas. A gravação é o comentário; a
+   * transcrição é uma conveniência para quem prefere ler. Agora a linha nasce
+   * com o áudio, e o texto chega se chegar — `conteudo` vazio e `transcricao`
+   * nula são a resposta honesta para "ainda não transcrevi", e a tela diz
+   * "Áudio sem transcrição" em vez de inventar.
+   *
+   * `GET /feedbacks/:id/transcricao` é o caminho para transcrever depois o
+   * que entrou sem texto.
+   */
   async createFeedbackComAudio(params: {
     arteId: string
     autorId: string
     audioBuffer: Buffer
     filename: string
+    /**
+     * O tipo real do arquivo, como o middleware o leu.
+     *
+     * Era fixo em `'audio/webm'`, o que só era verdade no Chrome e no
+     * Firefox: o Safari grava em `audio/mp4`. Gravar o objeto no bucket com o
+     * tipo errado faz o navegador receber um `Content-Type` que não combina
+     * com os bytes — e aí o player ou recusa ou fica muda sem dizer por quê.
+     */
+    mimetype?: string
     posicaoX?: number
     posicaoY?: number
     origem?: OrigemFeedback
@@ -213,17 +241,31 @@ export class FeedbackService {
     }
 
     const storagePath = `feedbacks/${arteId}/${Date.now()}_${filename}`
-    await uploadFile(storagePath, audioBuffer, 'audio/webm')
+    await uploadFile(storagePath, audioBuffer, params.mimetype ?? 'audio/webm')
 
-    const transcricao = await transcreverAudio(audioBuffer, filename)
-    const tipo = posicaoX !== undefined && posicaoY !== undefined ? 'POSICIONAL' : 'AUDIO'
+    const comAutor = {
+      autor: { select: { id: true, nome: true, avatar: true } },
+      arte: { select: { id: true, nome: true } },
+    }
 
-    return prisma.feedback.create({
+    let feedback = await prisma.feedback.create({
       data: {
-        conteudo: transcricao,
-        tipo,
+        // Vazio, e não um texto de enfeite: é o que a tela precisa poder
+        // distinguir para oferecer "transcrever" em vez de fingir que leu.
+        conteudo: '',
+        /*
+         * `AUDIO` sempre — o rótulo diz o MEIO, e a posição já mora em
+         * `posicaoX`/`posicaoY`.
+         *
+         * Aqui gravava-se `POSICIONAL` quando a gravação vinha com um pino, o
+         * que misturava duas coisas independentes e fazia o produto mentir
+         * sobre si mesmo: toda leitura que perguntava `tipo === 'AUDIO'`
+         * respondia "não é áudio" justamente para o comentário em áudio mais
+         * específico que existe. Medido no link público: nenhum player era
+         * desenhado para ele.
+         */
+        tipo: 'AUDIO',
         arquivo: storagePath,
-        transcricao,
         posicaoX: posicaoX ?? null,
         posicaoY: posicaoY ?? null,
         arteId,
@@ -232,11 +274,50 @@ export class FeedbackService {
         // igual, e sem isto a contagem ficaria pela metade.
         versaoNumero: arte.versao,
       },
-      include: {
-        autor: { select: { id: true, nome: true, avatar: true } },
-        arte: { select: { id: true, nome: true } },
-      },
+      include: comAutor,
     })
+
+    /*
+     * A transcrição vem depois da linha existir, e falhar aqui não desfaz
+     * nada: o comentário em áudio continua de pé, tocável, só sem texto.
+     */
+    try {
+      const transcricao = await transcreverAudio(audioBuffer, filename)
+      feedback = await prisma.feedback.update({
+        where: { id: feedback.id },
+        data: { conteudo: transcricao, transcricao },
+        include: comAutor,
+      })
+    } catch (erro) {
+      // A gravação está no ar; o texto não. Fica registrado porque é a
+      // diferença entre "a OpenAI está fora" e "ninguém transcreveu ainda".
+      console.warn(
+        `[feedback] áudio salvo sem transcrição (feedback=${feedback.id}):`,
+        erro instanceof Error ? erro.message : erro,
+      )
+    }
+
+    /*
+     * Avisar a outra parte, exatamente como o fluxo de texto avisa.
+     *
+     * O fluxo de áudio não avisava ninguém. O cliente gravava o recado, ele
+     * entrava no banco, e o designer não ficava sabendo — a não ser que
+     * entrasse na arte por conta própria e rolasse a lista. O recado em áudio
+     * é justamente o que o cliente manda quando tem pressa de ser ouvido.
+     */
+    const proj = arte.projeto
+    const destinatarioId = autorId === proj.designerId ? proj.clienteId : proj.designerId
+    if (destinatarioId && destinatarioId !== autorId) {
+      notificacaoService.dispatch(
+        destinatarioId,
+        'NOVO_FEEDBACK',
+        `Novo feedback em "${arte.nome}"`,
+        `${autor.nome} deixou um comentário em áudio na arte "${arte.nome}".`,
+        { entidadeTipo: 'ARTE', entidadeId: arte.id },
+      )
+    }
+
+    return feedback
   }
 
   async gerarAudioDoFeedback(id: string): Promise<{ buffer: Buffer; feedback: any }> {
@@ -246,15 +327,19 @@ export class FeedbackService {
       throw new Error('Feedback não possui conteúdo textual para sintetizar')
     }
 
+    /*
+     * A cópia já sintetizada, lida do bucket pela CHAVE.
+     *
+     * Aqui estava `fetch(feedback.audioGerado)`, e `audioGerado` guarda a
+     * chave do R2 — não uma URL. O `fetch` nunca tinha endereço para onde ir,
+     * lançava, caía no `catch` e sintetizava de novo: o cache não acertava
+     * NUNCA. Cada clique em "ouvir" era uma cobrança nova na conta da OpenAI
+     * pelo mesmo comentário, e a coluna `audioGerado` existia sem servir para
+     * nada.
+     */
     if (feedback.audioGerado) {
-      try {
-        const response = await fetch(feedback.audioGerado)
-        if (response.ok) {
-          return { buffer: Buffer.from(await response.arrayBuffer()), feedback }
-        }
-      } catch {
-        // cache miss — regenera
-      }
+      const guardado = await lerArquivo(feedback.audioGerado)
+      if (guardado) return { buffer: guardado, feedback }
     }
 
     const audioBuffer = await sintetizarTexto(feedback.conteudo)
@@ -276,9 +361,15 @@ export class FeedbackService {
     if (feedback.transcricao) return feedback.transcricao
     if (!feedback.arquivo) throw new Error('Feedback não possui áudio para transcrever')
 
-    const response = await fetch(feedback.arquivo)
-    if (!response.ok) throw new Error('Erro ao buscar arquivo de áudio')
-    const audioBuffer = Buffer.from(await response.arrayBuffer())
+    /*
+     * Mesma confusão chave/URL de `gerarAudioDoFeedback`, e aqui ela custava
+     * mais: este é o caminho para transcrever DEPOIS um áudio que entrou sem
+     * texto — exatamente o que passa a acontecer quando a OpenAI falha na
+     * hora do envio. Com um `fetch` numa chave de bucket, esse caminho nunca
+     * chegou a funcionar.
+     */
+    const audioBuffer = await lerArquivo(feedback.arquivo)
+    if (!audioBuffer) throw new Error('Erro ao buscar arquivo de áudio')
     const transcricao = await transcreverAudio(audioBuffer)
 
     await prisma.feedback.update({ where: { id }, data: { transcricao } })
