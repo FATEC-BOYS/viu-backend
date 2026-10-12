@@ -87,10 +87,31 @@ export class VersaoJaDecididaError extends Error {
  * registro continua de pé. Por isso a falha é anotada e não derruba a
  * resposta — era a decisão que o cliente pediu, não o rótulo.
  */
-async function moverArtePelaDecisao(arteId: string, decisao: 'APROVADO' | 'REJEITADO') {
+async function moverArtePelaDecisao(
+  arteId: string,
+  decisao: 'APROVADO' | 'REJEITADO',
+  versaoDecidida: number | null,
+) {
   try {
-    const arte = await prisma.arte.findUnique({ where: { id: arteId }, select: { status: true } })
+    const arte = await prisma.arte.findUnique({
+      where: { id: arteId },
+      select: { status: true, versao: true },
+    })
     if (!arte) return
+
+    /*
+     * Só a decisão da versão CORRENTE move o rótulo.
+     *
+     * `Arte.versao` é um ponteiro para a entrega atual, e `criarVersao` o
+     * avança. Então o cliente pode ter uma pendência aberta na v1 quando o
+     * designer já subiu a v2: respondida tarde, aquela decisão é sobre a v1, e
+     * carimbá-la na arte diria sobre a v2 algo que ninguém falou dela.
+     *
+     * A aprovação da v1 continua gravada e visível no histórico — o que não
+     * acontece é ela reescrever o estado de uma entrega que o cliente não viu.
+     */
+    if (versaoDecidida !== null && versaoDecidida !== arte.versao) return
+
     const permitidos = ARTE_TRANSITIONS[arte.status] ?? []
     if (!permitidos.includes(decisao)) return
     await prisma.arte.update({ where: { id: arteId }, data: { status: decisao } })
@@ -240,7 +261,11 @@ export class AprovacaoService {
     })
 
     if (jaDecidida) {
-      await moverArtePelaDecisao(data.arteId, data.status as 'APROVADO' | 'REJEITADO')
+      await moverArtePelaDecisao(
+        data.arteId,
+        data.status as 'APROVADO' | 'REJEITADO',
+        data.versaoNumero ?? arte.versao,
+      )
     }
 
     // Notify the designer of the decision
@@ -358,7 +383,7 @@ export class AprovacaoService {
     const atualizada = await prisma.aprovacao.update({ where: { id }, data: allowedUpdate })
 
     if (allowedUpdate.status === 'APROVADO' || allowedUpdate.status === 'REJEITADO') {
-      await moverArtePelaDecisao(existing.arteId, allowedUpdate.status)
+      await moverArtePelaDecisao(existing.arteId, allowedUpdate.status, existing.versaoNumero)
     }
 
     /*

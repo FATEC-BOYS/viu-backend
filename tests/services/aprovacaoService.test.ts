@@ -211,6 +211,42 @@ describe('a decisão do cliente move a arte', () => {
 
     await expect(service.updateAprovacao('a1', { status: 'APROVADO' }, 'c1')).resolves.toBeTruthy()
   })
+
+  /*
+   * `Arte.versao` é ponteiro para a entrega atual, e `criarVersao` o avança.
+   * O cliente pode ter pendência aberta na v1 quando o designer já subiu a v2:
+   * respondida tarde, aquela decisão é sobre a v1, e carimbá-la na arte diria
+   * sobre a v2 algo que ninguém falou dela.
+   */
+  it('decisão de versão antiga não mexe no rótulo da versão atual', async () => {
+    vi.mocked(prisma.aprovacao.findUnique).mockResolvedValue({
+      id: 'a1', status: 'PENDENTE', aprovadorId: 'c1', arteId: 'art1', versaoNumero: 1,
+      arte: { autorId: 'd1', nome: 'Capa', projeto: { clienteId: 'c1' } },
+    } as any)
+    vi.mocked(prisma.aprovacao.update).mockResolvedValue({ id: 'a1' } as any)
+    // a arte já está na v2
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue({ status: 'EM_ANALISE', versao: 2 } as any)
+    vi.mocked(prisma.arte.update).mockResolvedValue({ id: 'art1' } as any)
+
+    await service.updateAprovacao('a1', { status: 'APROVADO' }, 'c1')
+
+    expect(vi.mocked(prisma.arte.update)).not.toHaveBeenCalled()
+  })
+
+  it('mas a decisão da versão corrente move normalmente', async () => {
+    vi.mocked(prisma.aprovacao.findUnique).mockResolvedValue({
+      id: 'a1', status: 'PENDENTE', aprovadorId: 'c1', arteId: 'art1', versaoNumero: 2,
+      arte: { autorId: 'd1', nome: 'Capa', projeto: { clienteId: 'c1' } },
+    } as any)
+    vi.mocked(prisma.aprovacao.update).mockResolvedValue({ id: 'a1' } as any)
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue({ status: 'EM_ANALISE', versao: 2 } as any)
+    vi.mocked(prisma.arte.update).mockResolvedValue({ id: 'art1' } as any)
+
+    await service.updateAprovacao('a1', { status: 'APROVADO' }, 'c1')
+
+    const [args] = vi.mocked(prisma.arte.update).mock.calls[0] as [any]
+    expect(args.data.status).toBe('APROVADO')
+  })
 })
 
 describe('pedir aprovação de uma versão já decidida', () => {
