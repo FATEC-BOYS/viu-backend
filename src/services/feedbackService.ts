@@ -63,6 +63,19 @@ export class FeedbackService {
         skip,
         take: Number(limit),
         include: {
+          /*
+           * Quantas respostas a thread tem.
+           *
+           * A listagem devolve só as raízes, então quem desenha o cartão não
+           * tinha como saber se alguém já respondeu — e a tela de Feedbacks
+           * carimbava "Aguardando resposta" em tudo que não estivesse
+           * resolvido, inclusive nas conversas que ela mesma mostrava
+           * respondidas no painel ao lado.
+           *
+           * `_count` sai na mesma consulta e `parentId` é indexado, então é
+           * barato: nenhuma viagem a mais ao banco.
+           */
+          _count: { select: { respostas: true } },
           autor: { select: { id: true, nome: true, tipo: true } },
           arte: {
             select: {
