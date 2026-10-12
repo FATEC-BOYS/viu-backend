@@ -219,7 +219,20 @@ export async function getAudioDoFeedbackViaLink(
 ): Promise<void> {
   try {
     const { token, id } = request.params as { token: string; id: string }
-    const arteId = await linkService.resolveArteIdFromToken(token)
+    /*
+     * `destinoDoToken`, e não `resolveArteIdFromToken`.
+     *
+     * Os dois validam o link igual — inválido, expirado, revogado, limite —,
+     * mas `resolveArteIdFromToken` serve ao caminho de COMENTAR e por isso
+     * recusa link somente-leitura. Ouvir é leitura, e o link que o assistente
+     * cria nasce `somenteLeitura: true`: com o resolvedor errado, o botão de
+     * ouvir respondia 500 em TODO link padrão — justamente os do WhatsApp,
+     * que é onde ouvir em vez de ler mais serve.
+     *
+     * Medido: 500 no link somente-leitura, 503 (só falta a chave) no link que
+     * permite comentar. Eu havia testado só o segundo.
+     */
+    const { arteId } = await linkService.destinoDoToken(token)
 
     const feedback = await feedbackService.getFeedbackById(id)
     if (!feedback || feedback.arteId !== arteId || !feedback.publico) {
