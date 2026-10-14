@@ -1,7 +1,9 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
+import { ehRecusaDeRegra } from './recusaDeRegra.js'
 
 /**
- * Responde 500 e registra a causa.
+ * Responde 500 e registra a causa — ou 409, quando o erro é uma recusa de
+ * regra de negócio e não uma falha nossa.
  *
  * O padrão da casa era `catch { reply.status(500).send({ message: '...' }) }`.
  * Quando algo quebrava em produção, o log tinha só
@@ -28,6 +30,21 @@ export function erroInterno(
    * nenhum. Erros de biblioteca (AWS, Prisma) enganam, porque têm campos
    * próprios enumeráveis e aparecem mesmo assim.
    */
+  /*
+   * Recusa de regra não é falha nossa: vai como 409, com a frase que o domínio
+   * escreveu, e no log como `warn` — 500 em painel de erro significa "alguém
+   * vai investigar", e aqui não há o que investigar.
+   *
+   * Está AQUI, e não em cada controller, porque este é o funil de todos os
+   * `catch` que não reconhecem o erro: vale para projeto, arte, tarefa,
+   * fatura, pagamento, saque e disputa de uma vez. Ver `recusaDeRegra.ts`.
+   */
+  if (ehRecusaDeRegra(erro)) {
+    request.log.warn({ err: erro }, 'recusa de regra de negócio')
+    reply.status(erro.statusCode).send({ message: erro.message, success: false })
+    return
+  }
+
   request.log.error({ err: erro }, mensagem)
   reply.status(500).send({ message: mensagem, success: false })
 }
