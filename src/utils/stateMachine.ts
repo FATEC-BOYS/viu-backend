@@ -8,6 +8,8 @@
  * Use assertValidTransition() nos services antes de qualquer update de status.
  */
 
+import { RecusaDeRegra } from './recusaDeRegra.js'
+
 type TransitionMap = Record<string, string[]>
 
 // ─── Definições de transição ─────────────────────────────────────────────────
@@ -105,11 +107,21 @@ export function assertValidTransition(
   to: string,
 ): void {
   const allowed = transitions[from]
+  /*
+   * `Error` puro de propósito: um status que a máquina não conhece não é o
+   * cliente pedindo o impossível — é uma linha nossa em estado que o código
+   * não prevê, ou um mapa incompleto. Isso É falha do servidor, e 500 com
+   * mensagem genérica em produção é a resposta certa.
+   */
   if (allowed === undefined) {
     throw new Error(`Status desconhecido para ${entity}: "${from}"`)
   }
+  /*
+   * Já isto é o cliente pedindo uma mudança que conflita com o estado atual:
+   * 409, com a frase inteira. Ver `recusaDeRegra.ts`.
+   */
   if (!allowed.includes(to)) {
-    throw new Error(
+    throw new RecusaDeRegra(
       allowed.length === 0
         ? `${entity} em status "${from}" é terminal e não pode ser alterado`
         : `Transição inválida para ${entity}: "${from}" → "${to}". Permitido: ${allowed.join(', ')}`,

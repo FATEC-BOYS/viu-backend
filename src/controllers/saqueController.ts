@@ -171,10 +171,13 @@ export async function processarSaqueHandler(
       reply.status(404).send({ message: error.message, success: false })
       return
     }
-    if (error.message.includes('Transição inválida') || error.message.includes('terminal') || error.message.includes('desconhecido')) {
-      reply.status(400).send({ message: error.message, success: false })
-      return
-    }
+    /*
+     * Este trecho devolvia 400 lendo o texto da mensagem — a mesma recusa que
+     * em aprovação respondia 409. Agora o tipo decide, no funil: recusa de
+     * regra é 409 em todo lugar, e "Status desconhecido" volta a ser 500,
+     * porque status que a máquina não conhece é linha nossa em estado que o
+     * código não prevê, não pedido inválido de quem chamou.
+     */
     erroInterno(request, reply, error, 'Erro ao processar saque')
   }
 }

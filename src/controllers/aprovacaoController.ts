@@ -141,12 +141,14 @@ export async function updateAprovacao(request: FastifyRequest, reply: FastifyRep
       reply.status(422).send({ message: error.message, codigo: error.codigo, success: false })
       return
     }
-    // Transição barrada pela máquina de estados é erro de quem chamou, não do
-    // servidor — devolvia 500 e mascarava a causa.
-    if (error.message.includes('é terminal') || error.message.includes('Transição inválida')) {
-      reply.status(409).send({ message: error.message, success: false })
-      return
-    }
+    /*
+     * A transição barrada era reconhecida aqui pelo TEXTO da mensagem, para
+     * devolver 409 em vez do 500 que mascarava a causa. A intenção estava
+     * certa e virou regra geral: `assertValidTransition` lança `RecusaDeRegra`
+     * e `erroInterno` responde 409 para qualquer entidade. Então este trecho
+     * saiu — e com ele o `includes` contra o qual o comentário duas linhas
+     * acima avisa.
+     */
     if (error.message.includes('Aprovação não encontrada')) {
       reply.status(404).send({ message: error.message, success: false })
       return
