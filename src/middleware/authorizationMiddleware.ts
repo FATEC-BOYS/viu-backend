@@ -106,8 +106,17 @@ export function requirePermission(action: Permissao) {
 }
 
 /**
- * Middleware para verificar se o usuário é o proprietário do recurso
- * ou tem permissão de administrador
+ * Quem ALCANÇA o recurso — e não quem pode mudá-lo.
+ *
+ * Para `projeto`, isto responde "esta pessoa é do projeto?", e designer e
+ * cliente são os dois. É a pergunta certa para LER.
+ *
+ * Não é a pergunta certa para escrever, e por um bom tempo foi usada para as
+ * duas coisas: `PUT /projetos/:id` e `DELETE /projetos/:id` passavam por aqui,
+ * então o cliente editava, pausava, CANCELAVA e apagava o projeto do designer.
+ * Medido, logado como cliente: renomear 200 (banco mudou), cancelar 200
+ * (status virou CANCELADO, que o produto trata como definitivo), apagar 200
+ * (linha removida). Para escrever existe `requireDesignerDoProjeto`.
  */
 export function requireOwnership(resourceType: 'usuario' | 'projeto') {
   return async (request: FastifyRequest, reply: FastifyReply) => {
@@ -159,6 +168,70 @@ export function requireOwnership(resourceType: 'usuario' | 'projeto') {
       }
     } catch (error: any) {
       return erroInterno(request, reply, error, 'Erro ao verificar propriedade do recurso')
+    }
+  }
+}
+
+/**
+ * Quem pode MUDAR o projeto: o designer dele, e o admin.
+ *
+ * Ser do projeto e poder mexer nele são perguntas diferentes, e usar a
+ * primeira no lugar da segunda foi o que deixou o cliente editar, pausar,
+ * cancelar e apagar o trabalho do designer. O cliente continua alcançando o
+ * projeto inteiro — ele lê, comenta, aprova e rejeita; o que ele não faz é
+ * escrever no projeto em si.
+ *
+ * "O designer DO PROJETO", e não "quem tem o papel DESIGNER": um designer
+ * convidado para outro projeto também não mexe neste. É a mesma regra que a
+ * tela já aplicava para pedir aprovação (`podeSolicitarAprovacao`), e que
+ * agora o servidor aplica para o resto.
+ *
+ * O 404 antes do 403 é de propósito e segue o que `requireOwnership` já fazia:
+ * projeto inexistente é 404 para todo mundo.
+ */
+export function requireDesignerDoProjeto(
+  obterProjetoId: (request: FastifyRequest) => string | undefined = (request) =>
+    (request.params as any)?.id,
+) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const usuario = (request as any).usuario
+      if (!usuario) {
+        return reply.status(401).send({ message: 'Usuário não autenticado', success: false })
+      }
+      if (usuario.tipo === 'ADMIN') return
+
+      const projetoId = obterProjetoId(request)
+      if (!projetoId) {
+        return reply.status(400).send({ message: 'Projeto não informado', success: false })
+      }
+
+      const projeto = await prisma.projeto.findUnique({
+        where: { id: projetoId },
+        select: { designerId: true, clienteId: true },
+      })
+
+      if (!projeto) {
+        return reply.status(404).send({ message: 'Projeto não encontrado', success: false })
+      }
+
+      if (projeto.designerId !== usuario.id) {
+        /*
+         * A mensagem distingue os dois casos porque as saídas de quem lê são
+         * opostas: quem é do projeto mas não é o designer precisa saber que a
+         * ação é de outra pessoa; quem não é do projeto, que está no lugar
+         * errado.
+         */
+        return reply.status(403).send({
+          message:
+            projeto.clienteId === usuario.id
+              ? 'Esta ação é do designer do projeto'
+              : 'Acesso negado: você não tem acesso a este projeto',
+          success: false,
+        })
+      }
+    } catch (error: any) {
+      return erroInterno(request, reply, error, 'Erro ao verificar o designer do projeto')
     }
   }
 }

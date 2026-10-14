@@ -23,7 +23,7 @@ import {
   validateUpdateProjeto,
 } from '../middleware/projetoMiddleware.js'
 import { authenticate } from '../middleware/authMiddleware.js'
-import { requireOwnership, requireRole } from '../middleware/authorizationMiddleware.js'
+import { requireOwnership, requireRole, requireDesignerDoProjeto } from '../middleware/authorizationMiddleware.js'
 import { validatePagination, validateCuidParam } from '../middleware/validationMiddleware.js'
 import { requirePlanLimit } from '../middleware/planLimitMiddleware.js'
 import { requireEmailVerificado } from '../middleware/emailVerificadoMiddleware.js'
@@ -45,12 +45,12 @@ export async function projetosRoutes(fastify: FastifyInstance) {
   fastify.put(
     '/projetos/:id',
     {
-      preHandler: [authenticate, validateCuidParam, requireOwnership('projeto'), validateUpdateProjeto],
+      preHandler: [authenticate, validateCuidParam, requireDesignerDoProjeto(), validateUpdateProjeto],
     },
     updateProjeto,
   )
   // Remoção de projeto (requer autenticação, validação de ID e ownership)
-  fastify.delete('/projetos/:id', { preHandler: [authenticate, validateCuidParam, requireOwnership('projeto')] }, deleteProjeto)
+  fastify.delete('/projetos/:id', { preHandler: [authenticate, validateCuidParam, requireDesignerDoProjeto()] }, deleteProjeto)
   // Dashboard de estatísticas (requer autenticação e papel de ADMIN)
   fastify.get('/projetos/stats/dashboard', { preHandler: [authenticate, requireRole('ADMIN')] }, dashboardStats)
   // Listagem por designer (requer autenticação e validação de ID)

@@ -164,13 +164,32 @@ export async function uploadAndCreateArte(request: FastifyRequest, reply: Fastif
     const upload = (request as any).arteUploadData
     const { nome, descricao, projetoId } = upload.fields
 
+    /*
+     * Subir arte é do DESIGNER do projeto.
+     *
+     * Esta condição era `designerId OR clienteId` — a mesma que responde
+     * "é do projeto?", que serve para ler. Com ela, o cliente subia arte no
+     * projeto do designer: a peça é a entrega, e quem entrega é quem foi
+     * contratado. A tela, de quebra, oferecia o botão "Subir nova arte" para
+     * o cliente, então ninguém esbarrava numa recusa que avisasse.
+     */
     if (usuario.tipo !== 'ADMIN') {
-      const projeto = await prisma.projeto.findFirst({
-        where: { id: projetoId, OR: [{ designerId: usuario.id }, { clienteId: usuario.id }] },
-        select: { id: true },
+      const projeto = await prisma.projeto.findUnique({
+        where: { id: projetoId },
+        select: { designerId: true, clienteId: true },
       })
       if (!projeto) {
-        reply.status(403).send({ message: 'Acesso negado ao projeto', success: false })
+        reply.status(404).send({ message: 'Projeto não encontrado', success: false })
+        return
+      }
+      if (projeto.designerId !== usuario.id) {
+        reply.status(403).send({
+          message:
+            projeto.clienteId === usuario.id
+              ? 'Subir arte é do designer do projeto'
+              : 'Acesso negado ao projeto',
+          success: false,
+        })
         return
       }
     }
