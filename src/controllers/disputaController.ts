@@ -145,7 +145,13 @@ export async function moverParaAnalise(request: FastifyRequest, reply: FastifyRe
     const disputa = await disputaService.moverParaAnalise(id)
     reply.send({ data: disputa, success: true })
   } catch (erro) {
-    request.log.error({ err: erro }, 'Erro ao atualizar disputa')
-    reply.status(500).send({ message: 'Erro ao atualizar disputa', success: false })
+    /*
+     * Pelo funil, e não com 500 na mão: mover para análise uma disputa já
+     * resolvida é recusa de regra (`DISPUTA_TRANSITIONS` trata resolvida como
+     * terminal), e aqui ela saía como "Erro ao atualizar disputa" com 500 —
+     * em produção, "Erro interno do servidor", sem dizer que a disputa já
+     * tinha sido decidida.
+     */
+    erroInterno(request, reply, erro, 'Erro ao mover disputa para análise')
   }
 }

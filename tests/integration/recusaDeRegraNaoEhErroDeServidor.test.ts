@@ -40,7 +40,7 @@ vi.mock('../../src/utils/storage.js', () => ({
 
 import prisma from '../../src/database/client.js'
 import { buildServer } from '../../src/index.js'
-import { makeToken, DESIGNER, CLIENTE, ORIGIN } from '../helpers/token.js'
+import { makeToken, ADMIN, DESIGNER, CLIENTE, ORIGIN } from '../helpers/token.js'
 
 const db = prisma as any
 
@@ -63,11 +63,13 @@ function projeto(status: string) {
 
 let app: FastifyInstance
 let jwtDesigner: string
+let jwtAdmin: string
 
 beforeAll(async () => {
   app = await buildServer()
   await app.ready()
   jwtDesigner = await makeToken(DESIGNER)
+  jwtAdmin = await makeToken(ADMIN)
 })
 
 afterAll(async () => {
@@ -164,5 +166,83 @@ describe('falha de verdade continua 500', () => {
     expect(res.statusCode).toBe(500)
     // E a mensagem do banco não vaza para quem chamou.
     expect(res.json().message).not.toContain('ECONNREFUSED')
+  })
+})
+
+/**
+ * A regra vale onde o `catch` passa pelo funil — e três endpoints não
+ * passavam. Apontado pelo Codex na revisão desta PR, e conferido: dois
+ * decidiam o status lendo o TEXTO da mensagem, e um devolvia 500 na mão.
+ *
+ * - `PUT /disputas/:id/analisar`: `catch` com 500 escrito à mão. Mover para
+ *   análise uma disputa já resolvida é recusa (resolvida é terminal) e saía
+ *   como "Erro ao atualizar disputa".
+ * - `PUT /aprovacoes/:id`: já respondia 409, mas por `includes('é terminal')`
+ *   — duas linhas abaixo de um comentário avisando para não decidir status por
+ *   texto. Virou o 409 do funil, pelo tipo.
+ * - `PUT /admin/saques/:id/status`: devolvia 400 pelo texto, para a MESMA
+ *   recusa que em aprovação dava 409.
+ */
+describe('os endpoints que não passavam pelo funil', () => {
+  it('mover para análise uma disputa já resolvida é 409, com a frase', async () => {
+    db.disputa.findUnique.mockResolvedValue({ status: 'RESOLVIDA_CLIENTE' })
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/disputas/cdisputa00000000000000001/analisar',
+      headers: { ...ORIGIN },
+      cookies: { viu_token: jwtAdmin },
+    })
+
+    expect(res.statusCode).toBe(409)
+    expect(res.json().message).toBe(
+      'Disputa em status "RESOLVIDA_CLIENTE" é terminal e não pode ser alterado',
+    )
+    expect(db.disputa.update).not.toHaveBeenCalled()
+  })
+
+  it('processar um saque já concluído é 409, e não 400 por causa do texto', async () => {
+    db.saque.findUnique.mockResolvedValue({
+      id: 'csaque0000000000000000001',
+      status: 'CONCLUIDO',
+      valor: 10000,
+      designerId: DESIGNER.id,
+    })
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/admin/saques/csaque0000000000000000001/status',
+      headers: { ...ORIGIN },
+      cookies: { viu_token: jwtAdmin },
+      payload: { status: 'PROCESSANDO' },
+    })
+
+    expect(res.statusCode).toBe(409)
+    expect(db.saque.update).not.toHaveBeenCalled()
+  })
+
+  /*
+   * "Status desconhecido" é o outro lado, e muda de código nesta PR: o saque
+   * o devolvia como 400, junto com as recusas. Um status que a máquina de
+   * estados não conhece é uma linha nossa em estado que o código não prevê —
+   * 500, e mensagem genérica, como qualquer falha nossa.
+   */
+  it('status que a máquina não conhece continua sendo falha nossa', async () => {
+    db.saque.findUnique.mockResolvedValue({
+      id: 'csaque0000000000000000001',
+      status: 'ESTADO_QUE_NAO_EXISTE',
+      valor: 10000,
+      designerId: DESIGNER.id,
+    })
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/admin/saques/csaque0000000000000000001/status',
+      headers: { ...ORIGIN },
+      cookies: { viu_token: jwtAdmin },
+      payload: { status: 'PROCESSANDO' },
+    })
+
+    expect(res.statusCode).toBe(500)
   })
 })
