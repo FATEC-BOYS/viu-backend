@@ -1,3 +1,4 @@
+import { env } from '../config/env.js'
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { ArteService, ListArtesParams } from '../services/arteService.js'
 import { NotificacaoService } from '../services/notificacaoService.js'
@@ -129,7 +130,8 @@ export async function getArteById(request: FastifyRequest, reply: FastifyReply):
      * A peça carrega o próprio estado: quem for usá-la vê se pode, em vez de
      * descobrir na discussão depois.
      */
-    const licenca = await licencaDoProjeto(arte.projetoId)
+    const licenca = env.FINANCEIRO_APENAS_ADMIN && (request as any).usuario?.tipo !== 'ADMIN'
+      ? null : await licencaDoProjeto(arte.projetoId)
 
     /*
      * As rodadas usadas nesta peça — cláusula 3.2. Vai junto da arte porque é

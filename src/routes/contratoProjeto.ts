@@ -1,3 +1,4 @@
+import { financeiroApenasAdmin } from '../middleware/financeiroMiddleware.js'
 import { FastifyInstance } from 'fastify'
 import {
   getContratoVigenteHandler,
@@ -14,9 +15,9 @@ import { authenticate } from '../middleware/authMiddleware.js'
  * aceite sobrescrever o outro.
  */
 export async function contratoProjetoRoutes(fastify: FastifyInstance) {
-  fastify.get('/projetos/:projetoId/contrato', { preHandler: [authenticate] }, getContratoVigenteHandler)
-  fastify.get('/projetos/:projetoId/contrato/versoes', { preHandler: [authenticate] }, historicoContratoHandler)
-  fastify.post('/projetos/:projetoId/contrato', { preHandler: [authenticate] }, gerarContratoHandler)
+  fastify.get('/projetos/:projetoId/contrato', { preHandler: [authenticate, financeiroApenasAdmin] }, getContratoVigenteHandler)
+  fastify.get('/projetos/:projetoId/contrato/versoes', { preHandler: [authenticate, financeiroApenasAdmin] }, historicoContratoHandler)
+  fastify.post('/projetos/:projetoId/contrato', { preHandler: [authenticate, financeiroApenasAdmin] }, gerarContratoHandler)
 
-  fastify.post('/contratos/:contratoId/aceite', { preHandler: [authenticate] }, aceitarContratoHandler)
+  fastify.post('/contratos/:contratoId/aceite', { preHandler: [authenticate, financeiroApenasAdmin] }, aceitarContratoHandler)
 }

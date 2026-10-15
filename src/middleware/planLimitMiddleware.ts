@@ -1,3 +1,4 @@
+import { env } from '../config/env.js'
 import { FastifyRequest, FastifyReply } from 'fastify'
 import prisma from '../database/client.js'
 import { planoVigente } from '../services/assinaturaVigente.js'
@@ -30,6 +31,8 @@ export function requirePlanLimit(resource: LimitResource) {
     try {
       const usuario = (request as any).usuario
       if (!usuario?.id) return
+      // O piloto não exige assinatura nem bloqueia a revisão por plano.
+      if (env.FINANCEIRO_APENAS_ADMIN && usuario.tipo !== 'ADMIN') return
 
       const plano = await planoVigente(usuario.id)
       // Sem plano Gratuito cadastrado não há teto declarado em lugar nenhum.
