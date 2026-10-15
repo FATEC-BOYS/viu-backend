@@ -8,7 +8,10 @@ vi.mock('../../src/database/client.js', async () => {
 
 import prisma from '../../src/database/client.js'
 const service = new AprovacaoService()
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+  vi.mocked(prisma.arte.findUnique).mockResolvedValue({ status: 'EM_ANALISE', versao: 1 } as any)
+})
 
 describe('AprovacaoService', () => {
   it('listAprovacoes deve retornar paginado', async () => {
@@ -157,13 +160,13 @@ describe('a decisão do cliente move a arte', () => {
       arte: { autorId: 'd1', nome: 'Capa', projeto: { clienteId: 'c1' } },
     } as any)
     vi.mocked(prisma.aprovacao.update).mockResolvedValue({ id: 'a1' } as any)
-    vi.mocked(prisma.arte.findUnique).mockResolvedValue({ status: 'EM_ANALISE' } as any)
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue({ status: 'EM_ANALISE', versao: 1 } as any)
     vi.mocked(prisma.arte.update).mockResolvedValue({ id: 'art1' } as any)
 
     await service.updateAprovacao('a1', { status: 'APROVADO' }, 'c1')
 
     const [args] = vi.mocked(prisma.arte.update).mock.calls[0] as [any]
-    expect(args).toMatchObject({ where: { id: 'art1' }, data: { status: 'APROVADO' } })
+    expect(args).toMatchObject({ where: { id: 'art1', versao: 1, status: 'EM_ANALISE' }, data: { status: 'APROVADO' } })
   })
 
   it('recusar leva a arte para REJEITADO', async () => {
@@ -172,7 +175,7 @@ describe('a decisão do cliente move a arte', () => {
       arte: { autorId: 'd1', nome: 'Capa', projeto: { clienteId: 'c1' } },
     } as any)
     vi.mocked(prisma.aprovacao.update).mockResolvedValue({ id: 'a1' } as any)
-    vi.mocked(prisma.arte.findUnique).mockResolvedValue({ status: 'EM_ANALISE' } as any)
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue({ status: 'EM_ANALISE', versao: 1 } as any)
     vi.mocked(prisma.arte.update).mockResolvedValue({ id: 'art1' } as any)
 
     await service.updateAprovacao('a1', { status: 'REJEITADO', comentario: 'O contraste está baixo.' }, 'c1')
@@ -192,7 +195,7 @@ describe('a decisão do cliente move a arte', () => {
       arte: { autorId: 'd1', nome: 'Capa', projeto: { clienteId: 'c1' } },
     } as any)
     vi.mocked(prisma.aprovacao.update).mockResolvedValue({ id: 'a1' } as any)
-    vi.mocked(prisma.arte.findUnique).mockResolvedValue({ status: 'REJEITADO' } as any)
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue({ status: 'REJEITADO', versao: 1 } as any)
     vi.mocked(prisma.arte.update).mockResolvedValue({ id: 'art1' } as any)
 
     await service.updateAprovacao('a1', { status: 'APROVADO' }, 'c1')
@@ -200,8 +203,19 @@ describe('a decisão do cliente move a arte', () => {
     expect(vi.mocked(prisma.arte.update)).not.toHaveBeenCalled()
   })
 
-  /* O rótulo é consequência; a decisão do cliente vale de qualquer jeito. */
-  it('a decisão continua de pé se mover a arte falhar', async () => {
+  /* Uma falha no status deve abortar também a gravação da decisão. */
+  it('decisão antiga sem versão não aprova a v2', async () => {
+    vi.mocked(prisma.aprovacao.findUnique).mockResolvedValue({
+      id: 'a1', status: 'PENDENTE', aprovadorId: 'c1', arteId: 'art1', versaoNumero: null,
+      arte: { autorId: 'd1', nome: 'Capa', projeto: { clienteId: 'c1' } },
+    } as any)
+    vi.mocked(prisma.aprovacao.update).mockResolvedValue({ id: 'a1' } as any)
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue({ status: 'EM_ANALISE', versao: 2 } as any)
+    await service.updateAprovacao('a1', { status: 'APROVADO' }, 'c1')
+    expect(prisma.arte.update).not.toHaveBeenCalled()
+  })
+
+  it('propaga erro de sincronização para reverter a transação', async () => {
     vi.mocked(prisma.aprovacao.findUnique).mockResolvedValue({
       id: 'a1', status: 'PENDENTE', aprovadorId: 'c1', arteId: 'art1',
       arte: { autorId: 'd1', nome: 'Capa', projeto: { clienteId: 'c1' } },
@@ -209,7 +223,7 @@ describe('a decisão do cliente move a arte', () => {
     vi.mocked(prisma.aprovacao.update).mockResolvedValue({ id: 'a1' } as any)
     vi.mocked(prisma.arte.findUnique).mockRejectedValue(new Error('banco fora'))
 
-    await expect(service.updateAprovacao('a1', { status: 'APROVADO' }, 'c1')).resolves.toBeTruthy()
+    await expect(service.updateAprovacao('a1', { status: 'APROVADO' }, 'c1')).rejects.toThrow('banco fora')
   })
 
   /*

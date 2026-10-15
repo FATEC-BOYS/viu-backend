@@ -1,4 +1,5 @@
 import prisma from '../database/client.js'
+import type { Prisma } from '@prisma/client'
 import { assertValidTransition, APROVACAO_TRANSITIONS, ARTE_TRANSITIONS } from '../utils/stateMachine.js'
 import { notificacaoService } from './notificacaoService.js'
 
@@ -62,62 +63,26 @@ export class VersaoJaDecididaError extends Error {
   }
 }
 
-/**
- * A decisão do cliente move a arte.
- *
- * `arte.status` e a aprovação eram dois registros do mesmo fato, e ninguém
- * ligava um ao outro: o cliente aprovava e a arte continuava onde o designer
- * a tinha deixado. Daí três telas respondendo coisas diferentes sobre o mesmo
- * evento — medido no app, com uma arte decidida pelo cliente:
- *
- *   cartão em Projetos   lê `arte.status`   "0 de 1 aprovadas"
- *   detalhe da arte      lê a aprovação     "Aprovada · v1"
- *   cabeçalho do viewer  lê `arte.status`   "Recusada"
- *
- * A máquina de estados já previa este movimento — `EM_ANALISE` sai para
- * `APROVADO` ou `REJEITADO` — e simplesmente não havia quem o conduzisse.
- *
- * Quando a transição NÃO é permitida, a arte fica como está. `REJEITADO →
- * APROVADO` é o caso: a máquina exige passar por `EM_ANALISE`, que é o que
- * acontece quando o designer manda a versão nova. Forçar o pulo aqui apagaria
- * a recusa do histórico, que num produto com disputa é justamente o que não
- * se pode perder.
- *
- * A decisão já está gravada quando isto roda: se mover a arte falhar, o
- * registro continua de pé. Por isso a falha é anotada e não derruba a
- * resposta — era a decisão que o cliente pediu, não o rótulo.
- */
+/** Atualiza o status na mesma transação da decisão, apenas para a versão atual. */
 async function moverArtePelaDecisao(
+  tx: Prisma.TransactionClient,
   arteId: string,
   decisao: 'APROVADO' | 'REJEITADO',
   versaoDecidida: number | null,
 ) {
-  try {
-    const arte = await prisma.arte.findUnique({
-      where: { id: arteId },
-      select: { status: true, versao: true },
-    })
-    if (!arte) return
-
-    /*
-     * Só a decisão da versão CORRENTE move o rótulo.
-     *
-     * `Arte.versao` é um ponteiro para a entrega atual, e `criarVersao` o
-     * avança. Então o cliente pode ter uma pendência aberta na v1 quando o
-     * designer já subiu a v2: respondida tarde, aquela decisão é sobre a v1, e
-     * carimbá-la na arte diria sobre a v2 algo que ninguém falou dela.
-     *
-     * A aprovação da v1 continua gravada e visível no histórico — o que não
-     * acontece é ela reescrever o estado de uma entrega que o cliente não viu.
-     */
-    if (versaoDecidida !== null && versaoDecidida !== arte.versao) return
-
-    const permitidos = ARTE_TRANSITIONS[arte.status] ?? []
-    if (!permitidos.includes(decisao)) return
-    await prisma.arte.update({ where: { id: arteId }, data: { status: decisao } })
-  } catch {
-    // A decisão vale mesmo que o rótulo não acompanhe.
-  }
+  const arte = await tx.arte.findUnique({
+    where: { id: arteId }, select: { status: true, versao: true },
+  })
+  if (!arte) throw new Error('Arte não encontrada')
+  // Registros sem versão só são seguros para a entrega inicial.
+  if ((versaoDecidida ?? 1) !== arte.versao) return
+  const permitidos = ARTE_TRANSITIONS[arte.status] ?? []
+  if (!permitidos.includes(decisao)) return
+  // O predicado protege contra upload concorrente: falha e reverte a decisão.
+  await tx.arte.update({
+    where: { id: arteId, versao: arte.versao, status: arte.status },
+    data: { status: decisao },
+  })
 }
 
 function motivoAusente(comentario?: string | null): boolean {
@@ -247,26 +212,30 @@ export class AprovacaoService {
      */
     const jaDecidida = data.status === 'APROVADO' || data.status === 'REJEITADO'
 
-    const aprovacao = await prisma.aprovacao.create({
-      data: {
-        arteId: data.arteId,
-        status: data.status,
-        comentario: data.comentario,
-        aprovadorId: data.aprovadorId,
-        versaoNumero: data.versaoNumero ?? arte.versao,
-        // Criada já decidida: a decisão aconteceu agora. PENDENTE fica sem
-        // carimbo, que é o certo — ela ainda não foi decidida.
-        decididoEm: jaDecidida ? new Date() : null,
-      },
-    })
+    const aprovacao = await prisma.$transaction(async (tx) => {
+      const criada = await tx.aprovacao.create({
+        data: {
+          arteId: data.arteId,
+          status: data.status,
+          comentario: data.comentario,
+          aprovadorId: data.aprovadorId,
+          versaoNumero: data.versaoNumero ?? arte.versao,
+          // Criada já decidida: a decisão aconteceu agora. PENDENTE fica sem
+          // carimbo, que é o certo — ela ainda não foi decidida.
+          decididoEm: jaDecidida ? new Date() : null,
+        },
+      })
 
-    if (jaDecidida) {
-      await moverArtePelaDecisao(
-        data.arteId,
-        data.status as 'APROVADO' | 'REJEITADO',
-        data.versaoNumero ?? arte.versao,
-      )
-    }
+      if (jaDecidida) {
+        await moverArtePelaDecisao(
+          tx, data.arteId,
+          data.status as 'APROVADO' | 'REJEITADO',
+          data.versaoNumero ?? arte.versao,
+        )
+      }
+
+      return criada
+    })
 
     // Notify the designer of the decision
     if (arte.autorId && jaDecidida) {
@@ -380,11 +349,17 @@ export class AprovacaoService {
     }
     if (updateData.comentario !== undefined) allowedUpdate.comentario = updateData.comentario
 
-    const atualizada = await prisma.aprovacao.update({ where: { id }, data: allowedUpdate })
+    const atualizada = await prisma.$transaction(async (tx) => {
+      const atualizada = await tx.aprovacao.update({
+        where: { id, status: existing.status }, data: allowedUpdate,
+      })
 
-    if (allowedUpdate.status === 'APROVADO' || allowedUpdate.status === 'REJEITADO') {
-      await moverArtePelaDecisao(existing.arteId, allowedUpdate.status, existing.versaoNumero)
-    }
+      if (allowedUpdate.status === 'APROVADO' || allowedUpdate.status === 'REJEITADO') {
+        await moverArtePelaDecisao(tx, existing.arteId, allowedUpdate.status, existing.versaoNumero ?? null)
+      }
+
+      return atualizada
+    })
 
     /*
      * Avisa o designer de que o cliente respondeu.

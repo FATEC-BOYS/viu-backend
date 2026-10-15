@@ -10,7 +10,10 @@ import { AprovacaoService } from '../../src/services/aprovacaoService.js'
 import { notificacaoService } from '../../src/services/notificacaoService.js'
 
 const service = new AprovacaoService()
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+  vi.mocked(prisma.arte.findUnique).mockResolvedValue({ id: 'arte1', status: 'EM_ANALISE', versao: 1 } as any)
+})
 
 /*
  * O laço central do VIU: o designer manda, o cliente responde.
@@ -89,6 +92,16 @@ describe('Decisão do cliente avisa o designer', () => {
 
     const [, , , conteudo] = dispatch.mock.calls[0]
     expect(conteudo).toContain('Faltou o símbolo')
+  })
+
+  it('não notifica uma decisão quando a sincronização falha', async () => {
+    vi.mocked(prisma.aprovacao.findUnique).mockResolvedValue(aprovacaoPendente() as any)
+    vi.mocked(prisma.arte.update).mockRejectedValueOnce(new Error('falha ao gravar status'))
+    const dispatch = vi.spyOn(notificacaoService, 'dispatch').mockImplementation(() => {})
+    await expect(service.updateAprovacao('ap1', { status: 'APROVADO' }, 'cliente1'))
+      .rejects.toThrow('falha ao gravar status')
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1)
+    expect(dispatch).not.toHaveBeenCalled()
   })
 
   it('não avisa quando a atualização não é uma decisão', async () => {
