@@ -1,3 +1,4 @@
+import { financeiroApenasAdmin } from '../middleware/financeiroMiddleware.js'
 import { FastifyInstance } from 'fastify'
 import {
   webhookPagamentoHandler,
@@ -6,6 +7,6 @@ import {
 import { authenticate } from '../middleware/authMiddleware.js'
 
 export async function pagamentosRoutes(fastify: FastifyInstance) {
-  fastify.get('/pagamentos', { preHandler: [authenticate] }, listarPagamentosHandler)
+  fastify.get('/pagamentos', { preHandler: [authenticate, financeiroApenasAdmin] }, listarPagamentosHandler)
   fastify.post('/pagamentos/webhook', webhookPagamentoHandler)
 }

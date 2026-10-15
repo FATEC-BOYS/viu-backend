@@ -1,3 +1,4 @@
+import { financeiroApenasAdmin } from '../middleware/financeiroMiddleware.js'
 import { FastifyInstance } from 'fastify'
 import {
   criarFaturaHandler,
@@ -13,13 +14,13 @@ import { CriarFaturaSchema, PagarFaturaPixSchema } from '../schemas/validation.j
 import { PERMISSOES } from '../utils/permissions.js'
 
 export async function faturasRoutes(fastify: FastifyInstance) {
-  fastify.get('/faturas', { preHandler: [authenticate] }, listarFaturasHandler)
-  fastify.get('/faturas/:id', { preHandler: [authenticate] }, getFaturaHandler)
+  fastify.get('/faturas', { preHandler: [authenticate, financeiroApenasAdmin] }, listarFaturasHandler)
+  fastify.get('/faturas/:id', { preHandler: [authenticate, financeiroApenasAdmin] }, getFaturaHandler)
   fastify.post('/projetos/:id/fatura', {
-    preHandler: [authenticate, requirePermission(PERMISSOES.EDITAR_FINANCEIRO), validateBody(CriarFaturaSchema)],
+    preHandler: [authenticate, financeiroApenasAdmin, requirePermission(PERMISSOES.EDITAR_FINANCEIRO), validateBody(CriarFaturaSchema)],
   }, criarFaturaHandler)
-  fastify.post('/faturas/:id/pagar/pix', { preHandler: [authenticate, validateBody(PagarFaturaPixSchema)] }, pagarFaturaPixHandler)
+  fastify.post('/faturas/:id/pagar/pix', { preHandler: [authenticate, financeiroApenasAdmin, validateBody(PagarFaturaPixSchema)] }, pagarFaturaPixHandler)
   fastify.delete('/faturas/:id', {
-    preHandler: [authenticate, requirePermission(PERMISSOES.EDITAR_FINANCEIRO)],
+    preHandler: [authenticate, financeiroApenasAdmin, requirePermission(PERMISSOES.EDITAR_FINANCEIRO)],
   }, cancelarFaturaHandler)
 }

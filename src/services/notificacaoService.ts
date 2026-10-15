@@ -1,3 +1,4 @@
+import { TIPOS_FINANCEIROS } from '../utils/financeiroPiloto.js'
 import prisma from '../database/client.js'
 import {
   EntidadeNotificacao,
@@ -11,6 +12,7 @@ export interface ListNotificacoesParams {
   usuarioId: string
   tipo?: string
   canal?: string
+  ocultarFinanceiro?: boolean
   lida?: string | boolean
 }
 
@@ -28,6 +30,7 @@ export class NotificacaoService {
     tipo,
     canal,
     lida,
+    ocultarFinanceiro = false,
   }: ListNotificacoesParams) {
     const skip = (page - 1) * limit
     let lidaFilter: boolean | undefined
@@ -37,6 +40,7 @@ export class NotificacaoService {
     }
     const where: any = {
       usuarioId,
+      ...(ocultarFinanceiro && { NOT: { tipo: { in: TIPOS_FINANCEIROS } } }),
       ...(tipo && { tipo }),
       ...(canal && { canal }),
       ...(lidaFilter !== undefined && { lida: lidaFilter }),
@@ -58,7 +62,7 @@ export class NotificacaoService {
         orderBy: [{ criadoEm: 'desc' }, { id: 'desc' }],
       }),
       prisma.notificacao.count({ where }),
-      prisma.notificacao.count({ where: { usuarioId, lida: false } }),
+      prisma.notificacao.count({ where: { usuarioId, lida: false, ...(ocultarFinanceiro && { NOT: { tipo: { in: TIPOS_FINANCEIROS } } }) } }),
     ])
     return { notificacoes, total, naoLidas }
   }
@@ -71,17 +75,17 @@ export class NotificacaoService {
    * nada e só sabiam devolver lista vazia. Vindo daqui, a opção existe porque
    * existe linha, e o rótulo nasce junto do tipo.
    */
-  async facetasDeNotificacoes(usuarioId: string) {
+  async facetasDeNotificacoes(usuarioId: string, ocultarFinanceiro = false) {
     const [porTipo, porCanal] = await Promise.all([
       prisma.notificacao.groupBy({
         by: ['tipo'],
-        where: { usuarioId },
+        where: { usuarioId, ...(ocultarFinanceiro && { NOT: { tipo: { in: TIPOS_FINANCEIROS } } }) },
         _count: { _all: true },
         orderBy: { tipo: 'asc' },
       }),
       prisma.notificacao.groupBy({
         by: ['canal'],
-        where: { usuarioId },
+        where: { usuarioId, ...(ocultarFinanceiro && { NOT: { tipo: { in: TIPOS_FINANCEIROS } } }) },
         _count: { _all: true },
         orderBy: { canal: 'asc' },
       }),

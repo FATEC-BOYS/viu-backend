@@ -1,3 +1,4 @@
+import { env } from '../config/env.js'
 import { prisma } from '../database/client.js'
 import { signPath } from '../utils/storage.js'
 import { assinarAudioDeFeedback } from '../utils/audioDeFeedback.js'
@@ -237,7 +238,7 @@ export class LinkService {
      * contar a data da quitação nem que houve estorno — ver o porquê em
      * `licencaService`.
      */
-    const licenca = licencaPublica(await licencaDoProjeto(arte.projetoId))
+    const licenca = env.FINANCEIRO_APENAS_ADMIN ? null : licencaPublica(await licencaDoProjeto(arte.projetoId))
 
     return {
       somenteLeitura: link.somenteLeitura,

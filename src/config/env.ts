@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  FINANCEIRO_APENAS_ADMIN: z.enum(['true', 'false']).default('true').transform(v => v === 'true'),
   PORT: z.string().default('3001'),
   HOST: z.string().default('0.0.0.0'),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL é obrigatória'),

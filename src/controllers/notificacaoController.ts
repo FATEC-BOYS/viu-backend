@@ -1,3 +1,4 @@
+import { ocultarFinanceiro, TIPOS_FINANCEIROS } from '../utils/financeiroPiloto.js'
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { notificacaoService, ListNotificacoesParams } from '../services/notificacaoService.js'
 import { erroInterno } from '../utils/erroInterno.js'
@@ -10,6 +11,7 @@ export async function listNotificacoes(request: FastifyRequest, reply: FastifyRe
       page: Number(page) || 1,
       limit: Number(limit) || 20,
       usuarioId: usuario.id,
+      ocultarFinanceiro: ocultarFinanceiro(usuario.tipo),
       tipo: tipo as string | undefined,
       canal: canal as string | undefined,
       lida: lida as any,
@@ -36,7 +38,7 @@ export async function listNotificacoes(request: FastifyRequest, reply: FastifyRe
 export async function getFacetasDeNotificacoes(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
     const usuario = (request as any).usuario
-    const facetas = await notificacaoService.facetasDeNotificacoes(usuario.id)
+    const facetas = await notificacaoService.facetasDeNotificacoes(usuario.id, ocultarFinanceiro(usuario.tipo))
     reply.send({ data: facetas, success: true })
   } catch (erro) {
     request.log.error({ err: erro }, 'Erro ao carregar facetas de notificações')
@@ -49,7 +51,7 @@ export async function getNotificacaoById(request: FastifyRequest, reply: Fastify
     const usuario = (request as any).usuario
     const { id } = request.params as { id: string }
     const notificacao = await notificacaoService.getNotificacaoById(id, usuario.id)
-    if (!notificacao) {
+    if (!notificacao || (ocultarFinanceiro(usuario.tipo) && TIPOS_FINANCEIROS.includes(notificacao.tipo))) {
       reply.status(404).send({ message: 'Notificação não encontrada', success: false })
       return
     }

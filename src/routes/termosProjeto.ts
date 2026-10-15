@@ -1,3 +1,4 @@
+import { financeiroApenasAdmin } from '../middleware/financeiroMiddleware.js'
 import { FastifyInstance } from 'fastify'
 import {
   getTermosHandler,
@@ -15,15 +16,15 @@ import { TermosProjetoSchema } from '../schemas/validation.js'
  * um ADMIN, checado no serviço.
  */
 export async function termosProjetoRoutes(fastify: FastifyInstance) {
-  fastify.get('/projetos/:projetoId/termos', { preHandler: [authenticate] }, getTermosHandler)
+  fastify.get('/projetos/:projetoId/termos', { preHandler: [authenticate, financeiroApenasAdmin] }, getTermosHandler)
 
   fastify.put(
     '/projetos/:projetoId/termos',
-    { preHandler: [authenticate, validateBody(TermosProjetoSchema)] },
+    { preHandler: [authenticate, financeiroApenasAdmin, validateBody(TermosProjetoSchema)] },
     salvarTermosHandler,
   )
 
   // Prévia do anexo com os termos atuais. Não é o contrato: o que vale é o
   // `ContratoProjeto`, com texto congelado e hash.
-  fastify.get('/projetos/:projetoId/anexo/preview', { preHandler: [authenticate] }, previewAnexoHandler)
+  fastify.get('/projetos/:projetoId/anexo/preview', { preHandler: [authenticate, financeiroApenasAdmin] }, previewAnexoHandler)
 }

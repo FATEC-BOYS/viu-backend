@@ -16,3 +16,6 @@ process.env.MP_WEBHOOK_SECRET = ''
 // middleware, que a controlam explicitamente.
 process.env.EXIGIR_EMAIL_VERIFICADO = 'false'
 process.env.CAPTCHA_ENABLED = 'false'
+
+// Os módulos comerciais seguem testados no modo completo; o piloto tem suíte própria.
+process.env.FINANCEIRO_APENAS_ADMIN = 'false'

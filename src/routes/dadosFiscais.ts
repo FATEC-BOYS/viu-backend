@@ -1,3 +1,4 @@
+import { financeiroApenasAdmin } from '../middleware/financeiroMiddleware.js'
 import { FastifyInstance } from 'fastify'
 import { authenticate } from '../middleware/authMiddleware.js'
 import { validateBody } from '../middleware/validationMiddleware.js'
@@ -17,11 +18,11 @@ import {
  * seria um caminho para ler isso de terceiros.
  */
 export async function dadosFiscaisRoutes(fastify: FastifyInstance) {
-  fastify.get('/dados-fiscais', { preHandler: [authenticate] }, getDadosFiscaisHandler)
+  fastify.get('/dados-fiscais', { preHandler: [authenticate, financeiroApenasAdmin] }, getDadosFiscaisHandler)
   fastify.put(
     '/dados-fiscais',
-    { preHandler: [authenticate, validateBody(DadosFiscaisSchema)] },
+    { preHandler: [authenticate, financeiroApenasAdmin, validateBody(DadosFiscaisSchema)] },
     salvarDadosFiscaisHandler,
   )
-  fastify.delete('/dados-fiscais', { preHandler: [authenticate] }, removerDadosFiscaisHandler)
+  fastify.delete('/dados-fiscais', { preHandler: [authenticate, financeiroApenasAdmin] }, removerDadosFiscaisHandler)
 }
