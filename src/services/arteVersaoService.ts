@@ -1,5 +1,28 @@
 import prisma from '../database/client.js'
-import { uploadFile, signPath } from '../utils/storage.js'
+import { randomUUID } from 'node:crypto'
+import type { Prisma } from '@prisma/client'
+import { uploadFile, deleteFile, signPath } from '../utils/storage.js'
+
+/** Bloqueia antes de ler o contador: uploads e restaurações disputam a mesma fila. */
+async function bloquearArte(tx: Prisma.TransactionClient, arteId: string) {
+  await tx.$queryRaw`SELECT id FROM artes WHERE id = ${arteId} FOR UPDATE`
+  const arte = await tx.arte.findUnique({ where: { id: arteId } })
+  if (!arte) throw new Error('Arte não encontrada')
+  return arte
+}
+
+/** A v1 legada não tinha snapshot. Preserva-a antes de trocar o ponteiro. */
+async function preservarAtual(tx: Prisma.TransactionClient, arte: {
+  id: string; versao: number; arquivo: string; tipo: string; tamanho: bigint;
+  autorId: string; criadoEm: Date;
+}) {
+  const existe = await tx.arteVersao.findFirst({ where: { arteId: arte.id, numero: arte.versao } })
+  if (!existe) await tx.arteVersao.create({ data: {
+    arteId: arte.id, numero: arte.versao, arquivo: arte.arquivo, tipo: arte.tipo,
+    tamanho: arte.tamanho, criadoPorId: arte.autorId, criadoEm: arte.criadoEm,
+    descricao: 'Entrega preservada antes de uma nova versão',
+  } })
+}
 
 export class ArteVersaoService {
   async listarVersoes(arteId: string) {
@@ -39,89 +62,50 @@ export class ArteVersaoService {
     const arte = await prisma.arte.findUnique({ where: { id: arteId } })
     if (!arte) throw new Error('Arte não encontrada')
 
-    const novoNumero = arte.versao + 1
-    const ext = filename.includes('.') ? filename.split('.').pop() : ''
-    const key = `artes/${arteId}/v${novoNumero}/${arteId}${ext ? '.' + ext : ''}`
+    // Cada requisição possui seu próprio objeto, mesmo quando os uploads concorrem.
+    const ext = filename.split('.').pop()?.replace(/[^a-zA-Z0-9]/g, '').slice(0, 12)
+    const key = `artes/${arteId}/entregas/${randomUUID()}${ext ? '.' + ext : ''}`
     await uploadFile(key, buffer, mimetype)
-
-    const [versao] = await prisma.$transaction([
-      prisma.arteVersao.create({
-        data: {
-          arteId,
-          numero: novoNumero,
-          arquivo: key,
-          tipo: mimetype,
-          tamanho: BigInt(size),
-          descricao: descricao ?? null,
-          criadoPorId,
-        },
-      }),
-      prisma.arte.update({
-        where: { id: arteId },
-        data: {
-          arquivo: key,
-          tipo: mimetype,
-          tamanho: BigInt(size),
-          versao: novoNumero,
-          /*
-           * Versão nova reabre a arte recusada.
-           *
-           * `ARTE_TRANSITIONS` diz `REJEITADO: ['EM_ANALISE']` — mandar outra
-           * versão É o caminho de volta, e era o único. Só que ninguém o
-           * conduzia: a versão subia e o status ficava onde estava.
-           *
-           * Enquanto a recusa do cliente não mexia no status da arte isso não
-           * aparecia. Agora que mexe, a arte recusada travaria: o cliente
-           * aprovaria a v2 e `REJEITADO → APROVADO` não existe na máquina, de
-           * modo que a tela continuaria dizendo "Recusada" para sempre.
-           *
-           * Só a recusa é desfeita aqui. `APROVADO` é terminal de propósito, e
-           * `EM_ANALISE` já é o que queremos.
-           */
-          ...(arte.status === 'REJEITADO' ? { status: 'EM_ANALISE' } : {}),
-        },
-      }),
-    ])
-
-    return versao
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const atual = await bloquearArte(tx, arteId)
+        await preservarAtual(tx, atual)
+        const numero = atual.versao + 1
+        const versao = await tx.arteVersao.create({ data: {
+          arteId, numero, arquivo: key, tipo: mimetype, tamanho: BigInt(size),
+          descricao: descricao ?? null, criadoPorId,
+        } })
+        await tx.arte.update({ where: { id: arteId }, data: {
+          arquivo: key, tipo: mimetype, tamanho: BigInt(size), versao: numero,
+          // É uma entrega nova, inclusive quando a anterior já estava aprovada.
+          status: 'EM_ANALISE',
+        } })
+        return versao
+      })
+    } catch (error) {
+      // Este objeto é exclusivo da requisição: nunca remove uma entrega anterior.
+      await deleteFile(key).catch(erro => console.error('Falha ao limpar upload não gravado', erro))
+      throw error
+    }
   }
 
-  // Restores arte to point to the specified versao's file, bumping the version counter.
+  /** Restaurar cria uma nova entrega, mantendo arquivo e decisão anteriores. */
   async restaurarVersao(arteId: string, versaoId: string, restauradoPorId: string) {
-    const [arte, versao] = await Promise.all([
-      prisma.arte.findUnique({ where: { id: arteId } }),
-      prisma.arteVersao.findUnique({ where: { id: versaoId } }),
-    ])
-    if (!arte) throw new Error('Arte não encontrada')
-    if (!versao || versao.arteId !== arteId) throw new Error('Versão não encontrada')
-
-    const novoNumero = arte.versao + 1
-
-    // Snapshot current state before overwriting, then restore
-    await prisma.$transaction([
-      prisma.arteVersao.create({
-        data: {
-          arteId,
-          numero: novoNumero,
-          arquivo: arte.arquivo,
-          tipo: arte.tipo,
-          tamanho: arte.tamanho,
-          descricao: `Snapshot antes de restauração para v${versao.numero}`,
-          criadoPorId: restauradoPorId,
-        },
-      }),
-      prisma.arte.update({
-        where: { id: arteId },
-        data: {
-          arquivo: versao.arquivo,
-          tipo: versao.tipo,
-          tamanho: versao.tamanho,
-          versao: novoNumero + 1,
-        },
-      }),
-    ])
-
-    return prisma.arte.findUnique({ where: { id: arteId } })
+    return prisma.$transaction(async (tx) => {
+      const atual = await bloquearArte(tx, arteId)
+      const origem = await tx.arteVersao.findUnique({ where: { id: versaoId } })
+      if (!origem || origem.arteId !== arteId) throw new Error('Versão não encontrada')
+      await preservarAtual(tx, atual)
+      const numero = atual.versao + 1
+      await tx.arteVersao.create({ data: {
+        arteId, numero, arquivo: origem.arquivo, tipo: origem.tipo, tamanho: origem.tamanho,
+        descricao: `Restauração da v${origem.numero}`, criadoPorId: restauradoPorId,
+      } })
+      return tx.arte.update({ where: { id: arteId }, data: {
+        arquivo: origem.arquivo, tipo: origem.tipo, tamanho: origem.tamanho,
+        versao: numero, status: 'EM_ANALISE',
+      } })
+    })
   }
 
   async signVersaoUrl(versao: { arquivo: string }) {
