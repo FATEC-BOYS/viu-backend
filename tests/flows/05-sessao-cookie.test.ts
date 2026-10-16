@@ -15,9 +15,15 @@ vi.mock('bcryptjs', () => ({
   },
 }))
 
+vi.mock('../../src/utils/storage.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../src/utils/storage.js')>()
+  return { ...original, assinarAvatar: vi.fn().mockResolvedValue(null) }
+})
+
 // ── Imports ───────────────────────────────────────────────────────────────────
 
 import prisma from '../../src/database/client.js'
+import { assinarAvatar } from '../../src/utils/storage.js'
 import { buildServer } from '../../src/index.js'
 import { makeToken, DESIGNER, ORIGIN } from '../helpers/token.js'
 
@@ -203,6 +209,48 @@ describe('sessão por cookie HttpOnly', () => {
    * duas abas isso não tem defesa possível do lado do cliente — cada aba é um
    * módulo com sua própria memória —, então a defesa é aqui.
    */
+  it('ausência de refresh é uma recusa de autenticação, não erro de infraestrutura', async () => {
+    const res = await app.inject({ method: 'POST', url: '/auth/refresh', headers: { ...ORIGIN } })
+    expect(res.statusCode).toBe(401)
+    expect(res.cookies).toHaveLength(0)
+    expect(db.sessao.findFirst).not.toHaveBeenCalled()
+  })
+
+  it('indisponibilidade do banco não se apresenta como sessão inválida', async () => {
+    db.sessao.findFirst.mockRejectedValueOnce(new Error('database connection timeout'))
+    const res = await app.inject({
+      method: 'POST', url: '/auth/refresh', headers: { ...ORIGIN },
+      cookies: { viu_refresh_token: 'refresh-temporariamente-indisponivel' },
+    })
+    expect(res.statusCode).toBe(503)
+    expect(res.headers['retry-after']).toBe('3')
+    expect(res.body).not.toContain('database connection')
+    expect(res.cookies).toHaveLength(0)
+    expect(db.sessao.update).not.toHaveBeenCalled()
+  })
+
+  it('falha ao assinar avatar preserva a sessão anterior para nova tentativa', async () => {
+    db.sessao.findFirst.mockResolvedValue({
+      id: 'sessao-avatar', usuarioId: DESIGNER.id, usuario: { ...USUARIO_DB, avatar: 'avatar.png' },
+    })
+    vi.mocked(assinarAvatar).mockRejectedValueOnce(new Error('storage unavailable'))
+    const res = await app.inject({
+      method: 'POST', url: '/auth/refresh', headers: { ...ORIGIN },
+      cookies: { viu_refresh_token: 'refresh-avatar' },
+    })
+    expect(res.statusCode).toBe(503)
+    expect(res.cookies).toHaveLength(0)
+    expect(db.$transaction).not.toHaveBeenCalled()
+    expect(db.sessao.update).not.toHaveBeenCalled()
+
+    const recuperada = await app.inject({
+      method: 'POST', url: '/auth/refresh', headers: { ...ORIGIN },
+      cookies: { viu_refresh_token: 'refresh-avatar' },
+    })
+    expect(recuperada.statusCode).toBe(200)
+    expect(pegarCookie(recuperada, 'viu_refresh_token')?.httpOnly).toBe(true)
+  })
+
   it('refresh recusado não apaga os cookies: pode haver sessão nova e viva', async () => {
     db.sessao.findFirst.mockResolvedValue(null)
 

@@ -1,7 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { PasswordResetService } from '../services/passwordResetService.js'
 import { verifyEmail, resendVerificationEmail } from '../services/emailVerificationService.js'
-import { UsuarioService } from '../services/usuarioService.js'
+import { UsuarioService, RefreshTokenInvalidoError } from '../services/usuarioService.js'
 import { TwoFactorService } from '../services/twoFactorService.js'
 import {
   definirCookiesDeSessao,
@@ -87,7 +87,7 @@ export async function refreshTokenHandler(request: FastifyRequest, reply: Fastif
     // Navegador manda pelo cookie; script ou integração pode mandar no corpo.
     const refreshToken = lerRefreshTokenDaRequisicao(request)
     if (!refreshToken) {
-      reply.status(400).send({ message: 'Refresh token é obrigatório', success: false })
+      reply.status(401).send({ message: 'Refresh token é obrigatório', success: false })
       return
     }
     const { token, refreshToken: novoRefresh, expiresAt, refreshExpiresAt, usuario } =
@@ -99,26 +99,18 @@ export async function refreshTokenHandler(request: FastifyRequest, reply: Fastif
     // par de tokens de longa duração, anulando o ganho do HttpOnly.
     reply.send({ data: { usuario }, success: true })
   } catch (error: any) {
-    /*
-     * NÃO limpa os cookies, e a razão é uma corrida.
-     *
-     * A premissa antiga era "refresh que falhou é sessão morta". É falsa
-     * exatamente quando mais custa: renovar ROTACIONA, e o motivo mais comum
-     * de uma recusa é o token já ter sido trocado — ou seja, outra requisição
-     * renovou com sucesso um instante antes. Limpar ali apaga a sessão NOVA,
-     * que estava viva, e transforma "uma aba perdeu uma corrida" em "todas as
-     * abas foram deslogadas".
-     *
-     * Medido no navegador: `refresh=[200, 401]` numa única onda, e a pessoa
-     * no login com o servidor tendo acabado de criar uma sessão boa.
-     *
-     * A assimetria decide. Limpar por engano desloga alguém; não limpar por
-     * engano custa um 401 a mais na requisição seguinte, que o cliente já
-     * trata mandando para o login. O cliente não insiste mais do que uma vez
-     * (ver a memória de renovação em lib/api.ts), mas duas ABAS são dois
-     * módulos independentes — e é aqui que isso se resolve para valer.
-     */
-    reply.status(401).send({ message: error.message ?? 'Token inválido ou expirado', success: false })
+    // Não apagar cookies: outra requisição ou aba pode ter renovado a sessão.
+    // Só uma credencial realmente recusada é 401. Falhas de banco/storage são
+    // temporárias e não devem mandar o navegador para o login.
+    if (error instanceof RefreshTokenInvalidoError) {
+      reply.status(401).send({ message: error.message, success: false })
+      return
+    }
+    request.log.error({ err: error }, 'Falha temporária ao renovar sessão')
+    reply.header('Retry-After', '3').status(503).send({
+      message: 'Não foi possível renovar sua sessão agora. Tente novamente.',
+      success: false,
+    })
   }
 }
 
