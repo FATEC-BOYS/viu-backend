@@ -199,7 +199,7 @@ describe('FeedbackService - createFeedbackComAudio', () => {
     expect(prisma.feedback.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ conteudo: '' }),
     }))
-    expect(transcreverAudio).toHaveBeenCalledWith(Buffer.from('audio'), 'audio.webm')
+    expect(transcreverAudio).toHaveBeenCalledWith(Buffer.from('audio'), 'audio.webm', undefined)
     expect(prisma.feedback.update).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: 'fb1' },
       data: { conteudo: 'texto transcrito do áudio', transcricao: 'texto transcrito do áudio' },
@@ -392,5 +392,33 @@ describe('FeedbackService - getTranscricao', () => {
 
     await expect(service.getTranscricao('1')).rejects.toThrow('Erro ao buscar arquivo de áudio')
     expect(transcreverAudio).not.toHaveBeenCalled()
+  })
+})
+
+// O fluxo novo não cobra uma segunda transcrição ao confirmar o rascunho.
+describe('comentário de voz conferido pelo autor', () => {
+  const audioBuffer = Buffer.from('audio revisado')
+  const params = { arteId: 'art1', autorId: 'u1', audioBuffer, filename: 'fala.m4a', mimetype: 'audio/mp4', revisado: true, versaoEsperada: 2, conteudoRevisado: 'Talvez aumentar o título, mantendo a fonte.' }
+  beforeEach(() => {
+    vi.mocked(prisma.arte.findUnique).mockResolvedValue({ id: 'art1', nome: 'Capa', versao: 2, projeto: { designerId: 'u1', clienteId: 'u2' } } as any)
+    vi.mocked(prisma.usuario.findUnique).mockResolvedValue({ id: 'u1', nome: 'Autor' } as any)
+    vi.mocked(prisma.feedback.create).mockResolvedValue({ id: 'novo' } as any)
+  })
+  it('salva texto editado e transcrição original sem transcrever de novo', async () => {
+    const { transcreverRascunho } = await import('../../src/services/audioRascunhoService.js')
+    const draft = await transcreverRascunho({ arteId: 'art1', autorId: 'u1', versao: 2, audioBuffer }, 'fala.m4a', 'audio/mp4')
+    vi.mocked(transcreverAudio).mockClear()
+    await service.createFeedbackComAudio({ ...params, recibo: draft.recibo })
+    expect(prisma.feedback.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ conteudo: params.conteudoRevisado, transcricao: draft.transcricao, tipo: 'AUDIO', versaoNumero: 2 }) }))
+    expect(transcreverAudio).not.toHaveBeenCalled()
+  })
+  it('permite confirmar só o áudio quando a transcrição falhou, sem nova cobrança', async () => {
+    await service.createFeedbackComAudio({ ...params, conteudoRevisado: '' })
+    expect(prisma.feedback.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ conteudo: '', transcricao: null }) }))
+    expect(transcreverAudio).not.toHaveBeenCalled()
+  })
+  it('recusa mudança de versão antes de gravar o feedback', async () => {
+    await expect(service.createFeedbackComAudio({ ...params, versaoEsperada: 1 })).rejects.toThrow('versão da arte mudou')
+    expect(prisma.feedback.create).not.toHaveBeenCalled()
   })
 })

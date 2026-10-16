@@ -32,14 +32,15 @@ function getOpenAI(): OpenAI {
 export async function transcreverAudio(
   audioBuffer: Buffer,
   filename = 'audio.webm',
+  mimetype = 'audio/webm',
 ): Promise<string> {
   const openai = getOpenAI()
-  const file = new File([audioBuffer], filename, { type: 'audio/webm' })
+  const file = new File([audioBuffer], filename, { type: mimetype })
   const response = await openai.audio.transcriptions.create({
     model: 'whisper-1',
     file,
     language: 'pt',
-  })
+  }, { timeout: 30000, maxRetries: 0 })
   return response.text
 }
 
