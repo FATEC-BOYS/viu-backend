@@ -1,3 +1,4 @@
+import { criarRascunhoAudio } from '../controllers/audioRascunhoController.js'
 import { FastifyInstance } from 'fastify'
 import {
   listFeedbacks,
@@ -19,6 +20,11 @@ import { validateBody } from '../middleware/validationMiddleware.js'
 import { CreateFeedbackRequestSchema } from '../schemas/validation.js'
 
 export async function feedbacksRoutes(fastify: FastifyInstance) {
+  fastify.post('/feedbacks/audio/rascunho', {
+    config: { rateLimit: { max: 10, timeWindow: '1 hour', keyGenerator: chaveDoComentario } },
+    preHandler: [authenticate, validateAudioUpload, requireProjectAccess],
+  }, criarRascunhoAudio)
+
   fastify.get('/feedbacks', { preHandler: [authenticate] }, listFeedbacks)
   fastify.get('/feedbacks/:id', { preHandler: [authenticate, requireProjectAccess] }, getFeedbackById)
   fastify.get('/feedbacks/:id/audio', { preHandler: [authenticate, requireProjectAccess] }, getFeedbackAudio)

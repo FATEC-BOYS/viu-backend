@@ -1,3 +1,4 @@
+import { lerRascunho, RascunhoAudioError } from './audioRascunhoService.js'
 import prisma from '../database/client.js'
 import { uploadFile, lerArquivo } from '../utils/storage.js'
 import { PROJETO_ACCESS_SELECT, assertAcessoAoProjeto } from '../utils/projectAccess.js'
@@ -208,6 +209,10 @@ export class FeedbackService {
     arteId: string
     autorId: string
     audioBuffer: Buffer
+    revisado?: boolean
+    conteudoRevisado?: string
+    recibo?: string
+    versaoEsperada?: number
     filename: string
     /**
      * O tipo real do arquivo, como o middleware o leu.
@@ -240,6 +245,17 @@ export class FeedbackService {
       assertAcessoAoProjeto(arte.projeto, autorId, origem.isAdmin === true)
     }
 
+    let transcricaoOriginal: string | null = null
+    let conteudoRevisado = ''
+    if (params.revisado) {
+      if (params.versaoEsperada !== arte.versao) throw new RascunhoAudioError('A versão da arte mudou. Reabra a versão atual para comentar.')
+      if (params.conteudoRevisado !== undefined && typeof params.conteudoRevisado !== 'string') throw new RascunhoAudioError('O comentário deve ser um texto.')
+      conteudoRevisado = params.conteudoRevisado?.trim() ?? ''
+      if (conteudoRevisado.length > 10000) throw new RascunhoAudioError('O comentário deve ter no máximo 10.000 caracteres.')
+      if (params.recibo && !conteudoRevisado) throw new RascunhoAudioError('Confira o texto do comentário antes de enviar.')
+      if (params.recibo) transcricaoOriginal = lerRascunho(params.recibo, { arteId, autorId, versao: arte.versao, audioBuffer })
+    }
+
     const storagePath = `feedbacks/${arteId}/${Date.now()}_${filename}`
     await uploadFile(storagePath, audioBuffer, params.mimetype ?? 'audio/webm')
 
@@ -252,7 +268,8 @@ export class FeedbackService {
       data: {
         // Vazio, e não um texto de enfeite: é o que a tela precisa poder
         // distinguir para oferecer "transcrever" em vez de fingir que leu.
-        conteudo: '',
+        conteudo: conteudoRevisado,
+        ...(params.revisado ? { transcricao: transcricaoOriginal } : {}),
         /*
          * `AUDIO` sempre — o rótulo diz o MEIO, e a posição já mora em
          * `posicaoX`/`posicaoY`.
@@ -281,8 +298,8 @@ export class FeedbackService {
      * A transcrição vem depois da linha existir, e falhar aqui não desfaz
      * nada: o comentário em áudio continua de pé, tocável, só sem texto.
      */
-    try {
-      const transcricao = await transcreverAudio(audioBuffer, filename)
+    if (!params.revisado) try {
+      const transcricao = await transcreverAudio(audioBuffer, filename, params.mimetype)
       feedback = await prisma.feedback.update({
         where: { id: feedback.id },
         data: { conteudo: transcricao, transcricao },

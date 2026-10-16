@@ -1,3 +1,4 @@
+import { RascunhoAudioError } from '../services/audioRascunhoService.js'
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { FeedbackService, ListFeedbacksParams } from '../services/feedbackService.js'
 import { signPath } from '../utils/storage.js'
@@ -126,6 +127,10 @@ export async function createFeedbackComAudio(
       arteId,
       autorId: usuario.id,
       audioBuffer: audioData.buffer,
+      revisado: fields?.revisado?.value === 'true',
+      conteudoRevisado: fields?.conteudoRevisado?.value,
+      recibo: fields?.recibo?.value,
+      versaoEsperada: fields?.versaoNumero?.value !== undefined ? Number(fields.versaoNumero.value) : undefined,
       filename: audioData.filename,
       mimetype: audioData.mimetype,
       posicaoX,
@@ -150,6 +155,7 @@ export async function createFeedbackComAudio(
       success: true,
     })
   } catch (error: any) {
+    if (error instanceof RascunhoAudioError) { reply.status(409).send({ message: error.message, success: false }); return }
     if (error.message.includes('não encontrad')) {
       reply.status(400).send({ message: error.message, success: false })
       return

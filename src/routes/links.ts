@@ -1,3 +1,4 @@
+import { criarRascunhoAudio } from '../controllers/audioRascunhoController.js'
 import { FastifyInstance } from 'fastify'
 import { LinkService, LinkIndisponivelError } from '../services/linkService.js'
 import { erroInterno } from '../utils/erroInterno.js'
@@ -19,6 +20,11 @@ import { validateAudioUpload } from '../middleware/fileUploadMiddleware.js'
 import { requireEmailVerificado } from '../middleware/emailVerificadoMiddleware.js'
 
 export async function linksRoutes(fastify: FastifyInstance) {
+  fastify.post('/links/:token/feedbacks/audio/rascunho', {
+    config: { rateLimit: { max: 10, timeWindow: '1 hour', keyGenerator: chaveDoComentario } },
+    preHandler: [authenticate, validateAudioUpload],
+  }, criarRascunhoAudio)
+
   fastify.post('/links', {
     // 20 links por hora — geração massiva de links é um vetor de crawling
     config: { rateLimit: { max: 20, timeWindow: '1 hour' } },
