@@ -6,6 +6,13 @@ import { parseJwtExpiry } from '../utils/jwt.js'
 import { randomUUID, randomBytes } from 'crypto'
 import { assinarAvatar } from '../utils/storage.js'
 
+export class RefreshTokenInvalidoError extends Error {
+  constructor() {
+    super('Refresh token inválido ou expirado')
+    this.name = 'RefreshTokenInvalidoError'
+  }
+}
+
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
 
 export interface ListUsuariosParams {
@@ -465,8 +472,11 @@ export class UsuarioService {
     })
 
     if (!sessao || !sessao.usuario.ativo) {
-      throw new Error('Refresh token inválido ou expirado')
+      throw new RefreshTokenInvalidoError()
     }
+
+    // Resolver dependências externas antes de invalidar a credencial antiga.
+    const avatar = await assinarAvatar(sessao.usuario.avatar)
 
     const { token, expiresAt, refreshToken: newRefresh, refreshExpiresAt } = await this.signToken(sessao.usuario)
 
@@ -498,7 +508,7 @@ export class UsuarioService {
         email: sessao.usuario.email,
         nome: sessao.usuario.nome,
         tipo: sessao.usuario.tipo,
-        avatar: await assinarAvatar(sessao.usuario.avatar),
+        avatar,
         emailVerificado: sessao.usuario.emailVerificado,
       },
     }
