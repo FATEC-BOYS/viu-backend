@@ -1,3 +1,4 @@
+import prisma from '../database/client.js'
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { UsuarioService, ListUsuariosParams } from '../services/usuarioService.js'
 import { registrarAceiteTermos } from '../services/termosPlataformaService.js'
@@ -61,6 +62,16 @@ export async function resolverClienteHandler(
     const usuarioQueChamou = (request as any).usuario
     const body = request.body as { email: string; nome: string; telefone?: string }
     const { usuario, jaExistia } = await usuarioService.resolverCliente(body)
+
+    // A carteira existe mesmo antes do primeiro projeto. Não reativa um
+    // vínculo rompido: restaurar continua sendo uma ação explícita.
+    if (usuario.id !== usuarioQueChamou.id) {
+      await prisma.vinculoCliente.upsert({
+        where: { designerId_clienteId: { designerId: usuarioQueChamou.id, clienteId: usuario.id } },
+        create: { designerId: usuarioQueChamou.id, clienteId: usuario.id },
+        update: {},
+      })
+    }
 
     /*
      * Ninguém é cadastrado em silêncio.

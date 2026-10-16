@@ -1,23 +1,6 @@
 import prisma from '../database/client.js'
 
-/**
- * A carteira de clientes de um designer.
- *
- * Existia só no navegador, e por um caminho caro: as duas telas de cliente
- * chamavam `getAll('/projetos')` — que pagina de cem em cem até vinte páginas —
- * e agrupavam os clientes em memória. Para desenhar uma lista de cinco pessoas,
- * o app baixava todos os projetos do designer.
- *
- * Pior que o custo é o silêncio: `getAll` para na vigésima página sem avisar.
- * Passando de dois mil projetos, um cliente simplesmente não aparece na
- * carteira — e em `/clientes/[id]` o efeito é a tela afirmar "Cliente não
- * encontrado na sua carteira" sobre alguém que está lá.
- *
- * `GET /usuarios` é restrito a ADMIN, e era por isso que o caminho nascia
- * torto. Mas a pergunta "quem são meus clientes" tem resposta direta no banco:
- * os clientes dos projetos deste designer. É o mesmo escopo que ele já podia
- * enxergar — só que agora lido de uma vez, por quem tem o índice.
- */
+/** Carteira por designer: clientes dos projetos e contatos salvos explicitamente. */
 
 /** Um cliente e os projetos que ele tem com este designer. */
 function montarCliente(cliente: any, projetos: any[], rompidos: Set<string>) {
@@ -54,7 +37,7 @@ export class ClienteService {
    * evita que ela baixe a carteira inteira para mostrar uma pessoa.
    */
   async listarClientes(designerId: string, clienteId?: string) {
-    const [projetos, rompidosRows] = await Promise.all([
+    const [projetos, vinculosRows] = await Promise.all([
       prisma.projeto.findMany({
         where: { designerId, ...(clienteId ? { clienteId } : {}) },
         select: {
@@ -78,12 +61,12 @@ export class ClienteService {
         orderBy: [{ prazo: { sort: 'asc', nulls: 'last' } }, { criadoEm: 'desc' }],
       }),
       prisma.vinculoCliente.findMany({
-        where: { designerId, rompidoEm: { not: null } },
-        select: { clienteId: true },
+        where: { designerId, ...(clienteId ? { clienteId } : {}) },
+        select: { clienteId: true, rompidoEm: true, cliente: { select: { id: true, nome: true, email: true, telefone: true, avatar: true, criadoEm: true } } },
       }),
     ])
 
-    const rompidos = new Set(rompidosRows.map((v) => v.clienteId))
+    const rompidos = new Set(vinculosRows.filter((v) => v.rompidoEm !== null).map((v) => v.clienteId))
 
     // Um cliente pode ter vários projetos; a carteira é por pessoa.
     const porCliente = new Map<string, { cliente: any; projetos: any[] }>()
@@ -94,13 +77,19 @@ export class ClienteService {
       else porCliente.set(p.cliente.id, { cliente: p.cliente, projetos: [p] })
     }
 
+    // Inclui contatos cadastrados sem projeto, mantendo o escopo do designer.
+    for (const vinculo of vinculosRows) {
+      if (vinculo.cliente?.id && !porCliente.has(vinculo.cliente.id)) {
+        porCliente.set(vinculo.cliente.id, { cliente: vinculo.cliente, projetos: [] })
+      }
+    }
+
     return [...porCliente.values()].map(({ cliente, projetos }) =>
       montarCliente(cliente, projetos, rompidos),
     )
   }
 
-  /** `null` quando não há projeto em comum — que é o que "não é meu cliente"
-   *  significa aqui. */
+  /** Sem projeto em comum ou vínculo explícito, não revela o cadastro. */
   async getCliente(designerId: string, clienteId: string) {
     const [cliente] = await this.listarClientes(designerId, clienteId)
     return cliente ?? null
