@@ -186,6 +186,17 @@ export class LinkService {
     await prisma.linkCompartilhado.delete({ where: { id } })
   }
 
+  async listarVersoesPorToken(token: string) {
+    const link = await prisma.linkCompartilhado.findUnique({ where: { token } })
+    if (!link) throw new LinkIndisponivelError('NAO_ENCONTRADO', 'Link inválido')
+    this.assertLinkValid(link)
+    const versoes = await prisma.arteVersao.findMany({
+      where: { arteId: link.arteId! }, orderBy: { numero: 'desc' },
+      select: { id: true, numero: true, tipo: true, arquivo: true, descricao: true, criadoEm: true },
+    })
+    return Promise.all(versoes.map(async ({ arquivo, ...v }) => ({ ...v, arquivoUrl: await signPath(arquivo) })))
+  }
+
   async getPreviewByToken(token: string) {
     const link = await prisma.linkCompartilhado.findUnique({ where: { token } })
     if (!link) throw new LinkIndisponivelError('NAO_ENCONTRADO', 'Link inválido')

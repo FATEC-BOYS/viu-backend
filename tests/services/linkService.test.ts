@@ -200,3 +200,21 @@ describe('getPreviewByToken', () => {
     expect(db.arte.findUnique).not.toHaveBeenCalled()
   })
 })
+
+
+describe('histórico pelo link', () => {
+  it('assina apenas versões da arte e não conta nova visita', async () => {
+    db.linkCompartilhado.findUnique.mockResolvedValue({ tipo: 'ARTE', arteId: 'arte1', revogado: false, expiraEm: null, limiteTentativas: null, acessos: 1 })
+    db.arteVersao.findMany.mockResolvedValue([{ id: 'v1', numero: 1, arquivo: 'privado/v1.png', descricao: 'Primeira entrega' }])
+    const res = await service.listarVersoesPorToken('tok')
+    expect(db.arteVersao.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { arteId: 'arte1' } }))
+    expect(res[0]).toMatchObject({ numero: 1, descricao: 'Primeira entrega', arquivoUrl: 'https://r2.exemplo/privado/v1.png?assinado' })
+    expect(res[0]).not.toHaveProperty('arquivo')
+    expect(db.linkCompartilhado.update).not.toHaveBeenCalled()
+  })
+  it.each([{ revogado: true }, { expiraEm: new Date('2020-01-01') }, { limiteTentativas: 1, acessos: 1 }])('não expõe arquivos de link indisponível: %j', async over => {
+    db.linkCompartilhado.findUnique.mockResolvedValue({ tipo: 'ARTE', arteId: 'arte1', revogado: false, expiraEm: null, limiteTentativas: null, acessos: 0, ...over })
+    await expect(service.listarVersoesPorToken('tok')).rejects.toThrow()
+    expect(db.arteVersao.findMany).not.toHaveBeenCalled()
+  })
+})
