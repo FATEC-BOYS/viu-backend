@@ -73,15 +73,15 @@ describe('A carteira do designer', () => {
   it('resolve o vínculo rompido no servidor', async () => {
     vi.mocked(prisma.projeto.findMany).mockResolvedValue([projeto()] as never)
     vi.mocked(prisma.vinculoCliente.findMany).mockResolvedValue([
-      { clienteId: 'cliente1' },
+      { clienteId: 'cliente1', rompidoEm: new Date() },
     ] as never)
 
     const carteira = await service.listarClientes('designer1')
 
     expect(carteira[0].vinculado).toBe(false)
-    // Só os rompidos entram na consulta — laço ativo tem `rompidoEm` nulo.
+    // A consulta é escopada pelo designer; o serviço interpreta rompidoEm.
     const { where } = vi.mocked(prisma.vinculoCliente.findMany).mock.calls[0][0] as any
-    expect(where.rompidoEm).toEqual({ not: null })
+    expect(where.designerId).toBe('designer1')
   })
 
   it('marca como vinculado quem não tem rompimento', async () => {
@@ -133,4 +133,25 @@ describe('Um cliente só', () => {
 
     await expect(service.getCliente('designer1', 'estranho')).resolves.toBeNull()
   })
+})
+
+it('inclui cadastro sem projeto e restringe os vínculos ao designer', async () => {
+  vi.mocked(prisma.projeto.findMany).mockResolvedValue([] as never)
+  vi.mocked(prisma.vinculoCliente.findMany).mockResolvedValue([
+    { clienteId: 'cliente1', rompidoEm: null, cliente: projeto().cliente },
+  ] as never)
+  const carteira = await service.listarClientes('designer1')
+  expect(carteira).toHaveLength(1)
+  expect(carteira[0].projetos).toEqual([])
+  expect(carteira[0].vinculado).toBe(true)
+  expect(vi.mocked(prisma.vinculoCliente.findMany).mock.calls[0][0]?.where).toEqual({ designerId: 'designer1' })
+})
+it('não duplica cliente que já tem projeto e cadastro', async () => {
+  vi.mocked(prisma.projeto.findMany).mockResolvedValue([projeto()] as never)
+  vi.mocked(prisma.vinculoCliente.findMany).mockResolvedValue([
+    { clienteId: 'cliente1', rompidoEm: null, cliente: projeto().cliente },
+  ] as never)
+  const carteira = await service.listarClientes('designer1')
+  expect(carteira).toHaveLength(1)
+  expect(carteira[0].projetos).toHaveLength(1)
 })
