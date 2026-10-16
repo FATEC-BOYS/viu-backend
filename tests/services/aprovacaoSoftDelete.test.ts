@@ -80,3 +80,23 @@ describe('AprovacaoService soft delete', () => {
     )
   })
 })
+
+
+describe('solicitar novamente após exclusão', () => {
+  beforeEach(() => {
+    ;(prisma.arte.findUnique as any).mockResolvedValue({ id: 'arte', versao: 2, projeto: { designerId: 'designer', clienteId: 'cliente' } })
+  })
+  it('restaura a pendência existente sem criar uma chave duplicada', async () => {
+    ;(prisma.aprovacao.findFirst as any).mockResolvedValue({ id: 'a', status: 'PENDENTE', deletedAt: new Date() })
+    ;(prisma.aprovacao.update as any).mockResolvedValue({ id: 'a', deletedAt: null })
+    await service.solicitarAprovacao('arte', 'designer')
+    expect(prisma.aprovacao.create).not.toHaveBeenCalled()
+    expect(prisma.aprovacao.update).toHaveBeenCalledWith({ where: { id: 'a' }, data: { deletedAt: null } })
+  })
+  it('não apaga nem substitui uma decisão terminal excluída', async () => {
+    ;(prisma.aprovacao.findFirst as any).mockResolvedValue({ id: 'a', status: 'APROVADO', versaoNumero: 2, deletedAt: new Date() })
+    await expect(service.solicitarAprovacao('arte', 'designer')).rejects.toThrow('já foi aprovada')
+    expect(prisma.aprovacao.create).not.toHaveBeenCalled()
+    expect(prisma.aprovacao.update).not.toHaveBeenCalled()
+  })
+})

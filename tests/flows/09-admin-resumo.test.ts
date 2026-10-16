@@ -41,6 +41,7 @@ beforeEach(() => {
   db.$queryRaw
     .mockResolvedValueOnce([{ criados: 18, abertos: 11, com_feedback: 6, com_decisao: 3 }])
     .mockResolvedValueOnce([{ total: 4 }])
+    .mockResolvedValueOnce([{ total: 6 }])
   db.saque.findMany.mockResolvedValue([
     { id: 'csaque00000000001', valor: 120000, status: 'SOLICITADO', criadoEm: ONTEM,
       designer: { nome: 'Ana Silva' } },
@@ -84,6 +85,12 @@ describe('GET /admin/resumo', () => {
   it('recusa quem não está autenticado', async () => {
     const res = await app.inject({ method: 'GET', url: '/admin/resumo', headers: { ...ORIGIN } })
     expect(res.statusCode).toBe(401)
+  })
+
+  it('conta a base da plataforma e aprovações atrasadas sem dados pessoais extras', async () => {
+    const res = await pedir(ADMIN)
+    expect(res.json().data.plataforma).toEqual({ contasAtivas: 4, designers: 4, clientes: 4, projetos: 2, artes: 7, emailsPendentes: 4, designersSemProjeto: 4, aprovacoesAtrasadas: 6 })
+    expect(db.usuario.count).toHaveBeenCalledWith({ where: { tipo: 'DESIGNER', ativo: true, excluidoEm: null, projetosDesigner: { none: {} } } })
   })
 
   it('devolve os cards do dia', async () => {
@@ -130,7 +137,7 @@ describe('GET /admin/resumo', () => {
     // espaço comum — comparar com espaço literal falha por um caractere que
     // ninguém vê.
     expect(data.fila[1].titulo.replace(/\u00a0/g, ' ')).toBe('Ana Silva — R$ 1.200,00')
-    expect(data.fila[0].href).toBe('/disputas')
+    expect(data.fila[0].href).toBe('/admin/disputas')
   })
 
   /**

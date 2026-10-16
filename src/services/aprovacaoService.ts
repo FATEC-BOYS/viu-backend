@@ -287,13 +287,17 @@ export class AprovacaoService {
         arteId,
         aprovadorId: arte.projeto.clienteId,
         versaoNumero: versao,
-        deletedAt: null,
       },
     })
     if (existente) {
       // Pendência aberta: dois cliques em "Solicitar" devolvem a mesma linha,
       // que é o que esta busca sempre existiu para garantir.
-      if (existente.status === 'PENDENTE') return existente
+      if (existente.status === 'PENDENTE') {
+        if (existente.deletedAt) return prisma.aprovacao.update({
+          where: { id: existente.id }, data: { deletedAt: null },
+        })
+        return existente
+      }
       throw new VersaoJaDecididaError(versao, existente.status, existente.decididoEm)
     }
 

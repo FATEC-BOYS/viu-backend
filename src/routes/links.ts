@@ -1,4 +1,6 @@
 import { FastifyInstance } from 'fastify'
+import { LinkService, LinkIndisponivelError } from '../services/linkService.js'
+import { erroInterno } from '../utils/erroInterno.js'
 import {
   createSharedLink,
   getPreviewByToken,
@@ -37,6 +39,20 @@ export async function linksRoutes(fastify: FastifyInstance) {
 
   // Só o destino, sem contar acesso: é o que `/l/<token>` precisa para
   // redirecionar. Mesmo teto do preview — é a mesma superfície pública.
+  fastify.get('/preview/:token/versoes', {
+    config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+  }, async (request, reply) => {
+    try {
+      const { token } = request.params as { token: string }
+      return reply.send({ data: await new LinkService().listarVersoesPorToken(token), success: true })
+    } catch (error) {
+      if (error instanceof LinkIndisponivelError) {
+        return reply.status(410).send({ message: error.message, motivo: error.motivo, success: false })
+      }
+      return erroInterno(request, reply, error, 'Não foi possível carregar as versões')
+    }
+  })
+
   fastify.get('/preview/:token/destino', {
     config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
   }, getDestinoByToken)

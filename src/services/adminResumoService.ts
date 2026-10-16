@@ -69,6 +69,7 @@ interface LinhaDoFunil {
 }
 
 export interface ResumoAdmin {
+  plataforma: { contasAtivas: number; designers: number; clientes: number; projetos: number; artes: number; emailsPendentes: number; designersSemProjeto: number; aprovacoesAtrasadas: number }
   periodo: { fuso: string; inicioDoDia: Date; funilDesde: Date; geradoEm: Date }
   hoje: {
     contasNovas: number
@@ -104,6 +105,7 @@ export async function obterResumoAdmin(fuso: string = FUSO_PADRAO): Promise<Resu
     contasNovas, projetosCriados, artesEnviadas, linksGerados, feedbacksCriados,
     aprovacoesSolicitadas, aprovacoesDecididas, saquesPendentes, disputasAbertas,
     funilBruto, travados, saques, disputas, usuariosRecentes,
+    contasAtivas, designers, clientes, projetos, artes, emailsPendentes, designersSemProjeto, aprovacoesAtrasadas,
   ] = await Promise.all([
     prisma.usuario.count({ where: { criadoEm: { gte: desdeHoje } } }),
     prisma.projeto.count({ where: { criadoEm: { gte: desdeHoje } } }),
@@ -177,6 +179,18 @@ export async function obterResumoAdmin(fuso: string = FUSO_PADRAO): Promise<Resu
       take: LIMITE_USUARIOS_RECENTES,
       select: { id: true, nome: true, email: true, tipo: true, emailVerificado: true, criadoEm: true },
     }),
+    prisma.usuario.count({ where: { ativo: true, excluidoEm: null } }),
+    prisma.usuario.count({ where: { tipo: 'DESIGNER', ativo: true, excluidoEm: null } }),
+    prisma.usuario.count({ where: { tipo: 'CLIENTE', ativo: true, excluidoEm: null } }),
+    prisma.projeto.count(),
+    prisma.arte.count(),
+    prisma.usuario.count({ where: { ativo: true, excluidoEm: null, emailVerificado: false } }),
+    prisma.usuario.count({ where: { tipo: 'DESIGNER', ativo: true, excluidoEm: null, projetosDesigner: { none: {} } } }),
+    prisma.$queryRaw<Array<{ total: number }>>`
+      SELECT count(*)::int AS total FROM aprovacoes a JOIN artes ar ON ar.id = a."arteId"
+      WHERE a.status = 'PENDENTE' AND a."deletedAt" IS NULL
+        AND COALESCE(a."versaoNumero", 1) = ar.versao AND a."criadoEm" < ${travadoAntesDe}
+    `,
   ])
 
   const funil = funilBruto[0] ?? { criados: 0, abertos: 0, com_feedback: 0, com_decisao: 0 }
@@ -198,13 +212,14 @@ export async function obterResumoAdmin(fuso: string = FUSO_PADRAO): Promise<Resu
       titulo: d.projeto.nome,
       status: d.status,
       criadoEm: d.criadoEm,
-      href: '/disputas',
+      href: '/admin/disputas',
     })),
   ]
     .sort((a, b) => a.criadoEm.getTime() - b.criadoEm.getTime())
     .slice(0, LIMITE_FILA)
 
   return {
+    plataforma: { contasAtivas, designers, clientes, projetos, artes, emailsPendentes, designersSemProjeto, aprovacoesAtrasadas: aprovacoesAtrasadas?.[0]?.total ?? 0 },
     periodo: { fuso, inicioDoDia: desdeHoje, funilDesde, geradoEm },
     hoje: {
       contasNovas,
