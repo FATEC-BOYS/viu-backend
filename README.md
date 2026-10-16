@@ -400,3 +400,21 @@ MIT License – veja LICENSE para mais detalhes.
 ---
 
 **🚀 VIU Platform – Transformando a comunicação entre designers e clientes**
+
+### Sugestões de ajustes no comentário de voz
+
+Após revisar a transcrição, o cliente pode solicitar sugestões de ajustes. Cada
+item apresenta uma evidência literal do comentário e pode ser editado ou removido.
+A lista só é anexada ao texto por escolha explícita; o envio normal publica o
+comentário revisado com o áudio original. Não são criadas tarefas automaticamente.
+
+Configuração no backend: `OPENAI_API_KEY` e, opcionalmente,
+`OPENAI_AJUSTES_MODEL` (padrão: `gpt-4.1-mini`, com saída estruturada).
+As rotas `/feedbacks/ajustes/rascunho` e
+`/links/:token/feedbacks/ajustes/rascunho` exigem sessão, acesso à arte e versão
+atual, com limite de 10 solicitações/hora por credencial.
+
+Os testes automatizados usam respostas simuladas. A validação literal de evidências
+não garante fidelidade semântica: é preciso avaliar o modelo com comentários reais
+(consentidos ou anonimizados), sobretudo negações e condições, antes de ampliar o uso.
+Falhas da IA preservam o comentário e permitem continuar sem sugestões.
