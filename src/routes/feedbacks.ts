@@ -1,3 +1,4 @@
+import { criarSugestaoAjustes } from '../controllers/ajustesController.js'
 import { criarRascunhoAudio } from '../controllers/audioRascunhoController.js'
 import { FastifyInstance } from 'fastify'
 import {
@@ -20,6 +21,11 @@ import { validateBody } from '../middleware/validationMiddleware.js'
 import { CreateFeedbackRequestSchema } from '../schemas/validation.js'
 
 export async function feedbacksRoutes(fastify: FastifyInstance) {
+  fastify.post('/feedbacks/ajustes/rascunho', {
+    config: { rateLimit: { max: 10, timeWindow: '1 hour', keyGenerator: chaveDoComentario } },
+    preHandler: [authenticate],
+  }, criarSugestaoAjustes)
+
   fastify.post('/feedbacks/audio/rascunho', {
     config: { rateLimit: { max: 10, timeWindow: '1 hour', keyGenerator: chaveDoComentario } },
     preHandler: [authenticate, validateAudioUpload, requireProjectAccess],

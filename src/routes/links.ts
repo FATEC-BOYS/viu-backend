@@ -1,3 +1,4 @@
+import { criarSugestaoAjustes } from '../controllers/ajustesController.js'
 import { criarRascunhoAudio } from '../controllers/audioRascunhoController.js'
 import { FastifyInstance } from 'fastify'
 import { LinkService, LinkIndisponivelError } from '../services/linkService.js'
@@ -20,6 +21,11 @@ import { validateAudioUpload } from '../middleware/fileUploadMiddleware.js'
 import { requireEmailVerificado } from '../middleware/emailVerificadoMiddleware.js'
 
 export async function linksRoutes(fastify: FastifyInstance) {
+  fastify.post('/links/:token/feedbacks/ajustes/rascunho', {
+    config: { rateLimit: { max: 10, timeWindow: '1 hour', keyGenerator: chaveDoComentario } },
+    preHandler: [authenticate],
+  }, criarSugestaoAjustes)
+
   fastify.post('/links/:token/feedbacks/audio/rascunho', {
     config: { rateLimit: { max: 10, timeWindow: '1 hour', keyGenerator: chaveDoComentario } },
     preHandler: [authenticate, validateAudioUpload],
